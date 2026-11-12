@@ -249,3 +249,19 @@ Nothing is done automatically and nothing is matched.
 - **Team invite can no longer create a montør.** Montør invites go through the employee card. The UI says so.
 - **The legacy labour `?? 0` readers and `getEmployeeProductivity` (dead)** are classified, not changed; see section 5.
 - **Not tested in production.** Only read-only analysis has run there.
+
+## 10. Integration onto main after Finance Batch 2 (2026-11-12)
+
+- New review branch `claude-employee-integrity-review` from main `0e00ef43` (Finance Batch 2 in production); the original
+  commit `46fbccb9` was cherry-picked as `9a0bac90`. `claude-employee-integrity` itself was not merged or changed.
+- One conflict, in `scripts/test-harness/ui-e2e.ts`: group lists (montor gets U265, economy keeps U266) and two adjacent
+  test blocks (U266 kept, U265 added). Proven lossless: 229 `want()` ids = main's 228 + U265; the diff against main equals
+  the original commit's diff (+144/−1). Every other file applied cleanly and is byte-identical to the original diff.
+  No Finance Batch 2 file, `economic-mock-preload`, migration or package file differs from main.
+- Unit: employee-setup-integrity 59/59, Finance 1 + review 185/185, Finance 2 + review 56/56, Batch 3, test:profit,
+  00248 unknown cost 156/156, invoice totals, net invoiced, invoice control: all pass. tsc, check:rbac, check:rls-matrix: 0.
+- Staging UI (with `UI_ECONOMIC_MOCK=1`): U265, U263, U266 pass. `montor,economy,pilot-sim` ui-full: 84 pass, U246/U253
+  harness timeouts (15/30-min caps), U254 not reached, one round of U251 failed the 2.5 s duplicate-customer dialog wait
+  (no customer code in this diff). Re-run as separate batches: U251, U246, U253, U254 all pass (21/21 workflows).
+- Production read-only (`scripts/prod-employee-integrity.ts`): unchanged — montør#1 has no employee row, admin#3 has an
+  employee row without hourly/cost rate, 0 logins with >1 active employee row, 0 rows with rate 0. Not corrected.
