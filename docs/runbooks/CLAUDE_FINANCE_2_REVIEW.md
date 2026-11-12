@@ -131,8 +131,61 @@ Each horizon's outflow is floored at 0, so supplier credits are never cash comin
 
 The new review test pins: entry types `financeVoucher`, `systemEntry`, opening, payment and an unknown future type counted; unattributable, both-parties and malformed rows unknown; the cross-year rule; partial and unmatched payments; undated debt; the credit floor; foreign currency; the reader using one filter per year with no `entryType`; and static checks for no POST and no fetch.
 
+## Staging proof (2026-11-12)
+
+The proof ran on `claude-finance-2-review` against the staging database. There was no ELTA e-conomic agreement, no live e-conomic call, no write, and no change to settings.
+
+**How the mock works.** e-conomic and the settings row are mocked **only inside the test server** (`UI_ECONOMIC_MOCK=1`, `scripts/test-harness/economic-mock-preload.mjs`, loaded via `node --import` into `next start`, not the build):
+- Every request to `restapi.e-conomic.com` or to `*.example` is answered locally and logged with method, host, path, query and body flag.
+- The server's own GET of `accounting_integration_settings` returns a fake, non-secret row. A file the test writes between page loads selects the scenario.
+- Staging data is never written.
+
+**What runs for real:** the page, the session, effective permissions, `economicGetWithSettings` (allowlist plus GET), the reader, and the UI.
+
+**One product change came out of the proof.** With undated supplier debt, the forecast cards showed only the generic "saldo, indbetaling eller udbetaling mangler". `projectCash` now appends the reason of the first missing part ("Årsag: …"): undated debt, another currency, a failed read or missing setup. No amount logic changed.
+
+**U266: 41/41 sub-checks**
+
+| Area | Checks |
+|---|---|
+| Real staging state, no e-conomic setup | "Kreditorer" Ukendt or Ikke konfigureret, never 0. **No** e-conomic call. Batch 1 booked balance not 0; actual bank balance Ukendt |
+| Known | Total 550 = `supplierInvoice` 400 + `financeVoucher` 100 + `systemEntry` 50. Customer open item and contra line ignored. All three in the queue. 30-day forecast is a number. Booked balance 10.000,00. The invoice total is still labelled as an invoice total |
+| Empty | Known 0 ("0,00 kr.", "Ingen åbne kreditorrester.") |
+| Read error (503) | Ukendt, never 0, with an alert. 30-day forecast Ukendt with the reason "kunne ikke læses". Invoice total never used |
+| Foreign currency | DKK total Ukendt ("anden valuta"). EUR and DKK listed separately. Forecast Ukendt |
+| Unattributable open item | Ukendt ("komplette") |
+| Full page with a foreign `nextPage` | Ukendt. The foreign URL is **never** requested. At most 20 entries calls (the cap) |
+| Undated debt | Total 400 known. 30- and 90-day forecasts Ukendt with the reason "uden forfaldsdato" |
+| Supplier credit | 30-day outgoing 0,00, not negative |
+| Opening entry across years | Ukendt |
+| HTTP safety (call log) | Only `GET`, no body. Only `restapi.e-conomic.com`. Paths are only the 3 allowlisted patterns. Filter exactly `remainder$ne:0`, pagesize 1000, no `entryType`. No query text inside the path |
+| No writes | No settings write. `accounting_sync_log` count unchanged. Staging `accounting_integration_settings` count unchanged |
+
+**Personas**
+
+Each persona is a real staging user. Revokes are real per-user overrides, removed afterwards. "Calls" are from the mock's log for that page load.
+
+| Persona | Result |
+|---|---|
+| Bogholderi | Page shown; creditor section shown; creditor GET made |
+| Serviceleder | Page shown; no creditor section; **0** e-conomic calls |
+| Montør | No access; **0** calls; no amounts |
+| Admin, `settings.economic` revoked | Page shown; no creditor section; **0** calls |
+| Admin, `incoming_invoices.view` revoked | Page shown; "Kreditorer" Skjult; no `/entries` call (the bank read is still allowed) |
+| Admin, `economy.view` revoked | No access; **0** calls |
+
+**Other runs**
+- U263 (Finance Batch 1 UI, without the mock): **pass**, unchanged behaviour.
+- `claude-finance-2-review-test`: **56/56**, including an explicit assertion for each item in the staging request's checklist.
+
 ## Verdict
 
-**READY_FOR_STAGING** on `claude-finance-2-review`.
+**READY_FOR_PROD_REVIEW** (staging proof green).
 
-Recommended before production: one read-only GET against ELTA's real agreement, once it is configured, to confirm the sign convention and that no unattributable open items exist. The page shows UNKNOWN until then if they do.
+Nothing has been merged or deployed to production.
+
+**Still open, and it needs real ELTA data.** Do this once, read-only, when ELTA's e-conomic is configured:
+- Confirm the sign convention: an unpaid supplier invoice has a negative `remainder`.
+- Confirm there are no unattributable open items.
+
+The documentation does not settle either point. Until then the page shows UNKNOWN wherever it cannot prove completeness.

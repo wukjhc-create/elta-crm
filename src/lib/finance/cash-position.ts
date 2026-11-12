@@ -121,11 +121,14 @@ export function formatQualifiedKr(value: QualifiedAmount): string {
 export function projectCash(opening: QualifiedAmount, incoming: QualifiedAmount, outgoing: QualifiedAmount): QualifiedAmount {
   const source = worstSource([opening.source, incoming.source, outgoing.source])
   if (opening.amount == null || incoming.amount == null || outgoing.amount == null || !usable(opening.source) || !usable(incoming.source) || !usable(outgoing.source)) {
+    // Staging proof 2026-11-12: the reason of the first missing part is shown (e.g. undated supplier debt, another
+    // currency, a failed read), so the page explains WHY the horizon is unknown, not only that it is
+    const missing = [opening, incoming, outgoing].find((part) => part.amount == null || !usable(part.source))
     return {
       // Missing setup on the opening balance does not make a forecast "not configured": the forecast is just unknown
       source: source === 'error' ? 'error' : 'unavailable',
       amount: null,
-      detail: 'Forventet likviditet beregnes ikke, fordi saldo, indbetaling eller udbetaling mangler. Et manglende tal er ikke 0.',
+      detail: `Forventet likviditet beregnes ikke, fordi saldo, indbetaling eller udbetaling mangler. Et manglende tal er ikke 0.${missing?.detail ? ` Årsag: ${missing.detail}` : ''}`,
     }
   }
   return {

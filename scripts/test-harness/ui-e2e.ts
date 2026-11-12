@@ -187,7 +187,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   smoke: ['U114', 'U10', 'U11', 'U15', 'U20', 'U37', 'U52', 'U70'],
   sales: ['U263', 'U262', 'U261', 'U260', 'U259', 'U258', 'U257', 'U256', 'U230', 'U229', 'U228', 'U227', 'U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U255', 'U233', 'U232', 'U231', 'U226', 'U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
-  economy: ['U264', 'U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
+  economy: ['U266', 'U264', 'U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   'pilot-sim': ['U240', 'U241', 'U242', 'U243', 'U244', 'U245', 'U246', 'U247', 'U248', 'U249', 'U250', 'U251', 'U252', 'U253', 'U254'],
   'portal-mail': ['U215', 'U211', 'U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
@@ -337,6 +337,9 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
   env.CRON_SECRET = `harness-local-${(await import('crypto')).randomBytes(24).toString('hex')}`
 
   let server: ChildProcess | null = null
+  // TEST-ONLY e-conomic-mock (UI_ECONOMIC_MOCK=1): opkaldslog og scenariefil for serveren
+  let economicMockLog = ''
+  let economicMockScenario = ''
   const serverLog: string[] = []
   const shots = join(tmpdir(), 'elta-ui-e2e')
   mkdirSync(shots, { recursive: true })
@@ -500,7 +503,19 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
       }
       console.log(`[ui-e2e] build færdig på ${Math.round((Date.now() - t0) / 1000)} s`)
     }
-    const serverEnv = mode === 'start' ? { ...env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --max-old-space-size=1536`.trim() } : env
+    const serverEnv: Record<string, string> = mode === 'start' ? { ...env, NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --max-old-space-size=1536`.trim() } : { ...env }
+    // TEST-ONLY (Finance Batch 2 staging proof): e-conomic- og indstillingsmock i SERVEREN (ikke buildet). Intet forlader
+    // maskinen, ingen staging-data skrives. Se scripts/test-harness/economic-mock-preload.mjs.
+    if (process.env.UI_ECONOMIC_MOCK === '1') {
+      const { pathToFileURL } = await import('url')
+      economicMockLog = join(shots, `economic-mock-${Date.now()}.log`)
+      economicMockScenario = join(shots, `economic-mock-scenario-${Date.now()}.txt`)
+      writeFileSync(economicMockLog, '')
+      writeFileSync(economicMockScenario, '')
+      serverEnv.UI_ECONOMIC_MOCK_LOG = economicMockLog
+      serverEnv.UI_ECONOMIC_MOCK_SCENARIO = economicMockScenario
+      serverEnv.NODE_OPTIONS = `${serverEnv.NODE_OPTIONS ?? ''} --import ${pathToFileURL(join(process.cwd(), 'scripts', 'test-harness', 'economic-mock-preload.mjs')).href}`.trim()
+    }
     server = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['next', mode, '-p', String(port)], { cwd: process.cwd(), env: serverEnv, shell: process.platform === 'win32' })
     server.stdout?.on('data', (d) => serverLog.push(String(d)))
     server.stderr?.on('data', (d) => serverLog.push(String(d)))
@@ -6004,6 +6019,168 @@ ${m.text()}`) })
           if (empId) await c.admin.from('employees').delete().eq('id', empId)
         }
         out.push({ id: 'U264 00248 ukendt materialekost: NULL, aldrig 0; montør uden kost; faktura og lukning upåvirket', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + ` |${diag}` })
+      }
+
+      // U266 FINANS BATCH 2 (staging-bevis): kreditorrester på Likviditet ende-til-ende med RIGTIG side, session, effektive
+      // rettigheder, e-conomic-klient og læser. e-conomic og indstillingsrækken mockes KUN i testserveren
+      // (UI_ECONOMIC_MOCK=1, scripts/test-harness/economic-mock-preload.mjs): intet forlader maskinen, ingen staging-data
+      // skrives. Opkaldsloggen beviser GET-only, allowlist, ingen nextPage, og hvilke personaer der udløser en læsning.
+      if (want('U266')) {
+        const r: Record<string, boolean> = {}
+        let diag = ''
+        const overrideIds: string[] = []
+        if (!economicMockLog || !economicMockScenario) {
+          r.mock_aktiv = false
+          diag = ' kør med UI_ECONOMIC_MOCK=1'
+        } else {
+          const setScenario = (name: string) => writeFileSync(economicMockScenario, name)
+          const clearLog = () => writeFileSync(economicMockLog, '')
+          type MockCall = { kind: string; scenario: string; method: string; host?: string; path: string; query?: Record<string, string>; body?: boolean }
+          const readLog = (): MockCall[] => readFileSync(economicMockLog, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l) as MockCall)
+          const eco = (calls: MockCall[]) => calls.filter((x) => x.kind === 'economic')
+          const ALLOWED = [/^\/accounting-years$/, /^\/accounting-years\/[0-9]{4}\/entries$/, /^\/accounts\/[0-9]{1,18}$/]
+          const card = async (page: import('playwright').Page, title: string) => (await page.locator(`section:has(> h2:text-is("${title}"))`).first().innerText().catch(() => ''))
+          const ZERO = /(^|\s)0,00(\s|&nbsp;| )*kr/
+          const syncBefore = (await c.admin.from('accounting_sync_log').select('id', { count: 'exact', head: true })).count
+          const settingsBefore = (await c.admin.from('accounting_integration_settings').select('id', { count: 'exact', head: true })).count
+          try {
+            const a = await login(adminUser)
+            const load = async (page: import('playwright').Page) => {
+              await gotoSafe(page, `${base}/dashboard/finance`, { waitUntil: 'networkidle', timeout: 180_000 })
+              await page.getByRole('heading', { name: 'Likviditet', exact: true }).waitFor({ timeout: 60_000 }).catch(() => {})
+            }
+            try {
+              // ---- 0. intet scenarie = rigtig staging-tilstand (ingen e-conomic-opsætning) ----
+              setScenario(''); clearLog()
+              await load(a.page)
+              const credit0 = await card(a.page, 'Kreditorer')
+              r.ikke_konfigureret_ukendt = /Ukendt|Ikke konfigureret/.test(credit0) && !ZERO.test(credit0)
+              r.ikke_konfigureret_ingen_kald = eco(readLog()).length === 0
+              r.batch1_bogfoert_ikke_nul = !ZERO.test(await card(a.page, 'Bogført saldo (regnskab)'))
+              r.batch1_faktisk_bank_ukendt = (await card(a.page, 'Faktisk banksaldo')).includes('Ukendt')
+
+              // ---- 1. kendt: leverandørrester af typerne supplierInvoice + financeVoucher + systemEntry ----
+              setScenario('known'); clearLog()
+              await load(a.page)
+              const known = await card(a.page, 'Kreditorer')
+              r.kendt_sum_550 = known.includes('550,00')
+              r.kendt_kilde_aabne_poster = /e-conomic/i.test(known)
+              const body1 = await a.page.locator('body').innerText()
+              r.kendt_alle_typer_i_koen = body1.includes('MOCK-1') && body1.includes('Post 2') && body1.includes('Post 3')
+              r.kendt_kunde_post_ikke_med = !body1.includes('12.345') && !body1.includes('Post 900')
+              r.kendt_forventet_tal = !/Ukendt/.test(await card(a.page, 'Forventet likviditet +30 dage'))
+              r.batch1_bogfoert_10000 = (await card(a.page, 'Bogført saldo (regnskab)')).includes('10.000,00')
+              r.fakturatotal_stadig_maerket = body1.includes('Tallet er fakturabeløbet, ikke en kendt rest') && body1.includes('Leverandørfakturabeløb') && body1.includes('Fakturatotalen længere nede er et andet tal')
+              const calls1 = eco(readLog())
+              r.http_kun_get = calls1.length > 0 && calls1.every((x) => x.method === 'GET' && !x.body)
+              r.http_kun_godkendt_vaert_og_sti = calls1.every((x) => x.host === 'restapi.e-conomic.com' && ALLOWED.some((re) => re.test(x.path)))
+              r.http_intet_entrytype_filter = calls1.filter((x) => x.path.endsWith('/entries')).every((x) => x.query?.filter === 'remainder$ne:0' && x.query?.pagesize === '1000')
+              r.http_query_ikke_i_sti = calls1.every((x) => !x.path.includes('$') && !x.path.includes('?'))
+
+              // ---- 2. tom = kendt 0 ----
+              setScenario('empty'); clearLog()
+              await load(a.page)
+              const empty = await card(a.page, 'Kreditorer')
+              r.tom_er_kendt_nul = ZERO.test(empty) && (await a.page.getByText('Ingen åbne kreditorrester.').count()) === 1
+
+              // ---- 3. læsefejl ----
+              setScenario('error'); clearLog()
+              await load(a.page)
+              const err = await card(a.page, 'Kreditorer')
+              const body3 = await a.page.locator('body').innerText()
+              r.fejl_ukendt_aldrig_nul = err.includes('Ukendt') && !ZERO.test(err)
+              r.fejl_advarsel = body3.includes('Kreditorresterne kunne ikke læses')
+              r.fejl_forventet_ukendt_med_aarsag = (await card(a.page, 'Forventet likviditet +30 dage')).includes('Ukendt') && /kunne ikke læses/.test(await card(a.page, 'Forventet likviditet +30 dage'))
+              r.fejl_ingen_fakturatotal_som_gaeld = !/999/.test(err)
+
+              // ---- 4. anden valuta ----
+              setScenario('foreign'); clearLog()
+              await load(a.page)
+              const fx = await card(a.page, 'Kreditorer')
+              const body4 = await a.page.locator('body').innerText()
+              r.valuta_ukendt_i_dkk = fx.includes('Ukendt') && /anden valuta/.test(fx)
+              r.valuta_vist_for_sig = /EUR: rest/.test(body4) && /DKK: rest/.test(body4)
+              r.valuta_forventet_ukendt = (await card(a.page, 'Forventet likviditet +30 dage')).includes('Ukendt')
+
+              // ---- 5. ufuldstændig: ikke-tilskrivelig post og fuld side med fremmed nextPage ----
+              setScenario('unattributable'); clearLog()
+              await load(a.page)
+              const un = await card(a.page, 'Kreditorer')
+              r.ufuldstaendig_ukendt = un.includes('Ukendt') && /komplette/.test(un) && !ZERO.test(un)
+              setScenario('incomplete'); clearLog()
+              await load(a.page)
+              const inc = await card(a.page, 'Kreditorer')
+              const calls5 = eco(readLog())
+              r.side_ufuldstaendig_ukendt = inc.includes('Ukendt') && !ZERO.test(inc)
+              r.next_page_ikke_fulgt = calls5.every((x) => x.host === 'restapi.e-conomic.com') && !calls5.some((x) => x.host?.endsWith('.example'))
+              r.side_cap_overholdt = calls5.filter((x) => x.path.endsWith('/entries')).length <= 20
+
+              // ---- 6. udateret gæld ----
+              setScenario('undated'); clearLog()
+              await load(a.page)
+              const ud = await card(a.page, 'Kreditorer')
+              const f30 = await card(a.page, 'Forventet likviditet +30 dage')
+              r.udateret_total_kendt = ud.includes('400,00')
+              r.udateret_forventet_ukendt_med_aarsag = f30.includes('Ukendt') && /uden forfaldsdato/.test(f30)
+              r.udateret_90_ukendt = (await card(a.page, 'Forventet likviditet +90 dage')).includes('Ukendt')
+
+              // ---- 7. kredit bliver ikke indbetaling ----
+              setScenario('credit'); clearLog()
+              await load(a.page)
+              const out30 = await a.page.locator('section:has(> h3:text-is("+30 dage"))').first().innerText().catch(() => '')
+              r.kredit_udbetaling_0_ikke_negativ = /Forventet udbetaling\s*0,00/.test(out30) && !/Forventet udbetaling\s*-/.test(out30)
+
+              // ---- 8. mulig dobbelttælling på tværs af år ----
+              setScenario('crossyear'); clearLog()
+              await load(a.page)
+              r.tvaers_af_aar_ukendt = (await card(a.page, 'Kreditorer')).includes('Ukendt')
+            } finally { await a.ctx.close().catch(() => {}) }
+
+            // ---- personaer (scenarie known; logget pr. sidevisning) ----
+            setScenario('known')
+            const personaRun = async (role: string, revoke: string[] = []) => {
+              const u = await mkUser(role)
+              for (const permission of revoke) {
+                const ins = await c.admin.from('user_permission_overrides').insert({ profile_id: u.id, permission, effect: 'revoke', source: 'manual', reason: 'U266' })
+                if (ins.error) diag += ` override:${ins.error.message}`
+              }
+              if (revoke.length) overrideIds.push(u.id)
+              const s = await login(u)
+              try {
+                clearLog()
+                await load(s.page)
+                const body = await s.page.locator('body').innerText()
+                const heading = (await s.page.getByRole('heading', { name: 'Likviditet', exact: true }).count()) === 1
+                return { calls: eco(readLog()), body, page: heading && !/Du har ikke adgang|Manglende tilladelse/i.test(body), creditorSection: body.includes('Åbne kreditorposter i e-conomic'), credit: await card(s.page, 'Kreditorer') }
+              } finally { await s.ctx.close().catch(() => {}) }
+            }
+            const bog = await personaRun('bogholderi')
+            r.bogholderi_side_og_laesning = bog.page && bog.creditorSection && bog.calls.some((x) => x.path.endsWith('/entries'))
+            const sl = await personaRun('serviceleder')
+            r.serviceleder_side_uden_eco_get = sl.page && !sl.creditorSection && sl.calls.length === 0
+            const mo = await personaRun('montør')
+            r.montor_ingen_adgang_ingen_get = !mo.page && mo.calls.length === 0 && !mo.body.includes('550,00')
+            const noEco = await personaRun('admin', ['settings.economic'])
+            r.revoke_settings_economic_ingen_get = noEco.page && !noEco.creditorSection && noEco.calls.length === 0
+            const noInv = await personaRun('admin', ['incoming_invoices.view'])
+            r.revoke_incoming_invoices_ingen_kreditor_get = noInv.page && !noInv.creditorSection && !noInv.calls.some((x) => x.path.endsWith('/entries')) && noInv.credit.includes('Skjult')
+            const noView = await personaRun('admin', ['economy.view'])
+            r.revoke_economy_view_ingen_adgang = !noView.page && noView.calls.length === 0
+
+            // ---- ingen skrivning nogen steder ----
+            const all = readLog()
+            r.ingen_indstillingsskrivning = all.filter((x) => x.kind === 'settings').every((x) => x.method === 'GET' || x.method === 'HEAD')
+            r.ingen_sync_log_skrivning = (await c.admin.from('accounting_sync_log').select('id', { count: 'exact', head: true })).count === syncBefore
+            r.ingen_staging_indstilling_skrevet = (await c.admin.from('accounting_integration_settings').select('id', { count: 'exact', head: true })).count === settingsBefore
+          } catch (e) {
+            diag += ` ${e instanceof Error ? e.message : String(e)}`
+            r.intet_kast = false
+          } finally {
+            setScenario('')
+            if (overrideIds.length) await c.admin.from('user_permission_overrides').delete().in('profile_id', overrideIds).eq('reason', 'U266')
+          }
+        }
+        out.push({ id: 'U266 finans batch 2: kreditorrest ende-til-ende (mock), ukendt aldrig 0, personaer og per-bruger-revoke, kun GET', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + ` |${diag}` })
       }
 
       // U263 FINANS BATCH 1 (Claude-review): Likviditet viser bogført saldo som regnskabstal, Ikke konfigureret/Ukendt er aldrig 0,

@@ -123,6 +123,56 @@ async function main() {
       t('reader: an unattributable open item makes the whole read unknown', (await readOpenSupplierRemainders(ready, today)).state === 'unknown')
     }
 
+    // ---------- 7. Staging-proof checklist (section 3 of the staging request), one assertion per item ----------
+    {
+      const U = (r: { state: string }) => r.state === 'unknown'
+      t('P: incomplete pagination → unknown', U(aggregateCreditorRemainders({ complete: false, today, rows: [{ year: '2026', row: row() }] })))
+      t('P: malformed accounting year → unknown', U(aggregateCreditorRemainders({ complete: true, today, rows: [{ year: '2025/2026', row: row() }] })) && U(aggregateCreditorRemainders({ complete: true, today, rows: [{ year: '26', row: row() }] })))
+      t('P: duplicate entry → unknown', U(agg([{ row: row() }, { row: row() }])))
+      t('P: supplier + customer on the same open entry → unknown', U(agg([{ row: row({ customer: { customerNumber: 4 } }) }])))
+      t('P: non-zero remainder with neither supplier nor customer → unknown', U(agg([{ row: row({ supplier: null, entryType: 'systemEntry' }) }])))
+      t('P: supplier on each customer-only type → unknown', ['customerInvoice', 'customerPayment', 'reminder', 'manualDebtorInvoice'].every((entryType) => U(agg([{ row: row({ entryType }) }]))))
+      t('P: malformed supplier → unknown', U(agg([{ row: row({ supplier: { supplierNumber: -7 } }) }])) && U(agg([{ row: row({ supplier: { supplierNumber: 7.5 } }) }])))
+      t('P: malformed remainder → unknown', U(agg([{ row: row({ remainder: '-400' }) }])) && U(agg([{ row: row({ remainder: Number.NaN }) }])))
+      t('P: malformed currency → unknown', U(agg([{ row: row({ currency: 'dkk' }) }])) && U(agg([{ row: row({ currency: null }) }])))
+      t('P: malformed due date → unknown', U(agg([{ row: row({ dueDate: '2026/11/20' }) }])) && U(agg([{ row: row({ dueDate: 20261120 }) }])))
+      t('P: opening entry + earlier-year open item, same supplier → unknown', U(agg([{ year: '2025', row: row() }, { year: '2026', row: row({ entryNumber: 2, entryType: 'openingEntry' }) }])))
+      {
+        const f = agg([{ row: row({ currency: 'EUR' }) }])
+        const fc = cash(f)
+        t('P: foreign currency → no DKK total and projected unknown, currency listed separately', f.state === 'known' && !f.dkkOnly && f.dkkToPay === null && fc.openPayables.amount === null && fc.forecast30.projectedCash.amount === null && fc.creditorCurrencies.some((c) => c.currency === 'EUR'))
+        t('P: projected cash says why (another currency)', /anden valuta/.test(fc.forecast30.projectedCash.detail ?? ''))
+      }
+      {
+        const u = cash(agg([{ row: row({ dueDate: null }) }]))
+        t('P: undated net DKK debt → 30/60/90 unknown', u.forecast30.projectedCash.amount === null && u.forecast60.projectedCash.amount === null && u.forecast90.projectedCash.amount === null)
+        t('P: projected cash says why (no due date)', /uden forfaldsdato/.test(u.forecast30.projectedCash.detail ?? ''), u.forecast30.projectedCash.detail ?? '')
+      }
+      {
+        const empty = agg([])
+        const ec = cash(empty)
+        t('P: complete empty creditor set = known 0', empty.state === 'known' && empty.dkkToPay === 0 && ec.openPayables.amount === 0 && ec.openPayables.source === 'economic_open_items')
+      }
+      {
+        const failed = buildCashPosition({ today, calculatedAt: '2026-11-04T08:00:00.000Z', receivablesLoaded: true, payablesLoaded: true, invoices: [], payables: [{ id: 'p1', status: 'approved', currency: 'DKK', amountInclVat: 999, dueDate: '2026-11-10', supplierName: 'X', invoiceNumber: 'F1', supplierId: null, duplicateOfId: null } as never], bank: bank(), creditors: { state: 'error' } })
+        t('P: HTTP/read failure ≠ 0 (Ukendt, alert)', failed.openPayables.amount === null && formatQualifiedKr(failed.openPayables) === 'Ukendt' && failed.alerts.some((a) => a.code === 'creditor_read_failed'))
+        t('P: invoice-total fallback never substituted for a failed remainder', failed.openPayables.amount === null && failed.forecast30.expectedOutgoing.amount === null && failed.forecast30.projectedCash.amount === null)
+        t('P: projected cash says why (read failed)', /kunne ikke læses/.test(failed.forecast30.projectedCash.detail ?? ''))
+      }
+      {
+        const cr = agg([{ row: row({ remainder: -100, dueDate: '2026-11-10' }) }, { row: row({ entryNumber: 2, remainder: 500, dueDate: '2026-11-12' }) }])
+        const cc = cash(cr)
+        t('P: supplier credits cannot turn forecast outgoing negative', cr.state === 'known' && cr.horizon30ToPay === 0 && cr.horizon90ToPay === 0 && cc.forecast30.expectedOutgoing.amount === 0)
+        t('P: credit balance is never incoming cash (projected = bank + incoming, not more)', cc.forecast30.projectedCash.amount === 1000)
+      }
+      {
+        const p = agg([{ row: row({ amount: -1000, remainder: -400 }) }])
+        t('P: partial payment uses remainder, never invoice amount', p.state === 'known' && p.dkkToPay === 400)
+        const pay = agg([{ row: row({ entryType: 'supplierPayment', remainder: 150, dueDate: null, supplierInvoiceNumber: null }) }])
+        t('P: unmatched supplier payment keeps its sign', pay.state === 'known' && pay.dkkToPay === -150 && pay.currencies[0]?.remainder === 150)
+      }
+    }
+
     // ---------- 6. Static: the entryType allowlist is gone, the client is unchanged ----------
     const reader = readFileSync('src/lib/economic/read.ts', 'utf8')
     t('static: reader does not filter on entryType', !/entryType\$eq/.test(reader) && /OPEN_ITEM_FILTER/.test(reader))
