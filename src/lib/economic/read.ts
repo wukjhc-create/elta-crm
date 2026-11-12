@@ -5,12 +5,12 @@
  */
 import { economicGetWithSettings, type ReadyEconomicSettings } from '@/lib/services/economic-client'
 import { parseCollection, parseLedgerAccount } from '@/lib/economic/read-model'
-import { aggregateCreditorRemainders, CREDITOR_ENTRY_TYPES, type CreditorRead } from '@/lib/economic/supplier-remainder'
+import { aggregateCreditorRemainders, OPEN_ITEM_FILTER, type CreditorRead } from '@/lib/economic/supplier-remainder'
 
 const PAGE = 100
 /** Documented collection maximum. A full page is not treated as the end of the set. */
 export const CREDITOR_ENTRY_PAGE = 1000
-/** Pages walked per entry type per year. Hitting the cap before the set ends is unknown, not a partial sum. */
+/** Pages walked per year (open items of every type). Hitting the cap before the set ends is unknown, not a partial sum. */
 export const CREDITOR_MAX_PAGES = 20
 const MAX_YEAR_PAGES = 5
 
@@ -113,18 +113,18 @@ export async function readOpenSupplierRemainders(settings: ReadyEconomicSettings
       yearNames.push(year)
     }
     const wrapped: Array<{ year: string; row: unknown }> = []
+    // Claude review: no entryType filter. Every open item of every type is read and attributed per row by its own
+    // supplier/customer reference, so a supplier remainder posted as financeVoucher, systemEntry and so on is never skipped.
     for (const year of yearNames) {
-      for (const entryType of CREDITOR_ENTRY_TYPES) {
-        const batch = await readPages(
-          settings,
-          `/accounting-years/${year}/entries`,
-          CREDITOR_ENTRY_PAGE,
-          CREDITOR_MAX_PAGES,
-          `entryType$eq:${entryType}$and:remainder$ne:0`,
-        )
-        if (batch.state !== 'rows') return { state: batch.state }
-        for (const row of batch.rows) wrapped.push({ year, row })
-      }
+      const batch = await readPages(
+        settings,
+        `/accounting-years/${year}/entries`,
+        CREDITOR_ENTRY_PAGE,
+        CREDITOR_MAX_PAGES,
+        OPEN_ITEM_FILTER,
+      )
+      if (batch.state !== 'rows') return { state: batch.state }
+      for (const row of batch.rows) wrapped.push({ year, row })
     }
     return aggregateCreditorRemainders({ complete: true, today, rows: wrapped })
   } catch {

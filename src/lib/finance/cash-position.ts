@@ -206,7 +206,8 @@ function sumInflows(position: FinancePosition, ids: ForecastId[], loaded: boolea
 const PAYABLE_GAP = 'CRM gemmer ikke restbeløb på leverandørfakturaer, og e-conomic-kreditorposter læses ikke. Fakturatotalen bruges ikke som gæld og ikke som 0.'
 const CREDITOR_FAILED = 'Kreditorresterne kunne ikke læses i e-conomic. Gælden er ikke 0, og fakturatotalen bruges ikke i stedet.'
 const CREDITOR_UNKNOWN = 'Kreditorresterne kunne ikke bekræftes som komplette. Summen er ukendt, og fakturatotalen bruges ikke i stedet.'
-const CREDITOR_FOREIGN = 'Der er åbne kreditorrester i anden valuta. De omregnes ikke til kroner, så den danske sum og likviditeten er ukendt.'
+const CREDITOR_UNDATED = 'Der er åben kreditorgæld i DKK uden forfaldsdato. Den kan ikke placeres i 30, 60 eller 90 dage, så udgifterne og likviditeten for perioden er ukendt. Den samlede gæld er vist.'
+const CREDITOR_FOREIGN ='Der er åbne kreditorrester i anden valuta. De omregnes ikke til kroner, så den danske sum og likviditeten er ukendt.'
 
 function payableGap(visible: boolean, loaded: boolean): QualifiedAmount {
   if (!visible) return HIDDEN
@@ -228,7 +229,9 @@ function qualifyCreditors(
   if (creditors.state === 'unknown') return { source: 'unavailable', amount: null, detail: CREDITOR_UNKNOWN }
   if (!creditors.dkkOnly) return { source: 'unavailable', amount: null, detail: CREDITOR_FOREIGN }
   const amount = pick(creditors)
-  if (amount == null || !Number.isFinite(amount)) return { source: 'unavailable', amount: null, detail: CREDITOR_UNKNOWN }
+  if (amount == null || !Number.isFinite(amount)) {
+    return { source: 'unavailable', amount: null, detail: creditors.horizonBlocked === 'undated_owed' ? CREDITOR_UNDATED : CREDITOR_UNKNOWN }
+  }
   return { source: 'economic_open_items', amount, detail }
 }
 

@@ -3,17 +3,29 @@
  * The amount used is `remainder` in the entry currency. `amount` is the original
  * total and `remainderInBaseCurrency` is a conversion, so neither is a remainder.
  * A missing figure makes the whole read unknown. It is not skipped as 0.
+ *
+ * Completeness (Claude review 2026-11-12): the official entryType enum has ten values
+ * (restapi.e-conomic.com/schema/accounting-years.accountingYear.entries.get.schema.json), and nothing in the
+ * documentation ties a supplier remainder to a particular type. The reader therefore does NOT filter on entryType:
+ * it reads every entry with a non-zero remainder and attributes it only by the entry's own `supplier` / `customer`
+ * reference. A non-zero remainder that names neither (or both) cannot be attributed, so the whole read is unknown,
+ * and an open supplier item can never be dropped silently because of its type.
  */
 import { forecastBucket, type ForecastId } from '@/lib/finance/position'
 import { roundMoney } from '@/lib/utils/money-round'
 
-export const CREDITOR_ENTRY_TYPES = ['supplierInvoice', 'supplierPayment', 'openingEntry', 'transferredOpeningEntry'] as const
-export type CreditorEntryType = (typeof CREDITOR_ENTRY_TYPES)[number]
+/** Filter for every open item of every entry type. Attribution happens per row, never by type. */
+export const OPEN_ITEM_FILTER = 'remainder$ne:0'
+/** Types that carry a balance into a year. Together with open items in an earlier year they may be the same debt twice. */
+const OPENING_TYPES = new Set(['openingEntry', 'transferredOpeningEntry'])
+/** Documented customer-side types. One of these with a supplier reference cannot be attributed safely. */
+const CUSTOMER_TYPES = new Set(['customerInvoice', 'customerPayment', 'reminder', 'manualDebtorInvoice'])
 
 export interface CreditorEntry {
   entryNumber: number
   year: string
-  entryType: CreditorEntryType
+  /** Any documented or future entry type. Not used to decide what is a supplier remainder. */
+  entryType: string
   supplierNumber: number
   supplierInvoiceNumber: string | null
   currency: string
@@ -24,8 +36,6 @@ export interface CreditorEntry {
 
 export type ClassifiedRow = { kind: 'item'; item: Omit<CreditorEntry, 'year'> } | { kind: 'ignore' } | { kind: 'unreadable' }
 
-const ENTRY_TYPES = new Set<string>(CREDITOR_ENTRY_TYPES)
-
 function isIsoCurrency(value: unknown): value is string {
   return typeof value === 'string' && /^[A-Z]{3}$/.test(value)
 }
@@ -34,9 +44,14 @@ function isDate(value: unknown): value is string {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
 }
 
+function positiveNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+}
+
 /**
- * One booked entry. A contra line has no supplier and no remainder, so it is ignored.
- * Money without a supplier, or a supplier without a numeric remainder, cannot be summed.
+ * One booked entry, of any type. A contra line has no party and no remainder, so it is ignored.
+ * A customer open item is a receivable and ignored here. A supplier without a numeric remainder, or a non-zero
+ * remainder that names no party (or both), cannot be attributed: the whole read becomes unknown.
  */
 export function classifyCreditorRow(row: unknown): ClassifiedRow {
   if (!row || typeof row !== 'object') return { kind: 'unreadable' }
@@ -48,14 +63,26 @@ export function classifyCreditorRow(row: unknown): ClassifiedRow {
     remainder?: unknown
     supplierInvoiceNumber?: unknown
     supplier?: { supplierNumber?: unknown } | null
+    customer?: { customerNumber?: unknown } | null
   }
-  if (typeof record.entryType !== 'string' || !ENTRY_TYPES.has(record.entryType)) return { kind: 'ignore' }
   const supplierNumber = record.supplier?.supplierNumber
-  const hasSupplier = typeof supplierNumber === 'number' && Number.isSafeInteger(supplierNumber) && supplierNumber > 0
+  const hasSupplier = positiveNumber(supplierNumber)
+  const hasCustomer = positiveNumber(record.customer?.customerNumber)
+  // A supplier object without a usable number is not an attribution; it is unreadable
+  if (record.supplier != null && !hasSupplier) return { kind: 'unreadable' }
   const remainder = typeof record.remainder === 'number' && Number.isFinite(record.remainder) ? record.remainder : null
-  if (!hasSupplier && remainder == null) return { kind: 'ignore' }
-  if (!hasSupplier || remainder == null) return { kind: 'unreadable' }
+  if (remainder == null) {
+    // Matched and contra lines come back with remainder null. A non-numeric value, or a supplier line without a
+    // remainder, is unreadable.
+    if (record.remainder != null) return { kind: 'unreadable' }
+    return hasSupplier ? { kind: 'unreadable' } : { kind: 'ignore' }
+  }
   if (remainder === 0) return { kind: 'ignore' }
+  if (hasSupplier && hasCustomer) return { kind: 'unreadable' }
+  if (!hasSupplier) return hasCustomer ? { kind: 'ignore' } : { kind: 'unreadable' }
+  if (typeof record.entryType !== 'string' || !record.entryType) return { kind: 'unreadable' }
+  // A customer-side type that names a supplier is contradictory: neither counting nor skipping it is provably right
+  if (CUSTOMER_TYPES.has(record.entryType)) return { kind: 'unreadable' }
   if (!isIsoCurrency(record.currency)) return { kind: 'unreadable' }
   if (record.dueDate != null && !isDate(record.dueDate)) return { kind: 'unreadable' }
   if (typeof record.entryNumber !== 'number' || !Number.isSafeInteger(record.entryNumber) || record.entryNumber <= 0) return { kind: 'unreadable' }
@@ -66,7 +93,7 @@ export function classifyCreditorRow(row: unknown): ClassifiedRow {
     kind: 'item',
     item: {
       entryNumber: record.entryNumber,
-      entryType: record.entryType as CreditorEntryType,
+      entryType: record.entryType,
       supplierNumber,
       supplierInvoiceNumber: invoiceNumber,
       currency: record.currency,
@@ -93,6 +120,11 @@ export interface CreditorHorizons {
 
 export interface KnownCreditors {
   state: 'known'
+  /**
+   * Why the 30/60/90 to-pay figures are null although the total is known: DKK still owed with no due date cannot be
+   * placed in a horizon, so leaving it out would overstate projected cash.
+   */
+  horizonBlocked: 'undated_owed' | null
   /** True when every open remainder is DKK. A foreign remainder is not converted. */
   dkkOnly: boolean
   /**
@@ -124,6 +156,8 @@ export function aggregateCreditorRemainders(input: {
   if (!input.complete) return { state: 'unknown' }
   const items: CreditorEntry[] = []
   const seen = new Set<string>()
+  const supplierYears = new Map<number, string[]>()
+  const openingYears = new Map<number, string[]>()
   for (const wrapped of input.rows) {
     if (!/^[0-9]{4}$/.test(wrapped.year)) return { state: 'unknown' }
     const classified = classifyCreditorRow(wrapped.row)
@@ -133,6 +167,16 @@ export function aggregateCreditorRemainders(input: {
     if (seen.has(key)) return { state: 'unknown' }
     seen.add(key)
     items.push({ ...classified.item, year: wrapped.year })
+    const sn = classified.item.supplierNumber
+    supplierYears.set(sn, [...(supplierYears.get(sn) ?? []), wrapped.year])
+    if (OPENING_TYPES.has(classified.item.entryType)) openingYears.set(sn, [...(openingYears.get(sn) ?? []), wrapped.year])
+  }
+  // The documentation does not say whether an entry in an earlier year keeps its remainder after its balance has been
+  // carried into a later year. An opening balance for a supplier next to that supplier's open items in an earlier year
+  // may therefore be the same debt twice. That cannot be resolved from the entries, so the sum is unknown.
+  for (const [sn, opening] of openingYears) {
+    const firstOpening = opening.reduce((min, y) => (y < min ? y : min))
+    if ((supplierYears.get(sn) ?? []).some((y) => y < firstOpening)) return { state: 'unknown' }
   }
   const byCurrency = new Map<string, number>()
   const dkkWindows: Record<ForecastId, number> = { overdue: 0, d30: 0, d60: 0, d90: 0, later: 0, undated: 0 }
@@ -149,15 +193,20 @@ export function aggregateCreditorRemainders(input: {
   const currencies = Array.from(byCurrency, ([currency, remainder]) => ({ currency, remainder }))
     .sort((a, b) => a.currency.localeCompare(b.currency))
   const toPay = (remainder: number) => roundMoney(-remainder)
-  const through = (ids: ForecastId[]) => toPay(ids.reduce((sum, id) => roundMoney(sum + dkkWindows[id]), 0))
+  // Outflow in a horizon is never negative: a supplier credit or an unmatched payment offsets later invoices, it is
+  // not money coming in. Floored at 0 so projected cash cannot rise because of a credit.
+  const through = (ids: ForecastId[]) => Math.max(0, toPay(ids.reduce((sum, id) => roundMoney(sum + dkkWindows[id]), 0)))
+  const undatedOwed = !foreign && dkkWindows.undated < 0
+  const horizon = (ids: ForecastId[]) => (foreign || undatedOwed ? null : through(ids))
   return {
     state: 'known',
+    horizonBlocked: undatedOwed ? 'undated_owed' : null,
     dkkOnly: !foreign,
     dkkToPay: foreign ? null : toPay(Array.from(byCurrency.values()).reduce((sum, value) => roundMoney(sum + value), 0)),
     overdueToPay: foreign ? null : toPay(dkkWindows.overdue),
-    horizon30ToPay: foreign ? null : through(['overdue', 'd30']),
-    horizon60ToPay: foreign ? null : through(['overdue', 'd30', 'd60']),
-    horizon90ToPay: foreign ? null : through(['overdue', 'd30', 'd60', 'd90']),
+    horizon30ToPay: horizon(['overdue', 'd30']),
+    horizon60ToPay: horizon(['overdue', 'd30', 'd60']),
+    horizon90ToPay: horizon(['overdue', 'd30', 'd60', 'd90']),
     unscheduledToPay: foreign ? null : toPay(dkkWindows.undated),
     currencies,
     items,

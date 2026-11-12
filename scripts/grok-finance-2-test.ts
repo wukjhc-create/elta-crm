@@ -189,12 +189,16 @@ async function main() {
     const contra = knownFrom([
       row(),
       row({ entryNumber: 2, supplier: null, remainder: null, amount: 5000, entryType: 'supplierInvoice' }),
-      row({ entryNumber: 3, entryType: 'customerInvoice', remainder: -8000, supplier: { supplierNumber: 7 } }),
+      row({ entryNumber: 3, entryType: 'customerInvoice', remainder: -8000, supplier: null, customer: { customerNumber: 11 } }),
     ])
-    t('a contra line and a customer entry are ignored', contra.state === 'known' && contra.dkkToPay === 400 && contra.items.length === 1)
+    t('a contra line and a customer open item are ignored', contra.state === 'known' && contra.dkkToPay === 400 && contra.items.length === 1)
+    // Claude review: a customer-side type that names a supplier is contradictory, so the sum is unknown (not ignored, not counted)
+    t('a customer-type entry with a supplier makes the read unknown', knownFrom([row(), row({ entryNumber: 3, entryType: 'customerInvoice', remainder: -8000 })]).state === 'unknown')
 
     const undated = knownFrom([row({ dueDate: null })])
-    t('a missing due date stays out of 30, 60 and 90 and stays in the open total', undated.state === 'known' && undated.unscheduledToPay === 400 && undated.horizon30ToPay === 0 && undated.horizon60ToPay === 0 && undated.horizon90ToPay === 0 && undated.dkkToPay === 400)
+    // Claude review: undated DKK debt cannot be placed in a horizon. Leaving it out would overstate projected cash, so
+    // the horizons are unknown; the total and the unscheduled figure stay known.
+    t('undated debt: total known, 30/60/90 unknown with a reason', undated.state === 'known' && undated.unscheduledToPay === 400 && undated.horizon30ToPay === null && undated.horizon60ToPay === null && undated.horizon90ToPay === null && undated.dkkToPay === 400 && undated.horizonBlocked === 'undated_owed')
 
     const dated = knownFrom([
       row({ entryNumber: 1, remainder: -20, dueDate: '2026-10-01' }),
@@ -247,7 +251,7 @@ async function main() {
     t('the creditor queue says rest and keeps the due date', position.openCreditorEntries[0]?.amountLabel === 'Rest' && position.openCreditorEntries[0]?.amount === 400 && position.openCreditorEntries[0]?.currency === 'DKK' && position.openCreditorEntries[0]?.dueDate === '2026-11-20' && position.openCreditorEntries[0]?.documentHref === null)
 
     const undatedCash = cashFrom([row({ dueDate: null })])
-    t('undated creditor cash stays out of the horizon', undatedCash.openPayables.amount === 400 && undatedCash.forecast30.expectedOutgoing.amount === 0 && undatedCash.forecast30.unscheduledPayables.amount === 400 && undatedCash.forecast30.projectedCash.amount === 1000)
+    t('undated creditor debt makes projected cash unknown, not higher', undatedCash.openPayables.amount === 400 && undatedCash.forecast30.expectedOutgoing.amount === null && undatedCash.forecast30.unscheduledPayables.amount === 400 && undatedCash.forecast30.projectedCash.amount === null && /uden forfaldsdato/.test(undatedCash.forecast30.expectedOutgoing.detail ?? ''))
 
     const foreignCash = cashFrom([row({ currency: 'EUR', remainder: -4000 })])
     t('foreign currency keeps projected cash unknown', foreignCash.openPayables.amount === null && foreignCash.openPayables.source === 'unavailable' && foreignCash.forecast30.projectedCash.amount === null && formatQualifiedKr(foreignCash.forecast30.projectedCash) === 'Ukendt' && formatQualifiedKr(foreignCash.openPayables) !== zeroKr && foreignCash.creditorCurrencies[0]?.currency === 'EUR' && foreignCash.creditorCurrencies[0]?.remainder === -4000)
@@ -332,10 +336,10 @@ async function main() {
 
     mockFetch((url) => {
       if (url.pathname === '/accounting-years') return years([{ year: '2024' }, { year: 2023 }])
-      if (url.pathname === '/accounting-years/2024/entries' && url.searchParams.get('filter') === 'entryType$eq:supplierInvoice$and:remainder$ne:0') {
+      if (url.pathname === '/accounting-years/2024/entries' && url.searchParams.get('filter') === 'remainder$ne:0') {
         return page([row({ dueDate: '2026-11-20' })])
       }
-      if (url.pathname === '/accounting-years/2023/entries' && url.searchParams.get('filter') === 'entryType$eq:supplierPayment$and:remainder$ne:0') {
+      if (url.pathname === '/accounting-years/2023/entries' && url.searchParams.get('filter') === 'remainder$ne:0') {
         return page([row({ entryNumber: 5, entryType: 'supplierPayment', remainder: 100, dueDate: '2026-12-05', supplierInvoiceNumber: null, amount: 100 })])
       }
       if (url.pathname.endsWith('/entries')) return emptyEntries()
@@ -343,13 +347,13 @@ async function main() {
     })
     const read = await readOpenSupplierRemainders(ready, today)
     t('the reader sums both years and both signs', read.state === 'known' && read.dkkOnly && read.dkkToPay === 300 && read.horizon30ToPay === 400 && read.horizon60ToPay === 300)
-    t('every call is GET on the allowlisted host', calls.length === 9 && calls.every((call) => call.method === 'GET' && call.body === undefined && call.url.startsWith('https://restapi.e-conomic.com/') && economicReadPathAllowed(call.path)))
+    t('every call is GET on the allowlisted host, one open-item read per year (no entryType filter)', calls.length === 3 && calls.every((call) => !(call.filter ?? '').includes('entryType')) && calls.every((call) => call.method === 'GET' && call.body === undefined && call.url.startsWith('https://restapi.e-conomic.com/') && economicReadPathAllowed(call.path)))
     t('the filter is a query and pagesize is the documented maximum', calls.filter((call) => call.path.endsWith('/entries')).every((call) => call.pagesize === String(CREDITOR_ENTRY_PAGE) && call.filter?.includes('remainder$ne:0') && !call.path.includes('remainder')))
     t('the read result does not contain the token', !JSON.stringify(read).includes(SECRET))
 
     mockFetch((url) => {
       if (url.pathname === '/accounting-years') return years([{ year: '2024' }])
-      if (url.searchParams.get('filter') === 'entryType$eq:supplierInvoice$and:remainder$ne:0') {
+      if (url.searchParams.get('filter') === 'remainder$ne:0') {
         const skip = Number(url.searchParams.get('skippages'))
         if (skip === 0) {
           return page(Array.from({ length: CREDITOR_ENTRY_PAGE }, (_, index) => row({ entryNumber: index + 1, remainder: -1, supplierInvoiceNumber: null })), CREDITOR_ENTRY_PAGE + 1, 'https://evil.example/steal')
