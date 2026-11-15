@@ -10,6 +10,8 @@ import { signRelatelBody, parseSignatureHeader, verifyRelatelSignature } from '.
 
 import { telephonyRetentionDecision, telephonyEventPurgeable } from '../src/lib/integrations/telephony/retention-policy'
 import { readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { relatelRejectionDiagnostic, keyFingerprint, createDiagnosticLimiter } from '../src/lib/integrations/telephony/webhook-diagnostics'
 
 let loggedShape = ''
 import { suggestCustomerForCall } from '../src/lib/integrations/telephony/suggest'
@@ -307,6 +309,40 @@ async function main() {
     check('observation der fejler vælter ikke svaret', throwing.status === 200)
     check('kun "forrige" nøgle uden aktuel → ingen nøgle (503, aldrig gammel nøgle alene)', decideRelatelWebhook({ RELATEL_ENABLED: 'true', RELATEL_WEBHOOK_SIGNING_KEY_PREVIOUS: OLD }, twoSig, rawT).status === 503)
     void persistAdmin
+  }
+
+  // ---------------- midlertidig diagnose af afviste leveringer (kun metadata)
+  {
+    const sigVal = `t=${NOW},v1=${signRelatelBody('anden-nøgle', NOW, rawT)}`
+    const body = JSON.stringify({ delivery_id: 'dd-9', event_type: 'webhook.test', occurred_at: '2026-11-15T10:00:00Z', payload: { from_number: '4511223344' } })
+    const diag = relatelRejectionDiagnostic({
+      headerNames: ['Content-Type', 'Relatel-Signature', 'Relatel-Timestamp', 'Relatel-Delivery-Id', 'Relatel-Event-Type'],
+      contentType: 'application/json', signature: sigVal, timestamp: String(NOW), deliveryId: 'dd-9', rawBody: body,
+      nowSeconds: NOW + 3, status: 401, stage: 'signature_mismatch', authMode: 'hmac',
+      env: { RELATEL_WEBHOOK_SIGNING_KEY: `  "${KEY}"\n`, RELATEL_WEBHOOK_SECRET: 'gammel' },
+    })
+    const dj = JSON.stringify(diag)
+    check('diagnose: ingen nøgle, signaturværdi, krop, delivery-id eller nummer', !dj.includes(KEY) && !dj.includes(sigVal.slice(15, 40)) && !dj.includes('4511223344') && !dj.includes('dd-9') && !dj.includes('gammel'))
+    check('diagnose: struktur (segmenter, v1-længde/tegnklasse, t-forskydning, timestamp=t, delivery-id header=body)', (diag as any).signature.segment_keys.join() === 't,v1'
+      && (diag as any).signature.v1_lengths[0] === 64 && (diag as any).signature.v1_charset[0] === 'hex_lower' && (diag as any).signature.t_skew_seconds === 3
+      && (diag as any).timestamp_header.equals_t === true && (diag as any).delivery_id.header_equals_body === true)
+    check('diagnose: nøgle-fingerprint = første 8 hex af SHA-256 (som Relatels side) + whitespace/anførselstegn opdages', (diag as any).keys.current.has_outer_whitespace === true && (diag as any).keys.current.has_quotes === true
+      && (diag as any).keys.current.fingerprint_without_quotes === keyFingerprint(KEY) && keyFingerprint(KEY) === createHash('sha256').update(KEY).digest('hex').slice(0, 8))
+    check('diagnose: header-navne i små bogstaver, statisk hemmelighed kun ja/nej', (diag as any).header_names.includes('relatel-signature') && (diag as any).keys.static_secret_present === true)
+    const lim = createDiagnosticLimiter(2, 1000, () => 0)
+    check('diagnose: rate-grænse pr. instans', lim() && lim() && !lim())
+    const rejects: Array<{ stage: string; authMode: string }> = []
+    const rdeps = { admin: () => { throw new Error('nej') }, onReject: (r: { stage: string; authMode: string }) => { rejects.push(r) } }
+    await handleRelatelWebhook(HM, signed(rawT, 'forkert'), rawT, rdeps as never)
+    await handleRelatelWebhook({}, signed(rawT), rawT, rdeps as never)
+    await handleRelatelWebhook(ON, 'forkert', rawT, rdeps as never)
+    await handleRelatelWebhook(HM, signed(rawT, KEY, NOW - 999), rawT, rdeps as never)
+    check('diagnose: trin = signature_mismatch (hmac), ingen ved 404, static_secret_mismatch, signature_stale', rejects.map((r) => `${r.stage}/${r.authMode}`).join() === 'signature_mismatch/hmac,static_secret_mismatch/static_legacy,signature_stale/hmac')
+    rejects.length = 0
+    await handleRelatelWebhook(HM, signed(rawT), rawT, rdeps as never)
+    check('diagnose: godkendt levering giver ingen afvisning', rejects.length === 0)
+    const rsrc = readFileSync(new URL('../src/app/api/integrations/relatel/webhook/route.ts', import.meta.url), 'utf8')
+    check('diagnose: kildeværn — ruten logger kun med Relatels egne headere og bag rate-grænsen', rsrc.includes("if (!(signature || deliveryId || request.headers.get('relatel-event-type'))) return") && rsrc.includes('if (!diagnosticAllowed()) return'))
   }
 
   // ---------------- retention (forslag; ikke planlagt)

@@ -16,6 +16,12 @@ withProdReadOnly('prod-relatel-observation', async (run) => {
   console.log(`INFO  observationer siden ${since}: ${rows.length}`)
   for (const r of rows) {
     const m = (r.metadata ?? {}) as Record<string, unknown>
+    if (r.status === 'warning') {
+      // midlertidig afvisnings-diagnose: kun strukturmetadata (ingen nøgle/signatur/krop)
+      console.log(`      ${new Date(r.created_at).toISOString()}  AFVIST: ${m.stage} (HTTP ${m.http_status}, tilstand ${m.auth_mode})`)
+      console.log(`        ${JSON.stringify(m)}`)
+      continue
+    }
     console.log(`      ${new Date(r.created_at).toISOString()}  ${m.event_type} → ${m.outcome} (HTTP ${m.http_status}, nøgle ${m.key_slot})`)
     console.log(`        felter: ${JSON.stringify(m.payload_shape)}`)
   }

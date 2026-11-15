@@ -156,6 +156,18 @@ function decideAfterSignature(env: Record<string, string | undefined>, auth: Web
   }
 }
 
+/** Hvilket trin afviste (vores egne kategorier/tekster — ingen indholdsværdier) */
+export function rejectionStage(d: WebhookDecision, authFailure?: string): string {
+  if (authFailure) return `signature_${authFailure}`
+  if (d.status === 401) return 'static_secret_mismatch'
+  if (d.status === 503) return 'no_key_or_static_storage_refused'
+  if (d.status === 413) return 'body_too_large'
+  if (d.status === 422) return 'call_payload_unverified'
+  if (d.status === 409) return 'event_id_conflict'
+  if (d.status === 500) return 'storage_error'
+  return `format_${d.status}: ${String(d.body.error ?? '').slice(0, 80)}`
+}
+
 /** Synkron beslutning uden lagring (flag, størrelse, godkendelse, format) */
 export function decideRelatelWebhook(
   env: Record<string, string | undefined>,
@@ -179,10 +191,16 @@ export async function handleRelatelWebhook(
     log?: (msg: string, meta: Record<string, unknown>) => void
     /** Observationstilstand (lagring FRA): kun hændelsestype/udfald/nøgleplads/feltnavne — aldrig værdier eller id'er */
     observe?: (o: NonNullable<Decided['observation']>) => Promise<void> | void
+    /** Afvist levering (≠ 404): kun trin, HTTP-status og godkendelsestilstand */
+    onReject?: (r: { status: number; stage: string; authMode: WebhookAuthMode }) => Promise<void> | void
   },
 ): Promise<WebhookDecision> {
   const { decision, event, logShape, authFailure, observation } = decide(env, auth, rawBody)
   if (authFailure) deps.log?.('relatel webhook: signatur afvist', { reason: authFailure })
+  // Midlertidig diagnose (2026-11-15): trin + tilstand for afviste leveringer; ruten afgør om/hvad der logges (kun metadata)
+  if (decision.status >= 400 && decision.status !== 404 && deps.onReject) {
+    try { await deps.onReject({ status: decision.status, stage: rejectionStage(decision, authFailure), authMode: webhookAuthMode(env) }) } catch { /* må aldrig vælte svaret */ }
+  }
   if (logShape) deps.log?.('relatel webhook: opkaldshændelse med ukendt payload (kun feltnavne/typer)', logShape)
   if (observation && !telephonyPersistEnabled(env) && deps.observe) {
     try { await deps.observe(observation) } catch { /* observation må aldrig vælte svaret */ }
