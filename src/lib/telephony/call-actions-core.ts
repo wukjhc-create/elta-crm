@@ -209,7 +209,7 @@ const PROVIDER_EMPLOYEE_ID = /^[A-Za-z0-9_.:@-]{1,64}$/
  * Relatel-medarbejder-id → profil (users.manage_roles). profileId = null deaktiverer koblingen. En profil har højst én
  * aktiv kobling: en tidligere aktiv kobling for profilen deaktiveres. Historik bevares (ingen sletning). Auditeret.
  */
-export async function setEmployeeLinkCore(ctx: CallActionCtx, providerEmployeeId: string, profileId: string | null): Promise<{ success: boolean; error?: string; outcome?: string }> {
+export async function setEmployeeLinkCore(ctx: CallActionCtx, providerEmployeeId: string, profileId: string | null): Promise<{ success: boolean; error?: string; outcome?: string; auditFailed?: boolean }> {
   if (!ctx.hasPermission('users.manage_roles')) return { success: false, error: 'Du har ikke adgang til at koble telefoni-medarbejdere.' }
   const empId = (providerEmployeeId ?? '').trim()
   if (!PROVIDER_EMPLOYEE_ID.test(empId)) return { success: false, error: 'Ugyldigt Relatel-medarbejder-id.' }
@@ -240,11 +240,17 @@ export async function setEmployeeLinkCore(ctx: CallActionCtx, providerEmployeeId
     if (error) return { success: false, error: 'Koblingen kunne ikke gemmes.' }
     outcome = prev ? (prev.profile_id === profileId ? 'reactivated' : 'changed') : 'created'
   }
-  await ctx.admin.from('audit_logs').insert({
+  // Relatel-review 2026-11-15 (S2): audit-fejlen blev før ignoreret → en koblingsændring kunne stå uden spor. Ændring og
+  // audit er endnu ikke i én transaktion (forslag: telephony_set_employee_link-funktion, docs/runbooks/RELATEL_FINAL_REVIEW.md);
+  // indtil da meldes en audit-fejl tydeligt i stedet for "gemt".
+  const { error: auditErr } = await ctx.admin.from('audit_logs').insert({
     user_id: ctx.userId, entity_type: 'telephony_employee_link', entity_id: profileId ?? prev?.profile_id ?? null, action: `telephony_employee_link_${outcome}`,
     action_description: 'Telefoni-medarbejderkobling ændret',
     changes: { profile_id: { old: prev?.profile_id ?? null, new: profileId }, is_active: { old: prev?.is_active ?? null, new: profileId !== null } },
     metadata: { provider: 'relatel', provider_employee_id: empId },
   })
+  if (auditErr) {
+    return { success: false, outcome, auditFailed: true, error: 'Koblingen er ændret, men ændringen kunne ikke auditeres. Kontakt en administrator.' }
+  }
   return { success: true, outcome }
 }

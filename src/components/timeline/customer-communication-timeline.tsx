@@ -20,7 +20,7 @@ const LABEL: Record<TimelineKind, string> = {
   planning: 'Planlægning',
 }
 
-const SOURCE_LABEL = { notes: 'noter', tasks: 'opgaver', documents: 'dokumenter', emails: 'mails', planning: 'planlægning' } as const
+const SOURCE_LABEL = { notes: 'noter', tasks: 'opgaver', documents: 'dokumenter', emails: 'mails', planning: 'planlægning', calls: 'opkald' } as const
 
 export function CustomerCommunicationTimeline({ customerId }: { customerId: string }) {
   const [res, setRes] = useState<CustomerTimelineResult | null>(null)

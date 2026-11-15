@@ -28,6 +28,15 @@ export function integrationBoard(
     { id: 'relatel', label: 'Relatel', mode: relatelEnabled(env) ? 'test' : 'off', killSwitch: 'RELATEL_ENABLED', detail: relatelEnabled(env) ? 'Flaget er tændt, men der er ingen live-klient og ingen gemte hændelser før migration.' : 'Slået fra. Ingen opkald, SMS eller webhook-registrering.' },
     { id: 'relatel-call', label: 'Click-to-call', mode: relatelLiveCallEnabled(env) ? 'test' : 'off', killSwitch: 'RELATEL_LIVE_CALL_ENABLED', detail: 'Selv med flaget tændt starter systemet ikke et opkald.' },
     { id: 'relatel-sms', label: 'SMS via Relatel', mode: relatelSmsEnabled(env) ? 'test' : 'off', killSwitch: 'RELATEL_SMS_ENABLED', detail: 'Selv med flaget tændt sendes ingen SMS.' },
+    // Relatel-review 2026-11-15: webhookens godkendelse — kun ja/nej på nøgler, aldrig værdier
+    {
+      id: 'relatel-webhook', label: 'Relatel-webhook (godkendelse)', mode: relatelEnabled(env) ? 'test' : 'off', killSwitch: 'TELEPHONY_PERSIST_ENABLED',
+      detail: (env.RELATEL_WEBHOOK_SIGNING_KEY ?? '').trim() || (env.RELATEL_WEBHOOK_SIGNING_KEY_PREVIOUS ?? '').trim()
+        ? 'Relatel-signatur (HMAC-SHA256) kræves.'
+        : (env.RELATEL_WEBHOOK_SECRET ?? '').trim()
+          ? 'Kun statisk hemmelighed (ikke Relatels mekanisme) — lagring afvises uden særskilt testflag.'
+          : 'Ingen webhook-nøgle — intet modtages.',
+    },
     { id: 'economic', label: 'e-conomic skrivning', mode: economicPushEnabled(env) ? 'active' : 'off', killSwitch: 'ECONOMIC_PUSH_ENABLED', detail: economicPushEnabled(env) ? 'Skrivning er slået til.' : 'Intet skrives til e-conomic.' },
     { id: 'agent-send', label: 'Agent-afsendelse', mode: isLiveSendEnabled(env) ? 'active' : 'off', killSwitch: 'AGENT_LIVE_SEND_ENABLED', detail: isLiveSendEnabled(env) ? 'Agenter kan sende efter deres egen godkendelse.' : 'Agenter sender ikke.' },
     { id: 'automation', label: 'Automatiseringsregler', mode: automationRulesLive(env) ? 'active' : 'off', killSwitch: 'AUTOMATION_RULES_LIVE', detail: automationRulesLive(env) ? 'Reglerne kører live.' : 'Reglerne er dry-run.' },

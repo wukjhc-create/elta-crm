@@ -18,7 +18,7 @@ import { getAuthenticatedClientWithRole, formatError } from '@/lib/actions/actio
 import { userSafeOr } from '@/lib/actions/action-helpers'
 import type { Permission } from '@/lib/auth/permissions'
 import { taskListScope, type TaskListScope } from '@/lib/tasks/task-scope'
-import { callbackQueueWrite } from '@/lib/integrations/telephony/callback-plan'
+import { callbackQueueWrite, existingOpenCallback, CALLBACK_RULES } from '@/lib/integrations/telephony/callback-plan'
 
 /**
  * RBAC app-lag (P-006, runde 3): rettighedstjek FOER noget andet sker. Returnerer fejltekst ved afvisning
@@ -583,7 +583,7 @@ export async function getCustomerTaskAbilitiesAction(customerId: string): Promis
 
 export async function createCustomerTask(
   input: CreateCustomerTaskInput
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; existingCallback?: boolean }> {
   if (!/^[0-9a-f-]{36}$/i.test(String(input.customer_id ?? ''))) return { success: false, error: 'Ugyldig kunde' }
   const rule = await taskCreateRule(input.customer_id).catch(() => ({ allowed: false as const, reason: 'Ikke logget ind' }))
   if (!rule.allowed) return { success: false, error: rule.reason }
@@ -633,6 +633,18 @@ export async function createCustomerTask(
     if (scErr) return { success: false, error: 'Sagen kunne ikke læses. Opgaven er ikke oprettet.' }
     if (!sc) return { success: false, error: 'Sagen hører ikke til kunden' }
     serviceCaseId = input.service_case_id
+  }
+
+  // Relatel-review 2026-11-15: tilbageringning er idempotent — højst én åben pr. kunde (flere klik/kolleger/hændelser
+  // for samme opkald giver ikke to opgaver). Læses med admin-klienten, så også en kollegas åbne opgave tæller; kun
+  // "findes" returneres (intet id/indhold). En læsefejl opretter intet (ingen stille dublet).
+  if (input.callbackQueue === true) {
+    const { data: openRows, error: openCbErr } = await createAdminClient().from('customer_tasks')
+      .select('id, status, auto_rule').eq('customer_id', input.customer_id).in('auto_rule', [...CALLBACK_RULES]).neq('status', 'done').limit(5)
+    if (openCbErr) return { success: false, error: 'Kundens tilbageringninger kunne ikke læses. Intet er oprettet.' }
+    if (existingOpenCallback((openRows ?? []) as Array<{ id: string; status: string | null; auto_rule: string | null }>)) {
+      return { success: true, existingCallback: true }
+    }
   }
 
   const queue = callbackQueueWrite(input.callbackQueue === true, input.reminder_at)

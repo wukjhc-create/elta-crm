@@ -18,7 +18,7 @@ const eq = (name: string, got: unknown, want: unknown) => {
 }
 
 const SECRET = 'test-secret-value'
-const base = { RELATEL_ENABLED: 'true', RELATEL_WEBHOOK_SECRET: SECRET }
+const base = { RELATEL_ENABLED: 'true', RELATEL_WEBHOOK_SECRET: SECRET, RELATEL_WEBHOOK_ALLOW_STATIC_SECRET: 'true' }
 eq('lagring er fra uden flag', telephonyPersistEnabled({}), false)
 eq('lagring kræver også master-flaget', telephonyPersistEnabled({ TELEPHONY_PERSIST_ENABLED: 'true' }), false)
 eq('lagring kun med præcis true', [telephonyPersistEnabled({ ...base, TELEPHONY_PERSIST_ENABLED: 'yes' }), telephonyPersistEnabled({ ...base, TELEPHONY_PERSIST_ENABLED: 'true' })], [false, true])

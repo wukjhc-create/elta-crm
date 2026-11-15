@@ -85,5 +85,6 @@ export function composeTimeline(events: TimelineEventInput[]): TimelineEvent[] {
  * tabellen, er kilden 'unavailable' og vises ikke som fejl. Alle andre fejl (også andre fejl på noter) er 'error'.
  */
 export function timelineSourceFailureState(source: string, error: { code?: string | null; message?: string | null }): 'error' | 'unavailable' {
-  return source === 'notes' && isMissingTableError(error) ? 'unavailable' : 'error'
+  // calls: telephony_calls findes kun hvor 00247 er anvendt (PGRST205/42P01 → unavailable, ikke en fejl)
+  return (source === 'notes' || source === 'calls') && isMissingTableError(error) ? 'unavailable' : 'error'
 }

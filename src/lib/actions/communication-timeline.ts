@@ -11,7 +11,7 @@ import { permissionDeniedText } from '@/lib/auth/permission-text'
 import { composeTimeline, kindForNote, kindForTask, timelineSourceFailureState, type TimelineEvent, type TimelineEventInput } from '@/lib/timeline/compose'
 
 export interface TimelineSourceState {
-  source: 'notes' | 'tasks' | 'documents' | 'emails' | 'planning'
+  source: 'notes' | 'tasks' | 'documents' | 'emails' | 'planning' | 'calls'
   /** unavailable = valgfri kilde findes ikke her (fx customer_notes før migrationen) — ingen advarsel, ikke en fejl */
   state: 'ok' | 'hidden' | 'error' | 'unavailable'
 }
@@ -69,10 +69,22 @@ export async function getCustomerCommunicationTimeline(customerId: string): Prom
     read('tasks', false, ctx.supabase.from('customer_tasks').select('id, title, description, created_at, service_case_id, auto_rule').eq('customer_id', customerId).order('created_at', { ascending: false }).limit(40)),
     read('documents', false, documents.order('created_at', { ascending: false }).limit(40)),
     read('emails', !ctx.hasPermission('customers.emails.view'), ctx.supabase.from('incoming_emails').select('id, subject, received_at, service_case_id').eq('customer_id', customerId).order('received_at', { ascending: false }).limit(40)),
+    // Relatel-review 2026-11-15: bekræftede opkald på kunden (00247). Kun kolonner i authenticated-grantet; RLS kræver
+    // calls.view + kunden i scope. Uden calls.view → skjult (montør har det ikke som standard).
+    read('calls', !ctx.hasPermission('calls.view'), ctx.supabase.from('telephony_calls').select('id, direction, started_at, status, missed, has_voicemail, duration_seconds').eq('customer_id', customerId).order('started_at', { ascending: false }).limit(40)),
     read('planning', false, ctx.supabase.from('work_orders').select('id, title, status, scheduled_date, case_id, created_at').eq('customer_id', customerId).order('created_at', { ascending: false }).limit(40)),
   ])
 
   return { ok: true, events: composeTimeline(inputs), sources }
+}
+
+/** Bekræftet opkald → tidslinje (ingen numre, ingen lyd — kun retning, status og varighed) */
+function mapCallRow(id: string, row: Row, customerId: string): TimelineEventInput[] {
+  const kind = row.has_voicemail === true ? 'voicemail' : row.missed === true ? 'missed_call' : 'call'
+  const dir = row.direction === 'outbound' ? 'Udgående opkald' : row.direction === 'inbound' ? 'Indgående opkald' : 'Opkald'
+  const secs = typeof row.duration_seconds === 'number' ? row.duration_seconds : null
+  const title = kind === 'voicemail' ? 'Telefonsvarer' : kind === 'missed_call' ? 'Ubesvaret opkald' : dir
+  return [{ sourceTable: 'telephony_calls', sourceId: id, kind, at: typeof row.started_at === 'string' ? row.started_at : null, title, summary: secs != null && kind === 'call' ? `${Math.max(1, Math.round(secs / 60))} min` : null, customerId, caseId: null }]
 }
 
 function mapRow(source: TimelineSourceState['source'], row: Row, customerId: string): TimelineEventInput[] {
@@ -96,5 +108,6 @@ function mapRow(source: TimelineSourceState['source'], row: Row, customerId: str
     return [{ sourceTable: 'incoming_emails', sourceId: id, kind: 'email', at: typeof row.received_at === 'string' ? row.received_at : null, title: typeof row.subject === 'string' && row.subject.trim() ? row.subject : 'Mail uden emne', summary: null, customerId, caseId: typeof row.service_case_id === 'string' ? row.service_case_id : null }]
   }
   const at = typeof row.scheduled_date === 'string' ? row.scheduled_date : typeof row.created_at === 'string' ? row.created_at : null
+  if (source === 'calls') return mapCallRow(id, row, customerId)
   return [{ sourceTable: 'work_orders', sourceId: id, kind: 'planning', at, title: typeof row.title === 'string' && row.title.trim() ? row.title : 'Planlagt arbejde', summary: typeof row.status === 'string' ? row.status : null, customerId, caseId: typeof row.case_id === 'string' ? row.case_id : null }]
 }

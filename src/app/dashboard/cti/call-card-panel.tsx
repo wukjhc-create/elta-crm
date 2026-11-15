@@ -48,7 +48,11 @@ export function CallCardPanel({ card }: { card: CallCard }) {
     })
     setBusy(false)
     setConfirm(null)
-    setMessage(res.success ? 'Tilbageringningen ligger i køen og er tildelt dig. Der er ikke sendt en Telegram-påmindelse.' : (res.error ?? 'Opgaven kunne ikke oprettes.'))
+    setMessage(res.success
+      ? (res.existingCallback
+        ? 'Kunden har allerede en åben tilbageringning i køen. Der er ikke oprettet en ny.'
+        : 'Tilbageringningen ligger i køen og er tildelt dig. Der er ikke sendt en Telegram-påmindelse.')
+      : (res.error ?? 'Opgaven kunne ikke oprettes.'))
     if (res.success) router.refresh()
   }
 

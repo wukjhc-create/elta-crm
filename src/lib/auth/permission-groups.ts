@@ -15,7 +15,7 @@ export const PERMISSION_GROUP_LABELS: Record<PermissionGroupKey, string> = {
 
 /** Gruppe ud fra nøglens præfiks (første led) — eksplicit liste, så nye præfikser fanges af testen */
 const PREFIX_GROUP: Record<string, PermissionGroupKey> = {
-  customers: 'customers', leads: 'customers', inbox: 'customers',
+  customers: 'customers', leads: 'customers', inbox: 'customers', calls: 'customers',
   cases: 'cases', service: 'cases', documents: 'cases', work_orders: 'cases',
   calendar: 'planning', absences: 'planning', time: 'planning', time_logs: 'planning',
   tasks: 'tasks',

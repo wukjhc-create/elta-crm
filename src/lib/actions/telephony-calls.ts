@@ -56,7 +56,7 @@ export async function rejectCallMatch(callId: string, expectedVersion: number): 
   return res
 }
 
-export async function setTelephonyEmployeeLink(providerEmployeeId: string, profileId: string | null): Promise<{ success: boolean; error?: string; outcome?: string }> {
+export async function setTelephonyEmployeeLink(providerEmployeeId: string, profileId: string | null): Promise<{ success: boolean; error?: string; outcome?: string; auditFailed?: boolean }> {
   const c = await ctx()
   if (!c.hasPermission('users.manage_roles')) return { success: false, error: 'Du har ikke adgang til at koble telefoni-medarbejdere.' }
   return setEmployeeLinkCore(c, providerEmployeeId, profileId)

@@ -93,7 +93,7 @@ export async function runTel00247App(c: { admin: SupabaseClient; url: string; an
     const secret = randomBytes(24).toString('base64url')
     const ENV_OFF: Record<string, string> = {}
     const ENV_NOPERSIST = { RELATEL_ENABLED: 'true', RELATEL_WEBHOOK_SECRET: secret }
-    const ENV = { ...ENV_NOPERSIST, TELEPHONY_PERSIST_ENABLED: 'true', TELEPHONY_MATCH_MODE: 'suggest' }
+    const ENV = { ...ENV_NOPERSIST, TELEPHONY_PERSIST_ENABLED: 'true', TELEPHONY_MATCH_MODE: 'suggest', RELATEL_WEBHOOK_ALLOW_STATIC_SECRET: 'true' }
     const now = Date.now()
     const ev = (id: string, call: string, type: string, offsetS: number, from: string, extra: Record<string, unknown> = {}) => ({
       provider: 'relatel', event_id: `${pre}-${id}`, event_type: type, occurred_at: new Date(now - 3600_000 + offsetS * 1000).toISOString(),

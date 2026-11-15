@@ -46,7 +46,7 @@ export default async function CtiPage({ searchParams }: { searchParams: Promise<
             </p>
           </div>
         </div>
-        <Link href="/dashboard/cti/queue" className="text-sm text-blue-700 hover:underline">Tilbageringninger</Link>
+        <span className="flex gap-4"><Link href="/dashboard/cti/calls" className="text-sm text-blue-700 hover:underline">Opkaldshistorik</Link><Link href="/dashboard/cti/queue" className="text-sm text-blue-700 hover:underline">Tilbageringninger</Link></span>
       </div>
       {res.number && <CallCardPanel card={card} />}
       {card.customerId && (

@@ -33,6 +33,18 @@ export function callbackQueueWrite(
   return { reminder_at: reminderAt || null }
 }
 
+/** Kø-markeringer for tilbageringninger (samme som /dashboard/cti/queue) */
+export const CALLBACK_RULES = [ASSISTANT_RULE.callback, 'assistant_missed_call'] as const
+
+/**
+ * Idempotens (Relatel-review 2026-11-15): højst ÉN åben tilbageringning pr. kunde. Flere hændelser/klik for samme
+ * opkald (eller to kolleger på samme kunde) må ikke give to opgaver. Returnerer den åbne opgave, der skal genbruges.
+ * En opgave med status 'done' er afsluttet; alt andet er åbent.
+ */
+export function existingOpenCallback<T extends { id: string; status: string | null; auto_rule: string | null }>(rows: T[]): T | null {
+  return rows.find((r) => r.status !== 'done' && (CALLBACK_RULES as readonly string[]).includes(r.auto_rule ?? '')) ?? null
+}
+
 export function planCallbackInsert(input: {
   customerId: string | null
   displayNumber: string | null
