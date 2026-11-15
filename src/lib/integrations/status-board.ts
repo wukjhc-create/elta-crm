@@ -31,7 +31,7 @@ export function integrationBoard(
     // Relatel-review 2026-11-15: webhookens godkendelse — kun ja/nej på nøgler, aldrig værdier
     {
       id: 'relatel-webhook', label: 'Relatel-webhook (godkendelse)', mode: relatelEnabled(env) ? 'test' : 'off', killSwitch: 'TELEPHONY_PERSIST_ENABLED',
-      detail: (env.RELATEL_WEBHOOK_SIGNING_KEY ?? '').trim() || (env.RELATEL_WEBHOOK_SIGNING_KEY_PREVIOUS ?? '').trim()
+      detail: (env.RELATEL_WEBHOOK_SIGNING_KEY ?? '').trim()
         ? 'Relatel-signatur (HMAC-SHA256) kræves.'
         : (env.RELATEL_WEBHOOK_SECRET ?? '').trim()
           ? 'Kun statisk hemmelighed (ikke Relatels mekanisme) — lagring afvises uden særskilt testflag.'

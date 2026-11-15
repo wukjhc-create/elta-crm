@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server'
 import { handleRelatelWebhook } from '@/lib/integrations/telephony/webhook-gate'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logger } from '@/lib/utils/logger'
+import { logHealth } from '@/lib/services/system-health'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +22,10 @@ export async function POST(request: Request) {
   }, raw, {
     admin: createAdminClient,
     log: (msg, meta) => logger.warn(msg, { metadata: meta }),
+    // Observationstilstand (TELEPHONY_PERSIST_ENABLED fra): kun godkendte Relatel-leveringer, kun skema-metadata
+    observe: (o) => logHealth('telephony', 'ok', `relatel webhook observeret: ${o.eventType} → ${o.outcome}`, {
+      event_type: o.eventType, http_status: o.status, outcome: o.outcome, key_slot: o.keySlot, payload_shape: o.shape,
+    }),
   })
   return NextResponse.json(decision.body, { status: decision.status })
 }

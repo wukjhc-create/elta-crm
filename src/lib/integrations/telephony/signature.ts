@@ -14,13 +14,16 @@ import { safeEqual } from '@/lib/security/safe-equal'
 export const RELATEL_SIGNATURE_TOLERANCE_SECONDS = 300
 
 export type SignatureCheck =
-  | { ok: true }
+  | { ok: true; keySlot: 'current' | 'previous' }
   | { ok: false; reason: 'missing_header' | 'malformed_header' | 'stale' | 'timestamp_mismatch' | 'mismatch' | 'no_key' }
 
+/** [aktuel, forrige] — aktuel først, så keySlot 'current' altid betyder RELATEL_WEBHOOK_SIGNING_KEY */
 export function relatelSigningKeys(env: Record<string, string | undefined>): string[] {
-  return [env.RELATEL_WEBHOOK_SIGNING_KEY, env.RELATEL_WEBHOOK_SIGNING_KEY_PREVIOUS]
-    .map((k) => (k ?? '').trim())
-    .filter((k) => k.length > 0)
+  const current = (env.RELATEL_WEBHOOK_SIGNING_KEY ?? '').trim()
+  const previous = (env.RELATEL_WEBHOOK_SIGNING_KEY_PREVIOUS ?? '').trim()
+  // Kun en "forrige" nøgle uden aktuel er en fejlkonfiguration → ingen nøgle (503), aldrig en gammel nøgle alene
+  if (!current) return []
+  return previous ? [current, previous] : [current]
 }
 
 export function parseSignatureHeader(header: string | null | undefined): { t: number; v1: string[] } | null {
@@ -65,9 +68,9 @@ export function verifyRelatelSignature(input: {
     return { ok: false, reason: 'timestamp_mismatch' }
   }
   if (Math.abs(input.nowSeconds - parsed.t) > RELATEL_SIGNATURE_TOLERANCE_SECONDS) return { ok: false, reason: 'stale' }
-  for (const key of input.keys) {
+  for (const [i, key] of input.keys.entries()) {
     const expected = signRelatelBody(key, parsed.t, input.rawBody)
-    if (parsed.v1.some((sig) => safeEqual(sig, expected))) return { ok: true }
+    if (parsed.v1.some((sig) => safeEqual(sig, expected))) return { ok: true, keySlot: i === 0 ? 'current' : 'previous' }
   }
   return { ok: false, reason: 'mismatch' }
 }

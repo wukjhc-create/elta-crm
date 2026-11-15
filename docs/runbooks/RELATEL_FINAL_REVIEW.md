@@ -252,6 +252,32 @@ CREATE UNIQUE INDEX customer_tasks_one_open_callback ON public.customer_tasks (c
 | staging `cli.ts tel-00247-app` (webhook, suggestion, actions, employees, cleanup) | 74/74 |
 | `tsc`, `check:rbac`, `check:rls-matrix` | exit 0 |
 
+## 14b. Production observation mode (test delivery only)
+
+Exact production env (names from the code; nothing else Relatel-related may be set):
+
+| Variable | Value | Effect |
+|---|---|---|
+| `RELATEL_ENABLED` | `true` | webhook answers instead of 404; provider stays a refusal (`mode: 'test'`, no client) |
+| `RELATEL_WEBHOOK_SIGNING_KEY` | (Henrik, set) | HMAC mode — Relatel-Signature required, 5-min window |
+| `TELEPHONY_PERSIST_ENABLED` | **unset** (anything but `true`) | nothing stored in telephony tables; observation mode on |
+| `TELEPHONY_MATCH_MODE` | unset | (only used when storing) |
+| `RELATEL_LIVE_CALL_ENABLED` | **unset** | click-to-call armed text only; no client exists anyway |
+| `RELATEL_SMS_ENABLED` | **unset** | same for SMS |
+| `RELATEL_WEBHOOK_SIGNING_KEY_PREVIOUS` | unset (set only during a 24 h rotation) | |
+| `RELATEL_WEBHOOK_SECRET`, `RELATEL_WEBHOOK_ALLOW_STATIC_SECRET` | unset | ignored in HMAC mode; static mode can never store without the allow flag |
+
+There are no chat-sending or telephony-automation flags: no code sends chat, and no code creates tasks/calls/SMS from a
+webhook (`processMissedCall` deprecated, not wired).
+
+In observation mode every **authenticated** Relatel delivery writes one `system_health_log` row (service `telephony`,
+status `ok`, not part of the ops status or alerts) with: event type, outcome (`test_acknowledged`, `call_mapped_unverified`,
+`payload_unverified`, `ignored_not_ingested`, …), HTTP status, key slot (`current`/`previous`) and the payload's field
+names/types — no values, no ids, no delivery id. Rejected signatures (401) are logged to the console only (reason such as
+`stale`/`mismatch`), so anonymous requests cannot write to the database.
+Read it with `npx tsx scripts/prod-relatel-observation.ts --since <ISO>` (read-only; also asserts 0 telephony rows and
+0 callback tasks since then).
+
 ## 15. Exact next activation steps (each needs Henrik's explicit approval)
 
 1. **Review + merge/deploy this branch** (dormant: all flags stay OFF).

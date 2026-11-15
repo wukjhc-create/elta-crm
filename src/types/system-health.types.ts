@@ -12,6 +12,8 @@ export type HealthService =
   | 'ui'
   // Pilot 2026-10-30: mislykkede skrivehandlinger (lib/pilot/action-failure-log) — ikke i ALL_SERVICES
   | 'user_action'
+  // Relatel-observation 2026-11-15: godkendte webhook-leveringer i observationstilstand (kun skema-metadata) — ikke i ALL_SERVICES
+  | 'telephony'
 
 export type HealthStatus = 'ok' | 'warning' | 'error'
 

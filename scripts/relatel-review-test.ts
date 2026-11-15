@@ -278,6 +278,37 @@ async function main() {
   const dupB = mapRelatelCallPayload({ deliveryId: 'same', eventType: 'call.ended', occurredAt: '2026-11-15T10:05:00.000Z', payload: callPayload })
   check('genlevering (samme Delivery-Id, andet tidspunkt) → samme idempotensnøgle', dupA.ok && dupB.ok && dupA.event.idempotencyKey === dupB.event.idempotencyKey)
 
+  // ---------------- observationstilstand (lagring FRA): kun skema-metadata for GODKENDTE leveringer
+  {
+    const obs: unknown[] = [], logs: Array<{ m: string; meta: Record<string, unknown> }> = []
+    const deps = { admin: () => { throw new Error('admin må ikke kaldes i observation') }, log: (m: string, meta: Record<string, unknown>) => { logs.push({ m, meta }) }, observe: (o: unknown) => { obs.push(o) } }
+    const t1 = await handleRelatelWebhook(HM, signed(rawT), rawT, deps as never)
+    check('observation: webhook.test → 200, én observation (test_acknowledged, nøgle current)', t1.status === 200 && obs.length === 1 && (obs[0] as any).outcome === 'test_acknowledged' && (obs[0] as any).keySlot === 'current')
+    obs.length = 0
+    const realCall = envBody({ delivery_id: 'd-obs' }, { ...callPayload, from_number: '4598765432', answered_by: { id: 5, name: 'Hemmelig Medarbejder' } })
+    const t2 = await handleRelatelWebhook(HM, signed(realCall), realCall, deps as never)
+    const o2 = JSON.stringify(obs)
+    check('observation: opkald forstået men IKKE gemt (202 persisted:false), databasen ikke rørt', t2.status === 202 && t2.body.persisted === false)
+    check('observation: indeholder kun feltnavne/typer — ingen numre, navne, uuid eller delivery-id', obs.length === 1 && !/4598765432|Hemmelig|cu-1|d-obs/.test(o2) && o2.includes('"from_number":"string"'))
+    obs.length = 0
+    await handleRelatelWebhook(rot, twoSig, rawT, deps as never)
+    check('observation: rotation viser nøgleplads previous', (obs[0] as any)?.keySlot === 'previous')
+    obs.length = 0; logs.length = 0
+    const bad = await handleRelatelWebhook(HM, signed(rawT, 'forkert'), rawT, deps as never)
+    check('observation: afvist signatur → 401, INGEN observation (anonymt kald skriver ikke i databasen)', bad.status === 401 && obs.length === 0)
+    check('observation: afvisningsgrund kun i konsol-log, uden nøgle/signatur', logs.some((l) => l.meta.reason === 'mismatch') && !JSON.stringify(logs).includes(KEY))
+    obs.length = 0
+    await handleRelatelWebhook({}, signed(rawT), rawT, deps as never)
+    check('observation: flag fra → 404, ingen observation', obs.length === 0)
+    let persistAdmin = 0
+    await handleRelatelWebhook({ ...HM, TELEPHONY_PERSIST_ENABLED: 'true' }, signed(rawT), rawT, { ...deps, admin: () => { persistAdmin++; throw new Error('x') } } as never)
+    check('observation kun når lagring er FRA (lagring til → ingen observationsskrivning)', obs.length === 0)
+    const throwing = await handleRelatelWebhook(HM, signed(rawT), rawT, { ...deps, observe: () => { throw new Error('db nede') } } as never)
+    check('observation der fejler vælter ikke svaret', throwing.status === 200)
+    check('kun "forrige" nøgle uden aktuel → ingen nøgle (503, aldrig gammel nøgle alene)', decideRelatelWebhook({ RELATEL_ENABLED: 'true', RELATEL_WEBHOOK_SIGNING_KEY_PREVIOUS: OLD }, twoSig, rawT).status === 503)
+    void persistAdmin
+  }
+
   // ---------------- retention (forslag; ikke planlagt)
   const now = new Date('2026-11-15T12:00:00Z')
   const ago = (d: number) => new Date(now.getTime() - d * 86_400_000).toISOString()

@@ -61,21 +61,45 @@ interface Decided {
   event?: TelephonyEvent
   /** kun til log (feltnavne/typer, aldrig værdier) */
   logShape?: { eventType: string; shape: unknown }
+  /** grund til 401 i HMAC-tilstand (fx 'stale', 'mismatch') — kun konsol-log, aldrig database (anonymt endpoint) */
+  authFailure?: string
+  /** godkendt Relatel-konvolut: hvad der skete — kun hændelsestype, udfald, nøgleplads og feltnavne/typer */
+  observation?: { eventType: string; status: number; outcome: string; keySlot: string; shape: unknown }
 }
 
 function decide(env: Record<string, string | undefined>, authArg: string | null | WebhookAuthInput, rawBody: string): Decided {
-  if (!relatelEnabled(env)) return { decision: { status: 404, body: { error: 'Not found' } } }
-  if (rawBody.length > MAX_BYTES) return { decision: { status: 413, body: { error: 'Hændelsen er for stor.' } } }
   const auth = toAuth(authArg)
-  const mode = webhookAuthMode(env)
-  if (mode === 'none') return { decision: { status: 503, body: { error: 'Webhook-nøgle mangler. Intet er modtaget.' } } }
-  if (mode === 'hmac') {
+  let keySlot = 'static_legacy'
+  if (relatelEnabled(env) && rawBody.length <= MAX_BYTES && webhookAuthMode(env) === 'hmac') {
     const check = verifyRelatelSignature({
       rawBody, signatureHeader: auth.signature, timestampHeader: auth.timestamp,
       keys: relatelSigningKeys(env), nowSeconds: auth.nowSeconds ?? Math.floor(Date.now() / 1000),
     })
-    if (!check.ok) return { decision: { status: 401, body: { error: 'Unauthorized' } } }
-  } else {
+    if (!check.ok) return { decision: { status: 401, body: { error: 'Unauthorized' } }, authFailure: check.reason }
+    keySlot = check.keySlot
+  }
+  const d = decideAfterSignature(env, auth, rawBody)
+  // Observation: kun for en GODKENDT Relatel-konvolut (ingen databaseskrivning for anonyme kald)
+  if (d.decision.status !== 401 && d.decision.status !== 404 && d.decision.status !== 413 && d.decision.status !== 503) {
+    let parsed: unknown = null
+    try { parsed = JSON.parse(rawBody) } catch { /* ikke JSON → ingen observation */ }
+    const env2 = parseRelatelEnvelope(parsed)
+    if (env2.kind === 'envelope') {
+      const b = d.decision.body
+      const outcome = b.test === true ? 'test_acknowledged' : b.ignored === true ? 'ignored_not_ingested' : b.reason === 'payload_unverified' ? 'payload_unverified'
+        : d.event ? 'call_mapped_unverified' : d.decision.status === 422 ? 'payload_unverified_rejected' : `rejected_${d.decision.status}`
+      d.observation = { eventType: env2.envelope.eventType.slice(0, 64), status: d.decision.status, outcome, keySlot, shape: describePayloadShape(env2.envelope.payload) }
+    }
+  }
+  return d
+}
+
+function decideAfterSignature(env: Record<string, string | undefined>, auth: WebhookAuthInput, rawBody: string): Decided {
+  if (!relatelEnabled(env)) return { decision: { status: 404, body: { error: 'Not found' } } }
+  if (rawBody.length > MAX_BYTES) return { decision: { status: 413, body: { error: 'Hændelsen er for stor.' } } }
+  const mode = webhookAuthMode(env)
+  if (mode === 'none') return { decision: { status: 503, body: { error: 'Webhook-nøgle mangler. Intet er modtaget.' } } }
+  if (mode === 'static_legacy') {
     const secret = (env.RELATEL_WEBHOOK_SECRET ?? '').trim()
     if (!auth.staticSecret || !safeEqual(auth.staticSecret, secret)) return { decision: { status: 401, body: { error: 'Unauthorized' } } }
     if (telephonyPersistEnabled(env) && !isTrue(env.RELATEL_WEBHOOK_ALLOW_STATIC_SECRET)) {
@@ -150,10 +174,19 @@ export async function handleRelatelWebhook(
   env: Record<string, string | undefined>,
   auth: string | null | WebhookAuthInput,
   rawBody: string,
-  deps: { admin: () => SupabaseClient; log?: (msg: string, meta: Record<string, unknown>) => void },
+  deps: {
+    admin: () => SupabaseClient
+    log?: (msg: string, meta: Record<string, unknown>) => void
+    /** Observationstilstand (lagring FRA): kun hændelsestype/udfald/nøgleplads/feltnavne — aldrig værdier eller id'er */
+    observe?: (o: NonNullable<Decided['observation']>) => Promise<void> | void
+  },
 ): Promise<WebhookDecision> {
-  const { decision, event, logShape } = decide(env, auth, rawBody)
+  const { decision, event, logShape, authFailure, observation } = decide(env, auth, rawBody)
+  if (authFailure) deps.log?.('relatel webhook: signatur afvist', { reason: authFailure })
   if (logShape) deps.log?.('relatel webhook: opkaldshændelse med ukendt payload (kun feltnavne/typer)', logShape)
+  if (observation && !telephonyPersistEnabled(env) && deps.observe) {
+    try { await deps.observe(observation) } catch { /* observation må aldrig vælte svaret */ }
+  }
   if (!event || decision.status !== 202 || !telephonyPersistEnabled(env)) return decision
 
   const admin = deps.admin()
