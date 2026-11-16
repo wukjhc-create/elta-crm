@@ -11,7 +11,7 @@ import { permissionDeniedText } from '@/lib/auth/permission-text'
 import { composeTimeline, kindForNote, kindForTask, timelineSourceFailureState, type TimelineEvent, type TimelineEventInput } from '@/lib/timeline/compose'
 
 export interface TimelineSourceState {
-  source: 'notes' | 'tasks' | 'documents' | 'emails' | 'planning' | 'calls'
+  source: 'notes' | 'tasks' | 'documents' | 'emails' | 'planning' | 'calls' | 'inquiries'
   /** unavailable = valgfri kilde findes ikke her (fx customer_notes før migrationen) — ingen advarsel, ikke en fejl */
   state: 'ok' | 'hidden' | 'error' | 'unavailable'
 }
@@ -72,6 +72,9 @@ export async function getCustomerCommunicationTimeline(customerId: string): Prom
     // Relatel-review 2026-11-15: bekræftede opkald på kunden (00247). Kun kolonner i authenticated-grantet; RLS kræver
     // calls.view + kunden i scope. Uden calls.view → skjult (montør har det ikke som standard).
     read('calls', !ctx.hasPermission('calls.view'), ctx.supabase.from('telephony_calls').select('id, direction, started_at, status, missed, has_voicemail, duration_seconds').eq('customer_id', customerId).order('started_at', { ascending: false }).limit(40)),
+    // AI-receptionist fase 2 (00249): KUN bekræftede henvendelser (customer_id sættes kun ved menneskelig bekræftelse).
+    // RLS kræver conversations.view + kunden i scope. Mangler tabellen (før 00249) → 'unavailable', ingen advarsel.
+    read('inquiries', !ctx.hasPermission('conversations.view'), ctx.supabase.from('conversations').select('id, channel, title, ai_summary, last_at, service_case_id, status').eq('customer_id', customerId).neq('status', 'spam').order('last_at', { ascending: false }).limit(40)),
     read('planning', false, ctx.supabase.from('work_orders').select('id, title, status, scheduled_date, case_id, created_at').eq('customer_id', customerId).order('created_at', { ascending: false }).limit(40)),
   ])
 
@@ -109,5 +112,6 @@ function mapRow(source: TimelineSourceState['source'], row: Row, customerId: str
   }
   const at = typeof row.scheduled_date === 'string' ? row.scheduled_date : typeof row.created_at === 'string' ? row.created_at : null
   if (source === 'calls') return mapCallRow(id, row, customerId)
+  if (source === 'inquiries') return [{ sourceTable: 'conversations', sourceId: id, kind: 'inquiry', at: typeof row.last_at === 'string' ? row.last_at : null, title: typeof row.title === 'string' && row.title.trim() ? row.title : 'Henvendelse', summary: typeof row.ai_summary === 'string' ? clip(row.ai_summary) : null, customerId, caseId: typeof row.service_case_id === 'string' ? row.service_case_id : null }]
   return [{ sourceTable: 'work_orders', sourceId: id, kind: 'planning', at, title: typeof row.title === 'string' && row.title.trim() ? row.title : 'Planlagt arbejde', summary: typeof row.status === 'string' ? row.status : null, customerId, caseId: typeof row.case_id === 'string' ? row.case_id : null }]
 }

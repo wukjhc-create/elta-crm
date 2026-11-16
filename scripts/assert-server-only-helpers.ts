@@ -29,6 +29,11 @@ const SERVER_ONLY_MODULES = [
   'src/lib/documents/document-read-access.ts',
   // 00248: materialekost via admin-klienten — kalderen gater materials.view.cost_prices og sender kun id'er brugeren har læst
   'src/lib/materials/case-material-costs.ts',
+  // AI-receptionist fase 2: fælles AI-klient (API-nøgle), Henvendelser-kerne og upload-link (service-role efter token)
+  'src/lib/ai/ai-client.ts',
+  'src/lib/reception/henvendelser-core.ts',
+  'src/lib/reception/upload-links.ts',
+  'src/lib/reception/llm-classify.ts',
 ]
 
 let failures = 0

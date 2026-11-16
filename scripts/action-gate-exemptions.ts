@@ -46,6 +46,8 @@ export const ACTION_GATE_EXEMPTIONS: Record<string, Exemption> = {
   'partner-portal.ts:getPartnerDocuments': T('partnerens dokumenter via partner-token'),
   'password-reset.ts:requestPasswordReset': P('glemt-password: bevidst uden login; svaret afsloerer ikke om kontoen findes'),
   'portal.ts:uploadPortalAttachment': T('kundens fil-upload via portal-token; sti bygges af token-kundens id'),
+  // AI-receptionist fase 2: engangs-upload-link (SHA-256-opslag, udløb, kvote, flag) — kun til token-kundens/sagens dokumenter
+  'upload-links-public.ts:submitUploadLinkFiles': T('kundens fil-upload via engangs-upload-link (validateUploadToken); kunde/sag tages fra linket'),
   'portal.ts:markPortalMessagesAsRead': T('kundens læst-status via portal-token'),
   'portal.ts:portalConfirmBesigtigelse': T('kunden bekræfter besigtigelse via portal-token'),
   'portal.ts:portalRequestReschedule': T('kunden beder om ny tid via portal-token'),

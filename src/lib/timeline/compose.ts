@@ -18,6 +18,7 @@ export type TimelineKind =
   | 'status'
   | 'assistant'
   | 'planning'
+  | 'inquiry'
 
 export interface TimelineEventInput {
   sourceTable: string
@@ -86,5 +87,5 @@ export function composeTimeline(events: TimelineEventInput[]): TimelineEvent[] {
  */
 export function timelineSourceFailureState(source: string, error: { code?: string | null; message?: string | null }): 'error' | 'unavailable' {
   // calls: telephony_calls findes kun hvor 00247 er anvendt (PGRST205/42P01 → unavailable, ikke en fejl)
-  return (source === 'notes' || source === 'calls') && isMissingTableError(error) ? 'unavailable' : 'error'
+  return (source === 'notes' || source === 'calls' || source === 'inquiries') && isMissingTableError(error) ? 'unavailable' : 'error'
 }

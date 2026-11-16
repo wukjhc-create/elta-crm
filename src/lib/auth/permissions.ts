@@ -34,6 +34,13 @@ export const PERMISSIONS = {
   'calls.view_unmatched': ['admin', 'serviceleder'],
   'calls.match': ['admin', 'serviceleder', 'salg'],
 
+  // Henvendelser (00249-kandidat, AI-receptionist fase 2). Bekræftede henvendelser ses med conversations.view + kunden i
+  // læse-scope; ukoblede (ukendt afsender) kun med conversations.view_unmatched. manage = bekræfte match, tildele,
+  // oprette opgave/upload-link, afslutte. AI-aktøren har ingen egne DB-rettigheder (lib/reception/ai-actor.ts).
+  'conversations.view': ['admin', 'serviceleder', 'salg', 'bogholderi'],
+  'conversations.view_unmatched': ['admin', 'serviceleder'],
+  'conversations.manage': ['admin', 'serviceleder', 'salg', 'bogholderi'],
+
   // Offer permissions
   'offers.view': ['admin', 'serviceleder', 'salg'],
   // API-2 (Henrik 2026-10-19): alle tilbud — uden den kun egne (oprettet af brugeren / på en sag i brugerens sags-scope)

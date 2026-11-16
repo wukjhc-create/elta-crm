@@ -2733,6 +2733,51 @@ Total inkl. moms 11.718,75
     log('✅ rollback-blokken kørt (verificér med tel-00247-state: applied=false, katalog 114/273)')
     return
   }
+  if (SUB === 'reception-00249-state') {
+    // STAGING read-only: 00249 Henvendelser — tabeller/politikker/grants/katalog + md5 af kernetabeller (før/efter)
+    const { STATE_00249_SQL } = await import('./reception-00249-probe')
+    log(JSON.stringify((await stagingSql(STATE_00249_SQL))[0].f))
+    return
+  }
+  if (SUB === 'reception-00249-probe' || SUB === 'reception-00249-rollback-proof') {
+    // STAGING ROLLBACK-ONLY: én forespørgsel der altid slutter med RAISE EXCEPTION → intet efterlades
+    //   probe:          krop → persona-/værn-matrix
+    //   rollback-proof: krop → filens ROLLBACK-blok → intet tilbage
+    const P = await import('./reception-00249-probe')
+    const st0 = (await stagingSql(P.STATE_00249_SQL))[0].f
+    if (st0.applied) { log('00249 er allerede anvendt på staging — rollback-only-prøven kræver at den IKKE er det'); process.exitCode = 2; return }
+    const sql = SUB === 'reception-00249-probe' ? P.probe00249Sql() : P.rollbackProof00249Sql()
+    const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+      method: 'POST', headers: { Authorization: `Bearer ${boot.accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: sql }),
+    })
+    const text = await r.text()
+    const tag = SUB === 'reception-00249-probe' ? 'P249RESULT:' : 'P249ROLLBACK:'
+    let msg = text
+    try { const j = JSON.parse(text) as { message?: string }; if (typeof j.message === 'string') msg = j.message } catch { /* rå tekst */ }
+    const i = msg.indexOf(tag)
+    if (i < 0) { log(`uventet svar (${r.status}): ${msg.slice(0, 400)}`); process.exitCode = 2; return }
+    // RAISE-teksten er JSON'en efterfulgt af evt. CONTEXT-linjer — find det afsluttende '}' ved at tælle klammer
+    const rest = msg.slice(i + tag.length)
+    let depth = 0, end = -1
+    for (let k = 0; k < rest.length; k++) { if (rest[k] === '{') depth++; else if (rest[k] === '}') { depth--; if (depth === 0) { end = k; break } } }
+    const json = JSON.parse(rest.slice(0, end + 1))
+    const st1 = (await stagingSql(P.STATE_00249_SQL))[0].f
+    const untouched = JSON.stringify(st0) === JSON.stringify(st1)
+    if (SUB === 'reception-00249-probe') {
+      const checks = [...P.evaluateProbe(json), { id: 'staging uændret efter prøven (tilstand før = efter)', ok: untouched, note: '' }]
+      for (const c of checks) log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.id}${!c.ok && c.note ? ` (${c.note})` : ''}`)
+      const failed = checks.filter((c) => !c.ok).length
+      log(failed ? `❌ ${failed} af ${checks.length}` : `✅ ${checks.length} tjek — rullet tilbage`)
+      process.exitCode = failed ? 2 : 0
+    } else {
+      const ok = json.tables_left === 0 && json.functions_left === 0 && json.catalog_left === 0 && json.defaults_left === 0 && untouched
+      log(`rollback-blok efter krop: ${JSON.stringify(json)} · staging uændret: ${untouched}`)
+      log(ok ? '✅ rollback-blokken fjerner alt det nye' : '❌ rollback-blokken efterlader noget')
+      process.exitCode = ok ? 0 : 2
+    }
+    return
+  }
   if (SUB === 'mp-00248-state') {
     // STAGING read-only: case_materials/work_order_profit-skema, funktioner, politikker, grants, md5 af rækkerne (før/efter)
     const { STATE_00248_SQL } = await import('./mp-00248-probe')

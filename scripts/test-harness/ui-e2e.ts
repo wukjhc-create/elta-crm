@@ -188,6 +188,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   sales: ['U263', 'U262', 'U261', 'U260', 'U259', 'U258', 'U257', 'U256', 'U230', 'U229', 'U228', 'U227', 'U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U265', 'U255', 'U233', 'U232', 'U231', 'U226', 'U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U266', 'U264', 'U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
+  reception: ['U267'],
   'pilot-sim': ['U240', 'U241', 'U242', 'U243', 'U244', 'U245', 'U246', 'U247', 'U248', 'U249', 'U250', 'U251', 'U252', 'U253', 'U254'],
   'portal-mail': ['U215', 'U211', 'U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
@@ -318,6 +319,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     // 00203 (staging only): tilbudsrevisioner
     // UI_OFFER_REVISIONS_ENABLED=false → kør som prod (flag OFF) for regression
     OFFER_REVISIONS_ENABLED: process.env.UI_OFFER_REVISIONS_ENABLED ?? 'true',
+    // 00249 (staging only): engangs-upload-links i Henvendelser (U267)
+    RECEPTION_UPLOAD_LINKS_ENABLED: process.env.UI_RECEPTION_UPLOAD_LINKS_ENABLED ?? 'true',
     // `next dev` genstarter ved 80 % af heap-grænsen, og efter en genstart fejler resten af kørslen (O1).
     // Mere heap KUN til testserveren (ændrer ikke next.config for andre).
     NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --max-old-space-size=3584`.trim() }
@@ -6329,6 +6332,179 @@ ${m.text()}`) })
           if (empIds.length) { await c.admin.from('employee_events').delete().in('employee_id', empIds); await c.admin.from('employees').delete().in('id', empIds) }
         }
         out.push({ id: 'U265 employee setup integrity: montør uden/tvetydig/inaktiv medarbejder, rolleskift, planlægning, tid, historik', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + ` |${diag}` })
+      }
+
+      // U267 AI-RECEPTIONIST FASE 2 (00249 på staging): Henvendelser ende-til-ende gennem UI'et — tekst-simulator (kendt
+      // kunde → kandidat, nød → 112/handoff), gem → auto-opgave via createCustomerTask + forslag, bekræft kunde/sag,
+      // engangs-upload-link (anonym upload → internt dokument + item), afslut, kundetidslinje viser henvendelsen,
+      // montør afvist, salg ser ikke ukoblede og kan ikke køre simulatoren, intet sendt (mail/SMS uændret).
+      if (want('U267')) {
+        const r: Record<string, boolean> = {}
+        const tag = `U267${stamp}`
+        const phone = `9${String(Date.now()).slice(-7)}`
+        let custId: string | null = null
+        let caseId: string | null = null
+        let diag = ''
+        try {
+          const cu = await c.admin.from('customers').insert([{ customer_number: `U267-${stamp}`, company_name: `[HARNESS] ${tag}`, contact_person: 'R', email: `u267-${stamp}@harness.test`,
+            phone, billing_address: 'Harnessvej 4', billing_postal_code: '8000', created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
+          custId = (cu.data?.[0] as { id: string } | undefined)?.id ?? null
+          if (cu.error) diag += ` kunde:${cu.error.message}`
+          const sc = custId ? await c.admin.from('service_cases').insert([{ title: `[HARNESS] ${tag} batteri`, customer_id: custId, status: 'in_progress', priority: 'medium', created_by: adminUser.id }]).select('id') : null
+          caseId = (sc?.data?.[0] as { id: string } | undefined)?.id ?? null
+          if (sc?.error) diag += ` sag:${sc.error.message}`
+          r.seed = !!custId && !!caseId
+          const sendCounts = async () => {
+            const [m, s] = await Promise.all([c.admin.from('email_messages').select('id', { count: 'exact', head: true }), c.admin.from('sms_messages').select('id', { count: 'exact', head: true })])
+            return `${m.count}/${s.count}`
+          }
+          const sendsBefore = await sendCounts()
+          const s = await login(await mkUser('admin'))
+          await gotoSafe(s.page, `${base}/dashboard/henvendelser?filter=all`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.side = (await s.page.getByRole('heading', { name: 'Henvendelser', exact: true }).count()) === 1 && (await s.page.getByTestId('henvendelser-table').count()) === 1
+          r.menupunkt = (await s.page.locator('a[href="/dashboard/henvendelser"]').count()) > 0
+          const simResult = async (re: RegExp) => {
+            await s.page.waitForFunction((src) => new RegExp(src).test(document.querySelector('[data-testid="sim-result"]')?.textContent ?? ''), re.source, { timeout: 90_000 })
+            return s.page.getByTestId('sim-result').innerText()
+          }
+          // Simulator: kør uden at gemme (kendt kunde)
+          await s.page.getByTestId('simulator').locator('summary').click()
+          await s.page.getByTestId('sim-text').fill(`Mit batteri går offline. ${tag}`)
+          await s.page.getByTestId('sim-phone').fill(phone)
+          await s.page.getByTestId('sim-run').click()
+          const sim1 = await simResult(/service_fault/)
+          r.sim_kendt_kandidat = /unique_match/.test(sim1) && /niveau L1/.test(sim1) && /create_task=auto/.test(sim1)
+          // Nød
+          await s.page.getByTestId('sim-text').fill(`Det slår gnister fra eltavlen ${tag}`)
+          await s.page.getByTestId('sim-run').click()
+          const sim2 = await simResult(/haster: emergency/)
+          r.sim_nod = /112/.test(sim2) && /safety_emergency/.test(sim2) && /dispatch_emergency/.test(sim2)
+          // Gem som henvendelse (kendt kunde)
+          await s.page.getByTestId('sim-text').fill(`Mit batteri går offline. ${tag}`)
+          await s.page.getByTestId('sim-save').click()
+          await simResult(/Gemt som henvendelse/)
+          const conv = (await c.admin.from('conversations').select('id, customer_id, customer_candidate_id, customer_match_state, case_candidate_id, status').ilike('title', `%${tag}%`).eq('channel', 'phone').order('created_at', { ascending: false }).limit(1)).data?.[0] as Record<string, unknown> | undefined
+          r.gemt_som_kandidat = !!conv && conv.customer_id === null && conv.customer_candidate_id === custId && conv.customer_match_state === 'unique_match' && conv.case_candidate_id === caseId
+          const acts = conv ? ((await c.admin.from('conversation_actions').select('action_type, state, actor').eq('conversation_id', conv.id as string)).data ?? []) as Array<{ action_type: string; state: string; actor: string }> : []
+          r.auto_opgave_udfoert = acts.some((x) => x.action_type === 'create_task' && x.state === 'executed' && x.actor === 'ai_receptionist')
+          r.foto_kun_forslag = acts.some((x) => x.action_type === 'request_documents' && x.state === 'proposed')
+          if (!r.auto_opgave_udfoert || !r.gemt_som_kandidat) diag += ` acts=${JSON.stringify(acts)} conv=${JSON.stringify(conv)}`
+          const task = custId ? (await c.admin.from('customer_tasks').select('id, service_case_id, title').eq('customer_id', custId)).data ?? [] : []
+          r.opgave_via_kanonisk_action = task.some((t) => (t as { service_case_id: string | null }).service_case_id === caseId)
+          const audit = conv ? (await c.admin.from('audit_logs').select('action').eq('entity_id', conv.id as string)).data ?? [] : []
+          r.audit_ai_aktoer = audit.some((x) => (x as { action: string }).action === 'ai_receptionist.create_task')
+          // Detaljer: bekræft kandidat, vælg sag
+          const openRow = async () => {
+            await gotoSafe(s.page, `${base}/dashboard/henvendelser?filter=all`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await s.page.getByTestId('henvendelse-row').filter({ hasText: tag }).first().click()
+            await s.page.getByTestId('henvendelse-detail').waitFor({ timeout: 30_000 })
+          }
+          const detailSays = (re: RegExp) => s.page.waitForFunction((src) => new RegExp(src).test(document.querySelector('[data-testid="henvendelse-detail"]')?.textContent ?? ''), re.source, { timeout: 60_000 })
+          await openRow()
+          await s.page.screenshot({ caret: 'initial', path: join(shots, 'henvendelser-admin.png'), fullPage: true })
+          await s.page.getByTestId('confirm-candidate').click()
+          await detailSays(/Kunden er bekræftet/)
+          const conv2 = (await c.admin.from('conversations').select('customer_id, customer_match_state, match_version').eq('id', conv?.id as string).maybeSingle()).data as Record<string, unknown> | null
+          r.kunde_bekraeftet = conv2?.customer_id === custId && conv2?.customer_match_state === 'confirmed' && conv2?.match_version === 1
+          await openRow()
+          await s.page.getByTestId('case-select').waitFor({ timeout: 30_000 })
+          await s.page.getByTestId('case-select').selectOption(caseId!)
+          await detailSays(/Sagen er bekræftet/)
+          const conv3 = (await c.admin.from('conversations').select('service_case_id, case_match_state').eq('id', conv?.id as string).maybeSingle()).data as Record<string, unknown> | null
+          r.sag_bekraeftet = conv3?.service_case_id === caseId && conv3?.case_match_state === 'confirmed'
+          // Upload-link
+          await openRow()
+          await s.page.screenshot({ caret: 'initial', path: join(shots, 'henvendelser-detail-bekraeftet.png'), fullPage: true })
+          await s.page.getByRole('button', { name: 'Opret upload-link' }).click()
+          await s.page.getByTestId('upload-link').waitFor({ timeout: 60_000 })
+          const linkText = await s.page.getByTestId('upload-link').innerText()
+          const url = /https?:\/\/\S+\/upload\/[A-Za-z0-9_-]{43}/.exec(linkText)?.[0] ?? null
+          r.upload_link_vist = !!url
+          const ur = (await c.admin.from('upload_requests').select('id, token_hash, files_uploaded').eq('conversation_id', conv?.id as string)).data ?? []
+          r.kun_hash_gemt = ur.length === 1 && !!url && !linkText.includes((ur[0] as { token_hash: string }).token_hash) && /^[0-9a-f]{64}$/.test((ur[0] as { token_hash: string }).token_hash)
+          if (url) {
+            const anon = await browser.newContext({ viewport: { width: 900, height: 800 } })
+            const ap = await anon.newPage()
+            await gotoSafe(ap, url, { waitUntil: 'networkidle', timeout: 180_000 })
+            const pageText = await ap.locator('body').innerText()
+            r.upload_ingen_kundedata = !pageText.includes(tag) && !pageText.includes('Harnessvej') && !pageText.includes(phone)
+            await ap.screenshot({ caret: 'initial', path: join(shots, 'upload-link-anonym.png'), fullPage: true })
+            const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082', 'hex')
+            await ap.getByTestId('upload-input').setInputFiles({ name: 'billede.png', mimeType: 'image/png', buffer: png })
+            await ap.getByTestId('upload-submit').click()
+            await ap.getByText('fil(er) er modtaget').waitFor({ timeout: 60_000 })
+            r.anonym_upload_ok = true
+            await ap.getByTestId('upload-input').setInputFiles({ name: 'virus.png', mimeType: 'image/png', buffer: Buffer.from('MZ-not-an-image') })
+            await ap.getByTestId('upload-submit').click()
+            await ap.getByText('Intet er uploadet').waitFor({ timeout: 60_000 })
+            r.forklaedt_fil_afvist = true
+            await gotoSafe(ap, `${base}/upload/${'x'.repeat(43)}`, { waitUntil: 'networkidle', timeout: 180_000 })
+            r.ugyldigt_token_afvist = (await ap.getByTestId('upload-unavailable').innerText()).includes('ugyldigt')
+            await anon.close()
+          }
+          const docs = custId ? ((await c.admin.from('customer_documents').select('id, service_case_id, storage_path, visible_in_portal').eq('customer_id', custId)).data ?? []) as Array<{ id: string; service_case_id: string | null; storage_path: string; visible_in_portal: boolean | null }> : []
+          r.dokument_paa_sag_internt = docs.length === 1 && docs[0].service_case_id === caseId && docs[0].visible_in_portal !== true
+          const items = (await c.admin.from('conversation_items').select('source_table').eq('conversation_id', conv?.id as string)).data ?? []
+          r.upload_item_paa_henvendelse = items.some((x) => (x as { source_table: string }).source_table === 'customer_documents')
+          const ur2 = (await c.admin.from('upload_requests').select('files_uploaded').eq('conversation_id', conv?.id as string)).data?.[0] as { files_uploaded: number } | undefined
+          r.kvote_talt = ur2?.files_uploaded === 1
+          // Afslut
+          await openRow()
+          await s.page.getByTestId('mark-handled').click()
+          await detailSays(/afsluttet/)
+          const conv4 = (await c.admin.from('conversations').select('status, handled_by').eq('id', conv?.id as string).maybeSingle()).data as Record<string, unknown> | null
+          r.afsluttet = conv4?.status === 'handled' && !!conv4?.handled_by
+          // Kundetidslinjen (samme tidslinje, ingen ny)
+          const tl = await callServerAction(s.page, `${base}/dashboard/henvendelser`, 'src/lib/actions/communication-timeline.ts', 'getCustomerCommunicationTimeline', [custId])
+          r.tidslinje_viser_henvendelse = tl.includes('"sourceTable":"conversations"') && tl.includes('"kind":"inquiry"')
+          if (!r.tidslinje_viser_henvendelse) diag += ` tl=${tl.slice(0, 200)}`
+          // Ukendt afsender gemmes (ukoblet) — til salgs-tjekket
+          await gotoSafe(s.page, `${base}/dashboard/henvendelser`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await s.page.getByTestId('simulator').locator('summary').click()
+          await s.page.getByTestId('sim-text').fill(`Jeg vil gerne have et tilbud på solceller ${tag}UKENDT`)
+          await s.page.getByTestId('sim-phone').fill('11223344')
+          await s.page.getByTestId('sim-save').click()
+          await simResult(/Gemt som henvendelse/)
+          const un = (await c.admin.from('conversations').select('customer_id, customer_match_state').ilike('title', `%${tag}UKENDT%`).limit(1)).data?.[0] as Record<string, unknown> | undefined
+          r.ukendt_ukoblet = !!un && un.customer_id === null && un.customer_match_state === 'no_match'
+          await s.ctx.close().catch(() => {})
+          // Salg: ser ikke ukoblede og kan ikke køre simulatoren
+          const sg = await login(await mkUser('salg'))
+          await gotoSafe(sg.page, `${base}/dashboard/henvendelser?filter=all`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const salgBody = await sg.page.locator('body').innerText()
+          r.salg_side = salgBody.includes('Henvendelser') && !salgBody.includes('Du har ikke adgang')
+          r.salg_ser_ikke_ukoblet = !salgBody.includes(`${tag}UKENDT`)
+          r.salg_ingen_simulator = (await sg.page.getByTestId('simulator').count()) === 0
+          const simDirect = await callServerAction(sg.page, `${base}/dashboard/henvendelser`, 'src/lib/actions/henvendelser.ts', 'simulateReception', [{ text: 'x', persist: true }])
+          r.salg_simulator_afvist = /^HTTP 200/.test(simDirect) && simDirect.includes('"success":false')
+          await sg.ctx.close().catch(() => {})
+          // Montør: ingen adgang (side + action)
+          const mo = await login(await mkUser('montør'))
+          await gotoSafe(mo.page, `${base}/dashboard/henvendelser`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.montor_afvist = (await mo.page.getByText('Du har ikke adgang').count()) > 0 && !(await mo.page.locator('body').innerText()).includes(tag)
+          const moDirect = await callServerAction(mo.page, `${base}/dashboard`, 'src/lib/actions/henvendelser.ts', 'listHenvendelser', ['all'])
+          r.montor_action_afvist = /^HTTP 200/.test(moDirect) && moDirect.includes('"success":false') && !moDirect.includes(tag)
+          await mo.ctx.close().catch(() => {})
+          r.intet_sendt = (await sendCounts()) === sendsBefore
+          if (!r.intet_sendt) diag += ` sends ${sendsBefore}→${await sendCounts()}`
+        } catch (e) {
+          diag += ` ${e instanceof Error ? e.message.slice(0, 300) : String(e)}`
+          r.intet_kast = false
+        } finally {
+          await c.admin.from('conversations').delete().ilike('title', `%${tag}%`)
+          if (custId) {
+            const docs = ((await c.admin.from('customer_documents').select('id, storage_path').eq('customer_id', custId)).data ?? []) as Array<{ id: string; storage_path: string | null }>
+            const paths = docs.map((d) => d.storage_path).filter((p): p is string => !!p)
+            if (paths.length) await c.admin.storage.from('attachments').remove(paths)
+            await c.admin.from('customer_documents').delete().eq('customer_id', custId)
+            await c.admin.from('customer_tasks').delete().eq('customer_id', custId)
+            await c.admin.from('upload_requests').delete().eq('customer_id', custId)
+          }
+          if (caseId) await c.admin.from('service_cases').delete().eq('id', caseId)
+          if (custId) await c.admin.from('customers').delete().eq('id', custId)
+        }
+        const ok = Object.values(r).every(Boolean)
+        out.push({ id: 'U267 AI-receptionist fase 2: Henvendelser, simulator, kandidat→bekræft, auto-opgave, upload-link, tidslinje, roller, intet sendt', ok, note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + ` |${diag}` })
       }
 
       // U263 FINANS BATCH 1 (Claude-review): Likviditet viser bogført saldo som regnskabstal, Ikke konfigureret/Ukendt er aldrig 0,

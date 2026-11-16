@@ -17,23 +17,18 @@ import { permissionDenied } from '@/lib/actions/action-helpers'
  * 7. makeFriendlier(text)
  *
  * Sikkerhed:
- * - Bruger eksisterende OpenAI/budget setup (ai-budget.ts).
- * - 12s timeout, fallback til { ok:false, error } ved fejl.
+ * - Bruger den fælles server-side AI-klient (lib/ai/ai-client.ts: model, budget, timeout, fejlkoder).
+ * - 12s timeout (AI_TASKS.mail_assistant), fallback til { ok:false, error } ved fejl.
  * - System-prompt forbyder eksplicit at opfinde priser, datoer, løfter.
  * - Markerer manglende info med [BRUGER UDFYLDER].
  * - Returnerer ALDRIG en sendt mail — kalder ALDRIG sendQuickReply.
  */
 
 import { createClient } from '@/lib/supabase/server'
-import { canSpendAi, recordAiCall } from '@/lib/services/ai-budget'
-import { logger } from '@/lib/utils/logger'
+import { aiChat, aiErrorText } from '@/lib/ai/ai-client'
 import { validateUUID } from '@/lib/validations/common'
 
-const OPENAI_URL = 'https://api.openai.com/v1/chat/completions'
-const OPENAI_MODEL = 'gpt-4o-mini'
-const OPENAI_TIMEOUT_MS = 12_000
 const MAX_INPUT_CHARS = 8000
-const MAX_TOKENS = 600
 
 const SYSTEM_PROMPT = `Du er AI-assistent for Elta Solar — et dansk el- og solcelle-firma.
 Din opgave er at hjælpe medarbejderen med at skrive bedre kunde-mails.
@@ -68,66 +63,18 @@ export interface AiTextResult {
 // =====================================================
 
 async function callAI(userPrompt: string): Promise<AiTextResult> {
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) {
-    return { ok: false, text: null, error: 'AI er ikke konfigureret (OPENAI_API_KEY mangler)' }
+  // Fælles server-side AI-klient (lib/ai/ai-client): model, timeout, budget og fejlkoder ét sted
+  const r = await aiChat('mail_assistant', [
+    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'user', content: userPrompt },
+  ])
+  if (!r.ok) {
+    if (r.error.code === 'not_configured') return { ok: false, text: null, error: 'AI er ikke konfigureret (OPENAI_API_KEY mangler)' }
+    return { ok: false, text: null, error: aiErrorText(r.error) }
   }
-
-  // Daglig budget-tjek
-  if (!(await canSpendAi())) {
-    return { ok: false, text: null, error: 'AI dagligt budget er opbrugt — prøv igen i morgen' }
-  }
-
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS)
-
-  try {
-    const res = await fetch(OPENAI_URL, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        temperature: 0.3,
-        max_tokens: MAX_TOKENS,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: userPrompt },
-        ],
-      }),
-    })
-
-    if (!res.ok) {
-      const body = (await res.text()).substring(0, 200)
-      logger.warn('AI mail-assistant: OpenAI failed', {
-        metadata: { status: res.status, body },
-      })
-      return { ok: false, text: null, error: `AI-tjeneste fejlede (${res.status})` }
-    }
-
-    await recordAiCall(1)
-
-    const data = await res.json()
-    const text = (data.choices?.[0]?.message?.content as string | undefined)?.trim() || null
-    if (!text) {
-      return { ok: false, text: null, error: 'AI returnerede tomt svar' }
-    }
-
-    const placeholders = extractPlaceholders(text)
-    return { ok: true, text, placeholders }
-  } catch (err) {
-    const aborted = (err as { name?: string })?.name === 'AbortError'
-    if (aborted) {
-      return { ok: false, text: null, error: 'AI svarer ikke (timeout) — prøv igen' }
-    }
-    logger.warn('AI mail-assistant: unexpected error', { error: err })
-    return { ok: false, text: null, error: 'Uventet fejl — prøv igen' }
-  } finally {
-    clearTimeout(timeout)
-  }
+  const text = r.data
+  const placeholders = extractPlaceholders(text)
+  return { ok: true, text, placeholders }
 }
 
 function extractPlaceholders(text: string): string[] {

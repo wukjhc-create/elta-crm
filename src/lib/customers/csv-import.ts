@@ -6,6 +6,7 @@
  *   mangler kontaktperson bruges firmanavnet).
  * - Dubletter: mod eksisterende kunder (e-mail, CVR, telefon) og internt i filen.
  */
+import { localPhoneDigits } from '@/lib/utils/phone'
 
 export type CustomerField =
   | 'company_name' | 'contact_person' | 'email' | 'phone' | 'mobile' | 'vat_number'
@@ -71,7 +72,8 @@ export function guessDelimiter(firstLine: string): string {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-export const phoneDigits = (s: string | undefined | null) => (s ?? '').replace(/\D/g, '').replace(/^45(?=\d{8}$)/, '')
+/** Dansk lokal-nøgle — kanonisk implementering i lib/utils/phone (localPhoneDigits) */
+export const phoneDigits = (s: string | undefined | null) => localPhoneDigits(s)
 
 export function parseCustomerCsv(input: string, maxRows = 2000): ParsedCsv {
   const text = input.replace(/^﻿/, '')
