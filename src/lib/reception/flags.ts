@@ -16,5 +16,13 @@ export function uploadLinksEnabled(env: Record<string, string | undefined> = pro
   return on(env.RECEPTION_UPLOAD_LINKS_ENABLED)
 }
 
+/**
+ * RECEPTION_BACKGROUND_ENABLED=true — baggrundsaktøren (uden indlogget medarbejder: nat/weekend-telefon, web-chat,
+ * portal, udbyder-webhooks) må indtage som FORSLAG via reception_ingest. Intet kalder den endnu (fase 3 kobler den på).
+ */
+export function receptionBackgroundEnabled(env: Record<string, string | undefined> = process.env): boolean {
+  return on(env.RECEPTION_BACKGROUND_ENABLED)
+}
+
 /** Fase 2: altid false. Bevidst ingen env-nøgle. */
 export const EXTERNAL_SENDS_ENABLED = false as const

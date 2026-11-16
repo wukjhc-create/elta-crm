@@ -33,17 +33,20 @@ export function isWellFormedUploadToken(token: string | null | undefined): token
 export interface UploadRequestRow {
   id: string; conversation_id: string | null; customer_id: string; service_case_id: string | null
   expires_at: string; max_files: number; files_uploaded: number; revoked_at: string | null; created_by: string | null
+  /** Final review: ÉN afsendelse pr. link — sat ved reservationen */
+  consumed_at?: string | null
 }
 
 export type UploadTokenCheck =
   | { ok: true; request: UploadRequestRow }
-  | { ok: false; reason: 'disabled' | 'invalid' | 'expired' | 'revoked' | 'quota_used' | 'read_error' }
+  | { ok: false; reason: 'disabled' | 'invalid' | 'expired' | 'revoked' | 'consumed' | 'quota_used' | 'read_error' }
 
 /** Rent tjek af en allerede læst række (testbart) */
 export function checkUploadRequest(row: UploadRequestRow | null, now: Date): UploadTokenCheck {
   if (!row) return { ok: false, reason: 'invalid' }
   if (row.revoked_at) return { ok: false, reason: 'revoked' }
   if (Date.parse(row.expires_at) <= now.getTime()) return { ok: false, reason: 'expired' }
+  if (row.consumed_at) return { ok: false, reason: 'consumed' }
   if (row.files_uploaded >= row.max_files) return { ok: false, reason: 'quota_used' }
   return { ok: true, request: row }
 }
@@ -56,7 +59,7 @@ export async function validateUploadToken(admin: Db, token: string | null | unde
   if (!uploadLinksEnabled()) return { ok: false, reason: 'disabled' }
   if (!isWellFormedUploadToken(token)) return { ok: false, reason: 'invalid' }
   const { data, error } = await admin.from('upload_requests')
-    .select('id, conversation_id, customer_id, service_case_id, expires_at, max_files, files_uploaded, revoked_at, created_by')
+    .select('id, conversation_id, customer_id, service_case_id, expires_at, max_files, files_uploaded, consumed_at, revoked_at, created_by')
     .eq('token_hash', hashUploadToken(token)).maybeSingle()
   if (error) return { ok: false, reason: 'read_error' }
   return checkUploadRequest(data as UploadRequestRow | null, now)
@@ -67,6 +70,7 @@ export const UPLOAD_REASON_TEXT: Record<Exclude<UploadTokenCheck, { ok: true }>[
   invalid: 'Linket er ugyldigt.',
   expired: 'Linket er udløbet. Kontakt Elta Solar for et nyt link.',
   revoked: 'Linket er lukket. Kontakt Elta Solar for et nyt link.',
+  consumed: 'Linket er allerede brugt. Kontakt Elta Solar, hvis du vil sende flere filer.',
   quota_used: 'Der er allerede uploadet det maksimale antal filer via dette link.',
   read_error: 'Linket kunne ikke kontrolleres lige nu. Prøv igen om lidt — intet er uploadet.',
 }
@@ -80,8 +84,22 @@ export function contentMatchesType(type: string, b: Buffer): boolean {
   if (type === 'image/png') return head(8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
   if (type === 'image/webp') return head(4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP'
   if (type === 'application/pdf') return head(5).toString('latin1') === '%PDF-'
-  if (type === 'image/heic' || type === 'image/heif') return b.subarray(4, 8).toString('latin1') === 'ftyp'
+  // HEIC/HEIF: ISO-BMFF 'ftyp' + en HEIF-brand (en vilkårlig MP4/MOV afvises)
+  if (type === 'image/heic' || type === 'image/heif') return b.subarray(4, 8).toString('latin1') === 'ftyp' && HEIF_BRANDS.has(b.subarray(8, 12).toString('latin1'))
   return false
+}
+
+const HEIF_BRANDS = new Set(['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'mif1', 'msf1'])
+
+/** Filendelsen afledes af den KONTROLLEREDE type — aldrig af kundens filnavn */
+export const UPLOAD_EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/heic': 'heic', 'image/heif': 'heif', 'application/pdf': 'pdf' }
+
+/** Visningsnavn: ingen sti-dele, kontrol- eller retningstegn (RTL-override kan forklæde endelser), endelse fra typen */
+export function safeUploadName(name: string, type: string): string {
+  const base = String(name ?? '').split(/[\\/]/).pop() ?? ''
+  const clean = base.normalize('NFC').replace(/[\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, '').replace(/\s+/g, ' ').trim()
+  const stem = clean.replace(/\.[^.]*$/, '').slice(0, 100) || 'fil'
+  return `${stem}.${UPLOAD_EXT[type] ?? 'bin'}`
 }
 
 export type UploadOutcome = { ok: true; accepted: number; documentIds: string[] } | { ok: false; error: string }
@@ -89,22 +107,27 @@ export type UploadOutcome = { ok: true; accepted: number; documentIds: string[] 
 /** Gem filerne (service-role, efter token-validering). Hver fil: storage → dokumentrække → kvote (optimistisk lås) → item. */
 export async function acceptUploadFiles(admin: Db, req: UploadRequestRow, files: AcceptedFile[]): Promise<UploadOutcome> {
   if (!files.length) return { ok: false, error: 'Vælg mindst én fil.' }
-  if (files.length > req.max_files - req.files_uploaded) return { ok: false, error: `Højst ${req.max_files - req.files_uploaded} filer mere via dette link.` }
+  if (req.consumed_at) return { ok: false, error: UPLOAD_REASON_TEXT.consumed }
+  if (files.length > req.max_files) return { ok: false, error: `Højst ${req.max_files} filer via dette link.` }
   for (const f of files) {
     if (f.size <= 0 || f.size > UPLOAD_MAX_BYTES || f.bytes.length !== f.size) return { ok: false, error: 'En fil er tom eller for stor (max 9 MB). Intet er uploadet.' }
     if (!UPLOAD_MIME.test(f.type) || !contentMatchesType(f.type, f.bytes)) return { ok: false, error: 'Kun billeder (JPG, PNG, WEBP, HEIC) og PDF. Intet er uploadet.' }
   }
   if (files.reduce((n, f) => n + f.size, 0) > UPLOAD_MAX_TOTAL_BYTES) return { ok: false, error: 'Filerne fylder for meget på én gang (max 9 MB samlet). Upload dem i flere omgange. Intet er uploadet.' }
-  // Kvoten reserveres FØR filerne gemmes (optimistisk lås): to samtidige uploads kan ikke overskride loftet
-  const reserve = await admin.from('upload_requests').update({ files_uploaded: req.files_uploaded + files.length })
-    .eq('id', req.id).eq('files_uploaded', req.files_uploaded).is('revoked_at', null).gt('expires_at', new Date().toISOString()).select('id')
-  if (reserve.error || !(reserve.data ?? []).length) return { ok: false, error: 'Linket blev brugt samtidig — prøv igen. Intet er uploadet.' }
+  // Final review: linket FORBRUGES atomisk FØR filerne gemmes (én afsendelse pr. link). Et samtidigt eller gentaget
+  // kald (replay) rammer 0 rækker og afvises. Kun hvis INTET blev gemt, frigives linket igen.
+  const reservedAt = new Date().toISOString()
+  const reserve = await admin.from('upload_requests').update({ files_uploaded: files.length, consumed_at: reservedAt })
+    .eq('id', req.id).is('consumed_at', null).is('revoked_at', null).gt('expires_at', reservedAt).select('id')
+  if (reserve.error || !(reserve.data ?? []).length) return { ok: false, error: 'Linket er allerede brugt eller lukket. Intet er uploadet.' }
 
   const documentIds: string[] = []
-  // Review-fund L1: kvoten for filer der IKKE blev gemt gives tilbage (bedste forsøg)
   const refund = async () => {
-    const unused = files.length - documentIds.length
-    if (unused > 0) await admin.from('upload_requests').update({ files_uploaded: req.files_uploaded + documentIds.length }).eq('id', req.id).eq('files_uploaded', req.files_uploaded + files.length)
+    if (documentIds.length === 0) {
+      await admin.from('upload_requests').update({ files_uploaded: 0, consumed_at: null }).eq('id', req.id).eq('consumed_at', reservedAt)
+    } else if (documentIds.length < files.length) {
+      await admin.from('upload_requests').update({ files_uploaded: documentIds.length }).eq('id', req.id).eq('consumed_at', reservedAt)
+    }
   }
   // Review-fund H3: filer knyttes kun til henvendelsen, hvis dens bekræftede kunde stadig er linkets kunde
   let attachConversation: string | null = null
@@ -113,11 +136,10 @@ export async function acceptUploadFiles(admin: Db, req: UploadRequestRow, files:
     if (!cv.error && (cv.data as { customer_id: string | null } | null)?.customer_id === req.customer_id) attachConversation = req.conversation_id
   }
   for (const [i, f] of files.entries()) {
-    const ext = (f.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5) || 'bin'
-    const path = `customer-documents/${req.customer_id}/upload-${req.id}-${Date.now()}-${i}.${ext}`
+    const path = `customer-documents/${req.customer_id}/upload-${req.id}-${Date.now()}-${i}.${UPLOAD_EXT[f.type] ?? 'bin'}`
     const up = await admin.storage.from('attachments').upload(path, f.bytes, { contentType: f.type, upsert: false })
     if (up.error) { await refund(); return { ok: false, error: `Upload fejlede efter ${documentIds.length} fil(er). Prøv igen med resten.` } }
-    const safeName = f.name.replace(/[\u0000-\u001f]/g, '').slice(0, 200) || 'fil'
+    const safeName = safeUploadName(f.name, f.type)
     const doc = await admin.from('customer_documents').insert({
       customer_id: req.customer_id, service_case_id: req.service_case_id, title: safeName, document_type: 'other',
       file_url: '', storage_path: path, file_name: safeName, mime_type: f.type, file_size: f.size, shared_by: req.created_by,
@@ -129,6 +151,7 @@ export async function acceptUploadFiles(admin: Db, req: UploadRequestRow, files:
     }
     documentIds.push((doc.data as { id: string }).id)
     if (attachConversation) {
+      // Item-værnet (00249) kræver: kun service_role, dokumentet tilhører henvendelsens bekræftede kunde, kanonisk nøgle
       await admin.from('conversation_items').insert({
         conversation_id: attachConversation, channel: 'upload_link', direction: 'inbound', provider: 'upload_link',
         source_table: 'customer_documents', source_id: (doc.data as { id: string }).id, occurred_at: new Date().toISOString(),

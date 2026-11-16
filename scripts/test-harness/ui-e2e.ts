@@ -6378,7 +6378,7 @@ ${m.text()}`) })
           await s.page.getByTestId('sim-text').fill(`Det slår gnister fra eltavlen ${tag}`)
           await s.page.getByTestId('sim-run').click()
           const sim2 = await simResult(/haster: emergency/)
-          r.sim_nod = /112/.test(sim2) && /safety_emergency/.test(sim2) && /dispatch_emergency/.test(sim2)
+          r.sim_nod = /112/.test(sim2) && /safety_emergency/.test(sim2) && /dispatch_emergency/.test(sim2) && /Gå væk fra faren/.test(sim2) && !/hovedafbryder/i.test(sim2)
           // Gem som henvendelse (kendt kunde)
           await s.page.getByTestId('sim-text').fill(`Mit batteri går offline. ${tag}`)
           await s.page.getByTestId('sim-save').click()
@@ -6400,8 +6400,21 @@ ${m.text()}`) })
             await s.page.getByTestId('henvendelse-detail').waitFor({ timeout: 30_000 })
           }
           const detailSays = (re: RegExp) => s.page.waitForFunction((src) => new RegExp(src).test(document.querySelector('[data-testid="henvendelse-detail"]')?.textContent ?? ''), re.source, { timeout: 60_000 })
+          await s.page.setViewportSize({ width: 1400, height: 900 })
           await openRow()
           await s.page.screenshot({ caret: 'initial', path: join(shots, 'henvendelser-admin.png'), fullPage: true })
+          r.ui_ingen_vandret_rulning = await s.page.evaluate(() => {
+            const t = document.querySelector('[data-testid="henvendelser-table"]') as HTMLElement | null
+            return !!t && t.scrollWidth <= (t.parentElement?.clientWidth ?? 0) + 1 && document.documentElement.scrollWidth <= window.innerWidth + 1
+          })
+          const myRow = s.page.getByTestId('henvendelse-row').filter({ hasText: tag }).first()
+          r.ui_kandidat_tydelig = (await myRow.getByTestId('match-customer').getAttribute('data-state')) === 'candidate' && (await myRow.getByText('Kandidat?').count()) === 1
+          r.ui_ubehandlet_markeret = (await myRow.getAttribute('data-unhandled')) === 'true'
+          await s.page.getByTestId('action-group-pending').waitFor({ timeout: 30_000 }).catch(() => {})
+          if ((await s.page.getByTestId('action-group-pending').count()) === 0) diag += ' grupper=' + (await s.page.getByTestId('action-list').innerText().catch(() => 'ingen'))
+          r.ui_forslag_adskilt = (await s.page.getByTestId('action-group-pending').count()) === 1 && (await s.page.getByTestId('action-group-done').count()) === 1
+            && (await s.page.getByTestId('action-group-pending').getByTestId('action-item').first().getAttribute('data-state')) === 'proposed'
+          r.ui_detalje_ikke_bekraeftet = (await s.page.getByTestId('detail-customer-unconfirmed').innerText()).includes('IKKE BEKRÆFTET')
           await s.page.getByTestId('confirm-candidate').click()
           await detailSays(/Kunden er bekræftet/)
           const conv2 = (await c.admin.from('conversations').select('customer_id, customer_match_state, match_version').eq('id', conv?.id as string).maybeSingle()).data as Record<string, unknown> | null
@@ -6430,20 +6443,30 @@ ${m.text()}`) })
             r.upload_ingen_kundedata = !pageText.includes(tag) && !pageText.includes('Harnessvej') && !pageText.includes(phone)
             await ap.screenshot({ caret: 'initial', path: join(shots, 'upload-link-anonym.png'), fullPage: true })
             const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082', 'hex')
-            await ap.getByTestId('upload-input').setInputFiles({ name: 'billede.png', mimeType: 'image/png', buffer: png })
-            await ap.getByTestId('upload-submit').click()
-            await ap.getByText('fil(er) er modtaget').waitFor({ timeout: 60_000 })
-            r.anonym_upload_ok = true
             await ap.getByTestId('upload-input').setInputFiles({ name: 'virus.png', mimeType: 'image/png', buffer: Buffer.from('MZ-not-an-image') })
             await ap.getByTestId('upload-submit').click()
             await ap.getByText('Intet er uploadet').waitFor({ timeout: 60_000 })
             r.forklaedt_fil_afvist = true
+            await ap.getByTestId('upload-input').setInputFiles({ name: '..\\..\\billede\u202Egnp.exe', mimeType: 'image/png', buffer: png })
+            await ap.getByTestId('upload-submit').click()
+            await ap.getByText('fil(er) er modtaget').waitFor({ timeout: 60_000 })
+            r.anonym_upload_ok = true
+            // Final review: ÉN afsendelse pr. link — replay afvises, og siden viser "brugt" ved genindlæsning
+            await ap.getByTestId('upload-input').setInputFiles({ name: 'igen.png', mimeType: 'image/png', buffer: png })
+            await ap.getByTestId('upload-submit').click()
+            await ap.getByText('allerede brugt').waitFor({ timeout: 60_000 })
+            r.replay_afvist = true
+            await gotoSafe(ap, url, { waitUntil: 'networkidle', timeout: 180_000 })
+            r.brugt_link_afvist = (await ap.getByTestId('upload-unavailable').innerText()).includes('allerede brugt')
             await gotoSafe(ap, `${base}/upload/${'x'.repeat(43)}`, { waitUntil: 'networkidle', timeout: 180_000 })
             r.ugyldigt_token_afvist = (await ap.getByTestId('upload-unavailable').innerText()).includes('ugyldigt')
             await anon.close()
           }
           const docs = custId ? ((await c.admin.from('customer_documents').select('id, service_case_id, storage_path, visible_in_portal').eq('customer_id', custId)).data ?? []) as Array<{ id: string; service_case_id: string | null; storage_path: string; visible_in_portal: boolean | null }> : []
           r.dokument_paa_sag_internt = docs.length === 1 && docs[0].service_case_id === caseId && docs[0].visible_in_portal !== true
+          const docName = custId ? ((await c.admin.from('customer_documents').select('file_name, storage_path').eq('customer_id', custId)).data ?? []) as Array<{ file_name: string; storage_path: string }> : []
+          r.filnavn_saneret = docName.length === 1 && docName[0].file_name === 'billedegnp.png' && /\.png$/.test(docName[0].storage_path)
+          if (!r.filnavn_saneret) diag += ` fil=${JSON.stringify(docName)}`
           const items = (await c.admin.from('conversation_items').select('source_table').eq('conversation_id', conv?.id as string)).data ?? []
           r.upload_item_paa_henvendelse = items.some((x) => (x as { source_table: string }).source_table === 'customer_documents')
           const ur2 = (await c.admin.from('upload_requests').select('files_uploaded').eq('conversation_id', conv?.id as string)).data?.[0] as { files_uploaded: number } | undefined

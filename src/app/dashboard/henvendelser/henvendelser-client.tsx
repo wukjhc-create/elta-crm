@@ -21,6 +21,11 @@ const MATCH: Record<string, string> = { unique_match: 'Kandidat', ambiguous: 'Fl
 const CASE: Record<string, string> = { exact: 'Kandidat-sag', several_open: 'Flere åbne sager', no_open_case: 'Ingen åben sag', none: '—', read_error: 'Sager kunne ikke læses', confirmed: 'Bekræftet', not_applicable: '—' }
 const TEAM: Record<string, string> = { kontor: 'Kontor', service: 'Service', salg: 'Salg', bogholderi: 'Bogholderi', montor: 'Montør' }
 const OUTCOME: Record<string, string> = { auto: 'Automatisk', proposal: 'Forslag', handoff: 'Kræver medarbejder', forbidden: 'Forbudt for AI' }
+const ACTION_LABEL: Record<string, string> = {
+  find_customer: 'Find kunde', find_contact: 'Find kontakt', find_case: 'Find sag', append_communication: 'Registrér kommunikation',
+  create_task: 'Opret opgave', create_callback: 'Ring tilbage', create_planning_request: 'Planlægning', request_documents: 'Bed om billeder/dokumenter',
+  create_customer_proposal: 'Ny kunde (forslag)', create_case_proposal: 'Ny sag (forslag)', mark_handled: 'Afslut henvendelse',
+}
 const ASTATE: Record<string, string> = { proposed: 'Afventer godkendelse', approved: 'Godkendt', executed: 'Udført', rejected: 'Afvist', failed: 'Fejlede', blocked: 'Blokeret' }
 const FILTERS: Array<{ key: HenvendelseFilter; label: string }> = [
   { key: 'new', label: 'Nye/ubehandlede' }, { key: 'urgent', label: 'Haster' }, { key: 'handoff', label: 'Kræver medarbejder' },
@@ -28,6 +33,46 @@ const FILTERS: Array<{ key: HenvendelseFilter; label: string }> = [
   { key: 'mine', label: 'Tildelt mig' }, { key: 'team', label: 'Mit team' }, { key: 'all', label: 'Alle' },
 ]
 const fmt = (iso: string) => new Date(iso).toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen', dateStyle: 'short', timeStyle: 'short' })
+
+const URGENCY_RANK: Record<string, number> = { emergency: 0, high: 1, normal: 2, low: 3 }
+const isUnhandled = (r: HenvendelseRow) => r.status === 'new' || r.status === 'handoff' || r.status === 'open'
+/** Akutte og ubehandlede øverst; ellers serverens rækkefølge (seneste først) */
+function sortRows(rows: HenvendelseRow[]): HenvendelseRow[] {
+  return rows.map((r, i) => ({ r, i })).sort((a, b) => {
+    const ua = a.r.status === 'handled' ? 9 : URGENCY_RANK[a.r.urgency] ?? 2, ub = b.r.status === 'handled' ? 9 : URGENCY_RANK[b.r.urgency] ?? 2
+    if (ua !== ub) return ua - ub
+    const ha = isUnhandled(a.r) ? 0 : 1, hb = isUnhandled(b.r) ? 0 : 1
+    return ha !== hb ? ha - hb : a.i - b.i
+  }).map((x) => x.r)
+}
+const rowAccent = (r: HenvendelseRow) => r.status === 'handled' ? 'border-l-transparent text-gray-500'
+  : r.urgency === 'emergency' ? 'border-l-red-600 bg-red-50' : r.urgency === 'high' ? 'border-l-orange-500' : isUnhandled(r) ? 'border-l-blue-500' : 'border-l-transparent'
+
+function UrgencyBadge({ urgency }: { urgency: string }) {
+  const u = URGENCY[urgency]
+  return <span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold ${u?.cls ?? ''}`} data-testid="urgency-badge">{u?.label ?? urgency}</span>
+}
+
+/** Kunde: Bekræftet (grøn ✓) / Kandidat — ikke bekræftet (gul) / ukendt / læsefejl (rød) — kan ikke forveksles */
+function CustomerMatch({ row }: { row: HenvendelseRow }) {
+  if (row.customer) return <div className="truncate text-green-800" title={row.customer.name} data-testid="match-customer" data-state="confirmed">✓ {row.customer.name}</div>
+  if (row.candidate) return <div className="truncate text-amber-800" title={`Kandidat — ikke bekræftet: ${row.candidate.name}`} data-testid="match-customer" data-state="candidate"><span className="rounded bg-amber-100 px-1 text-xs font-semibold">Kandidat?</span> {row.candidate.name}</div>
+  const err = row.customerState === 'read_error'
+  return <div className={`truncate text-xs ${err ? 'font-semibold text-red-700' : 'text-gray-500'}`} data-testid="match-customer" data-state={row.customerState}>{MATCH[row.customerState] ?? row.customerState}{row.candidateHidden ? ' (skjult)' : ''}</div>
+}
+
+function CaseMatch({ row }: { row: HenvendelseRow }) {
+  if (row.caseRef) return <div className="truncate text-xs text-green-800" data-testid="match-case" data-state="confirmed">✓ Sag {row.caseRef.number ?? ''}</div>
+  if (row.caseCandidate) return <div className="truncate text-xs text-amber-800" data-testid="match-case" data-state="candidate">Sag? {row.caseCandidate.number}</div>
+  return <div className="truncate text-xs text-gray-400" data-testid="match-case" data-state={row.caseState}>{CASE[row.caseState] ?? row.caseState}</div>
+}
+
+const ACTION_GROUPS: Array<{ key: string; title: string; states: string[]; cls: string }> = [
+  { key: 'pending', title: 'Afventer din godkendelse (AI-forslag)', states: ['proposed'], cls: 'border-amber-300 bg-amber-50' },
+  { key: 'approved', title: 'Godkendt — venter på udførelse', states: ['approved'], cls: 'border-blue-300 bg-blue-50' },
+  { key: 'done', title: 'Udført', states: ['executed'], cls: 'border-green-300 bg-green-50' },
+  { key: 'closed', title: 'Afvist / blokeret / fejlet', states: ['rejected', 'blocked', 'failed'], cls: 'border-gray-200 bg-gray-50 text-gray-600' },
+]
 
 export function HenvendelserClient(props: { filter: HenvendelseFilter; rows: HenvendelseRow[]; error: string | null; canManage: boolean; canSimulate: boolean; uploadLinks: boolean }) {
   const router = useRouter()
@@ -69,35 +114,46 @@ export function HenvendelserClient(props: { filter: HenvendelseFilter; rows: Hen
       {props.error && <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert" data-testid="henvendelser-error">{props.error}</p>}
       {props.canSimulate && <Simulator onSaved={() => router.refresh()} />}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_420px]">
-        <div className="overflow-x-auto rounded-lg border bg-white">
-          <table className="min-w-full text-sm" data-testid="henvendelser-table">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_400px]">
+        <div className="rounded-lg border bg-white">
+          <table className="w-full table-fixed text-sm" data-testid="henvendelser-table">
+            <colgroup><col className="w-24" /><col className="w-28" /><col className="w-48" /><col /><col className="w-28" /></colgroup>
             <thead className="bg-gray-50 text-left text-gray-600">
               <tr>
-                <th className="px-3 py-2">Kanal</th><th className="px-3 py-2">Tid</th><th className="px-3 py-2">Kunde</th><th className="px-3 py-2">Sag</th>
-                <th className="px-3 py-2">Resumé</th><th className="px-3 py-2">Haster</th><th className="px-3 py-2">Ansvarlig</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Næste</th>
+                <th className="px-3 py-2">Haster</th><th className="px-3 py-2">Kanal · tid</th><th className="px-3 py-2">Kunde · sag</th>
+                <th className="px-3 py-2">Resumé · næste skridt</th><th className="px-3 py-2">Ansvarlig</th>
               </tr>
             </thead>
             <tbody>
-              {!props.error && props.rows.length === 0 && <tr><td colSpan={9} className="px-3 py-6 text-center text-gray-500">Ingen henvendelser i dette filter.</td></tr>}
-              {props.rows.map((r) => (
-                <tr key={r.id} onClick={() => setOpenId(r.id)} className={`cursor-pointer border-t hover:bg-blue-50 ${openId === r.id ? 'bg-blue-50' : ''}`} data-testid="henvendelse-row">
-                  <td className="px-3 py-2 whitespace-nowrap">{CHANNEL[r.channel] ?? r.channel}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{fmt(r.lastAt)}</td>
-                  <td className="px-3 py-2">{r.customer ? r.customer.name : r.candidate ? <span className="text-amber-700">{r.candidate.name}?</span> : <span className="text-gray-500">{MATCH[r.customerState] ?? r.customerState}{r.candidateHidden ? ' (skjult)' : ''}</span>}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{r.caseRef ? r.caseRef.number ?? 'Sag' : r.caseCandidate ? <span className="text-amber-700">{r.caseCandidate.number}?</span> : <span className="text-gray-500">{CASE[r.caseState] ?? r.caseState}</span>}</td>
-                  <td className="px-3 py-2 max-w-xs truncate" title={r.aiSummary ?? r.title}>{r.aiSummary ?? r.title}</td>
-                  <td className="px-3 py-2"><span className={`rounded px-2 py-0.5 text-xs ${URGENCY[r.urgency]?.cls ?? ''}`}>{URGENCY[r.urgency]?.label ?? r.urgency}</span></td>
-                  <td className="px-3 py-2 whitespace-nowrap">{r.assignedName ?? (r.assignedTeam ? TEAM[r.assignedTeam] : '—')}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{STATUS[r.status] ?? r.status}</td>
-                  <td className="px-3 py-2 max-w-[12rem] truncate" title={r.nextAction ?? ''}>{r.nextAction ?? '—'}</td>
+              {!props.error && props.rows.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-500">Ingen henvendelser i dette filter.</td></tr>}
+              {sortRows(props.rows).map((r) => (
+                <tr key={r.id} onClick={() => setOpenId(r.id)}
+                  className={`cursor-pointer border-t border-l-4 align-top hover:bg-blue-50 ${rowAccent(r)} ${openId === r.id ? 'bg-blue-50' : ''}`}
+                  data-testid="henvendelse-row" data-urgency={r.urgency} data-unhandled={isUnhandled(r) ? 'true' : 'false'}>
+                  <td className="px-3 py-2 space-y-1">
+                    <UrgencyBadge urgency={r.urgency} />
+                    <div className={`text-xs ${isUnhandled(r) ? 'font-semibold text-gray-900' : 'text-gray-500'}`}>{isUnhandled(r) ? '● ' : ''}{STATUS[r.status] ?? r.status}</div>
+                  </td>
+                  <td className="px-3 py-2 text-xs text-gray-700">
+                    <div className="font-medium text-gray-900">{CHANNEL[r.channel] ?? r.channel}{r.intakeActor === 'ai_receptionist' ? ' · AI' : ''}</div>
+                    <div>{fmt(r.lastAt)}</div>
+                  </td>
+                  <td className="px-3 py-2 space-y-1 min-w-0">
+                    <CustomerMatch row={r} />
+                    <CaseMatch row={r} />
+                  </td>
+                  <td className="px-3 py-2 min-w-0">
+                    <div className="truncate" title={r.aiSummary ?? r.title}>{r.aiSummary ?? r.title}</div>
+                    {r.nextAction && <div className="truncate text-xs text-gray-600" title={r.nextAction}>→ {r.nextAction}</div>}
+                  </td>
+                  <td className="px-3 py-2 text-xs truncate">{r.assignedName ?? (r.assignedTeam ? `Team ${TEAM[r.assignedTeam]}` : <span className="text-red-700">Ingen</span>)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
         {open ? <DetailPanel key={open.id} row={open} canManage={props.canManage} uploadLinks={props.uploadLinks} onChanged={() => router.refresh()} />
-          : <div className="hidden lg:block rounded-lg border border-dashed p-6 text-sm text-gray-500">Vælg en henvendelse for at se hele konteksten.</div>}
+          : <div className="hidden xl:block rounded-lg border border-dashed p-6 text-sm text-gray-500">Vælg en henvendelse for at se hele konteksten.</div>}
       </div>
     </div>
   )
@@ -146,10 +202,12 @@ function DetailPanel({ row, canManage, uploadLinks, onChanged }: { row: Henvende
       <section className="space-y-2">
         <h3 className="font-medium">Kunde</h3>
         {row.customer ? (
-          <p>Bekræftet: <Link className="text-blue-700 hover:underline" href={`/dashboard/customers/${row.customer.id}`}>{row.customer.name}</Link></p>
+          <p className="rounded border border-green-300 bg-green-50 p-2" data-testid="detail-customer-confirmed">✓ Bekræftet kunde: <Link className="font-medium text-blue-700 hover:underline" href={`/dashboard/customers/${row.customer.id}`}>{row.customer.name}</Link></p>
         ) : (
           <>
-            <p className="text-gray-700">{MATCH[row.customerState] ?? row.customerState}{row.candidate ? `: ${row.candidate.name}` : ''}{row.candidateHidden ? ' (kandidaten er skjult for dig)' : ''}</p>
+            <p className={`rounded border p-2 ${row.candidate ? 'border-amber-300 bg-amber-50 text-amber-900' : row.customerState === 'read_error' ? 'border-red-300 bg-red-50 text-red-800' : 'border-gray-200 bg-gray-50 text-gray-700'}`} data-testid="detail-customer-unconfirmed">
+              {row.candidate ? `IKKE BEKRÆFTET — kandidat: ${row.candidate.name}` : (MATCH[row.customerState] ?? row.customerState)}{row.candidateHidden ? ' (kandidaten er skjult for dig)' : ''}
+            </p>
             {canManage && row.candidate && (
               <div className="flex gap-2">
                 <button disabled={busy} data-testid="confirm-candidate" className="rounded bg-blue-600 px-2 py-1 text-white disabled:opacity-50" onClick={() => run(() => confirmHenvendelseCustomer(row.id, row.candidate!.id, row.matchVersion), 'Kunden er bekræftet.')}>Bekræft kandidat</button>
@@ -174,7 +232,7 @@ function DetailPanel({ row, canManage, uploadLinks, onChanged }: { row: Henvende
 
       <section className="space-y-2">
         <h3 className="font-medium">Sag</h3>
-        {row.caseRef ? <p>Bekræftet: <Link className="text-blue-700 hover:underline" href={`/dashboard/orders/${row.caseRef.id}`}>{row.caseRef.number ?? 'Sag'}</Link></p>
+        {row.caseRef ? <p className="rounded border border-green-300 bg-green-50 p-2">✓ Bekræftet sag: <Link className="font-medium text-blue-700 hover:underline" href={`/dashboard/orders/${row.caseRef.id}`}>{row.caseRef.number ?? 'Sag'}</Link></p>
           : <p className="text-gray-700">{CASE[row.caseState] ?? row.caseState}{row.caseCandidate ? `: ${row.caseCandidate.number}` : ''}</p>}
         {canManage && row.customer && detail && detail.openCases.length > 0 && !row.caseRef && (
           <select disabled={busy} defaultValue="" data-testid="case-select" className="w-full rounded border px-2 py-1"
@@ -213,22 +271,33 @@ function DetailPanel({ row, canManage, uploadLinks, onChanged }: { row: Henvende
           <section className="space-y-1">
             <h3 className="font-medium">AI-forslag og handlinger</h3>
             {detail.actions.length === 0 && <p className="text-gray-500">Ingen.</p>}
-            <ul className="space-y-1" data-testid="action-list">
-              {detail.actions.map((a) => (
-                <li key={a.id} className="rounded border p-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span>{a.type} · <span className="text-gray-600">{OUTCOME[a.outcome] ?? a.outcome}</span> · {ASTATE[a.state] ?? a.state}</span>
-                    {canManage && a.state === 'proposed' && a.outcome !== 'forbidden' && (
-                      <span className="flex gap-1">
-                        <button disabled={busy} className="rounded bg-blue-600 px-2 py-0.5 text-white disabled:opacity-50" onClick={() => run(async () => { const r = await decideHenvendelseAction(a.id, 'approve'); if (r.success && r.data.hint) setTimeout(() => setMsg(r.data.hint), 0); return r }, 'Godkendt.')}>Godkend</button>
-                        <button disabled={busy} className="rounded border px-2 py-0.5 disabled:opacity-50" onClick={() => run(() => decideHenvendelseAction(a.id, 'reject'), 'Afvist.')}>Afvis</button>
-                      </span>
-                    )}
+            <div className="space-y-2" data-testid="action-list">
+              {ACTION_GROUPS.map((g) => {
+                const list = detail.actions.filter((a) => g.states.includes(a.state))
+                if (!list.length) return null
+                return (
+                  <div key={g.key} className={`rounded border p-2 ${g.cls}`} data-testid={`action-group-${g.key}`}>
+                    <div className="mb-1 text-xs font-semibold uppercase tracking-wide">{g.title} ({list.length})</div>
+                    <ul className="space-y-1">
+                      {list.map((a) => (
+                        <li key={a.id} className="rounded bg-white/70 p-2" data-testid="action-item" data-state={a.state}>
+                          <div className="flex items-center justify-between gap-2">
+                            <span>{ACTION_LABEL[a.type] ?? a.type} · <span className="text-gray-600">{OUTCOME[a.outcome] ?? a.outcome}</span> · <strong>{ASTATE[a.state] ?? a.state}</strong>{a.actor === 'user' ? ' · medarbejder' : ' · AI'}</span>
+                            {canManage && a.state === 'proposed' && a.outcome !== 'forbidden' && (
+                              <span className="flex gap-1">
+                                <button disabled={busy} className="rounded bg-blue-600 px-2 py-0.5 text-white disabled:opacity-50" onClick={() => run(async () => { const r = await decideHenvendelseAction(a.id, 'approve'); if (r.success && r.data.hint) setTimeout(() => setMsg(r.data.hint), 0); return r }, 'Godkendt.')}>Godkend</button>
+                                <button disabled={busy} className="rounded border bg-white px-2 py-0.5 disabled:opacity-50" onClick={() => run(() => decideHenvendelseAction(a.id, 'reject'), 'Afvist.')}>Afvis</button>
+                              </span>
+                            )}
+                          </div>
+                          {a.reasons.length > 0 && <div className="text-xs text-gray-500">{a.reasons.join(' · ')}</div>}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  {a.reasons.length > 0 && <div className="text-xs text-gray-500">{a.reasons.join(' · ')}</div>}
-                </li>
-              ))}
-            </ul>
+                )
+              })}
+            </div>
           </section>
           <section className="space-y-1">
             <h3 className="font-medium">Kommunikation</h3>

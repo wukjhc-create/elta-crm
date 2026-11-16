@@ -1,11 +1,15 @@
 /**
- * Henvendelser — server-kerne (AI-receptionist fase 2). Server-only: bevidst IKKE 'use server' og aldrig importeret i
- * klientkode (scripts/assert-server-only-helpers.ts). Alle læsninger/skrivninger sker med den INDLOGGEDE medarbejders
- * RLS-klient — ingen service-role. Handlinger udføres via de EKSISTERENDE server-actions (createCustomerTask …).
+ * Henvendelser — server-kerne (AI-receptionist fase 2 + final review). Server-only: bevidst IKKE 'use server' og aldrig
+ * importeret i klientkode (scripts/assert-server-only-helpers.ts).
  *
- *   ingestCommunication: kontrakt (+ engine-tur) → conversations + conversation_items (idempotent på dedupe-nøgler)
- *   recordAndExecuteActions: planlagte handlinger → conversation_actions (idempotent) → auto-udførelse gennem
- *                            AI-aktørens allowlist + medarbejderens rettigheder + politikken; resten gemmes som forslag
+ *   buildIngestPayload   kontrakt (+ engine-tur) → input til DB-funktionen reception_ingest (ÉN atomisk transaktion:
+ *                        henvendelse + primært item + AI-forslag + audit). Kildens identitet (kanal, udbyder, tidspunkt,
+ *                        nøgle, bekræftet kunde/sag) afledes i databasen af selve kilderækken — payloaden er kun forventning
+ *                        og præsentation; en forkert forventning afvises af databasen.
+ *   ingestCommunication  indtag med den INDLOGGEDE medarbejders klient (RLS + rettigheder i DB-funktionen)
+ *   executeApprovedActions  'approved' (auto + medarbejderens rettigheder + AI-aktørens allowlist) udføres via de
+ *                        EKSISTERENDE server-actions (createCustomerTask …); alt andet forbliver forslag.
+ * Baggrundsaktøren (uden medarbejder) bruger samme payload via lib/reception/background-actor.ts — kun forslag.
  */
 import type { Permission } from '@/lib/auth/permissions'
 import { insertAuditRow } from '@/lib/audit/insert-audit-row'
@@ -22,7 +26,7 @@ type Db = any
 
 export interface ActorCtx { supabase: Db; userId: string; hasPermission: (p: Permission) => boolean }
 
-/** Engine-porte mod CRM'et med brugerens klient (RLS) */
+/** Engine-porte mod CRM'et. Kun læsning (select) — bruges med medarbejderens klient eller baggrundsaktørens læse-port. */
 export function enginePortsFor(supabase: Db, preset?: { confirmedCustomerId?: string | null; candidateCustomerId?: string | null }): EnginePorts {
   return {
     identify: async (input): Promise<IdentityResult> => {
@@ -54,77 +58,92 @@ export function enginePortsFor(supabase: Db, preset?: { confirmedCustomerId?: st
   }
 }
 
-export type IngestResult = { outcome: 'created'; conversationId: string; itemId: string } | { outcome: 'duplicate'; conversationId: string | null } | { outcome: 'error'; error: string }
+export interface RpcAction { id: string | null; type: string; state: string; idempotency_key: string }
+export type IngestResult =
+  | { outcome: 'created'; conversationId: string; itemId: string; actions: RpcAction[] }
+  | { outcome: 'duplicate'; conversationId: string | null }
+  | { outcome: 'error'; error: IngestError }
+export type IngestError = 'unavailable' | 'permission_denied' | 'source_mismatch' | 'invalid_input' | 'not_supported' | 'insert_failed'
 
-const isUnique = (e: { code?: string } | null) => e?.code === '23505'
+/** DB-fejlkode → stabil fejl (ingen DB-tekst videre til UI) */
+export function mapIngestError(e: { code?: string | null } | null): IngestError {
+  switch (e?.code) {
+    case '42501': return 'permission_denied'
+    case '23514': return 'source_mismatch'
+    case '22023': case '22P02': return 'invalid_input'
+    case '0A000': return 'not_supported'
+    case 'PGRST202': case '42883': case '42P01': case 'PGRST205': return 'unavailable'
+    default: return 'insert_failed'
+  }
+}
 
-export async function ingestCommunication(ctx: ActorCtx, comm: InboundCommunication, turn: ReceptionTurn | null): Promise<IngestResult> {
-  // Allerede indtaget? (item-nøglen er kanonisk; en henvendelse pr. kilde-item i fase 2)
-  const existing = await ctx.supabase.from('conversation_items').select('conversation_id').eq('dedupe_key', comm.dedupeKey).maybeSingle()
-  if (existing.error) return { outcome: 'error', error: 'read_failed' }
-  if (existing.data) return { outcome: 'duplicate', conversationId: (existing.data as { conversation_id: string }).conversation_id }
-  // Review-fund M3: en tidligere kørsel kan have oprettet henvendelsen men ikke item'et → genoptag (item-indsæt nedenfor)
-  const prior = await ctx.supabase.from('conversations').select('id').eq('dedupe_key', comm.dedupeKey).maybeSingle()
-  if (prior.error) return { outcome: 'error', error: 'read_failed' }
-  const resumeId = (prior.data as { id: string } | null)?.id ?? null
-
+/**
+ * Payload til reception_ingest. `execute`-flaget pr. handling er kun et ØNSKE: databasen giver højst 'approved' til en
+ * indlogget medarbejder og kun for typer AI-aktøren må udføre; baggrundsaktøren får altid 'proposed'.
+ */
+export function buildIngestPayload(comm: InboundCommunication, turn: ReceptionTurn | null, opts: { execute: boolean; mayExecute?: (a: PlannedAction) => { allowed: boolean; reason?: string } }): Record<string, unknown> {
   const confirmed = comm.customer.state === 'confirmed' ? comm.customer.customerId : null
-  const idState = confirmed ? 'confirmed' : (turn?.identity.state ?? comm.customer.state)
   const candidate = confirmed ? null : (comm.customer.candidateId ?? (turn?.identity.state === 'unique_match' ? turn.identity.candidates[0].customerId : null))
-  const caseConfirmed = confirmed && comm.case.state === 'confirmed' ? comm.case.caseId : null
-  const conv = {
-    channel: comm.channel,
-    status: turn?.handoff ? 'handoff' : 'new',
+  const p: Record<string, unknown> = {
+    source_table: comm.source.table,
+    source_id: comm.source.id,
+    ...(comm.source.table === 'simulator' ? { dedupe_key: comm.dedupeKey } : {}),
+    ...(comm.source.table === 'manual' ? { provider: comm.provider, provider_event_id: comm.providerEventId, channel: comm.channel, occurred_at: comm.occurredAt } : {}),
+    ...(confirmed ? { confirmed_customer_id: confirmed } : {}),
+    ...(confirmed && comm.case.state === 'confirmed' && comm.case.caseId ? { confirmed_case_id: comm.case.caseId } : {}),
+    customer_candidate_id: candidate,
+    customer_match_state: turn?.identity.state ?? comm.customer.state,
+    candidate_count: turn?.identity.candidates.length ?? comm.customer.candidateCount,
+    case_candidate_id: turn?.caseMatch.candidateId ?? comm.case.candidateId ?? null,
+    case_match_state: turn?.caseMatch.state ?? comm.case.state,
     title: clip(turn?.title || comm.title, 200) || 'Henvendelse',
     ai_summary: turn ? clip(turn.summary, 2000) : (comm.message ? clip(comm.message, 2000) : null),
     intent: turn?.intent ?? null,
     urgency: turn ? turn.urgency : comm.urgency,
     ai_confidence: turn ? Math.round(turn.confidence * 100) / 100 : null,
-    customer_id: confirmed,
-    customer_candidate_id: candidate,
-    customer_match_state: idState,
-    candidate_count: confirmed ? 1 : (turn?.identity.candidates.length ?? comm.customer.candidateCount),
-    service_case_id: caseConfirmed,
-    case_candidate_id: caseConfirmed ? null : (turn?.caseMatch.candidateId ?? null),
-    case_match_state: caseConfirmed ? 'confirmed' : (turn?.caseMatch.state ?? comm.case.state),
+    status: turn?.handoff ? 'handoff' : 'new',
     assigned_team: turn?.handoff?.team ?? null,
     next_action: turn?.handoff ? clip(turn.handoff.suggestedNextAction, 300) : null,
     handoff_reasons: turn?.handoff?.reasons ?? [],
-    dedupe_key: comm.dedupeKey,
-    first_at: comm.occurredAt,
-    last_at: comm.occurredAt,
-    created_by: ctx.userId,
-  }
-  const ins = resumeId ? { data: { id: resumeId }, error: null } : await ctx.supabase.from('conversations').insert(conv).select('id').single()
-  if (ins.error) {
-    if (isUnique(ins.error)) {
-      const again = await ctx.supabase.from('conversations').select('id').eq('dedupe_key', comm.dedupeKey).maybeSingle()
-      return { outcome: 'duplicate', conversationId: (again.data as { id: string } | null)?.id ?? null }
-    }
-    return { outcome: 'error', error: ins.error.code === '42501' ? 'permission_denied' : 'insert_failed' }
-  }
-  const conversationId = (ins.data as { id: string }).id
-  const item = await ctx.supabase.from('conversation_items').insert({
-    conversation_id: conversationId, channel: comm.channel, direction: comm.direction, provider: comm.provider,
-    provider_event_id: comm.providerEventId, source_table: comm.source.table, source_id: comm.source.id,
-    occurred_at: comm.occurredAt, title: clip(comm.title, 200), body_preview: comm.message ? clip(comm.message, 500) : null,
+    item_title: clip(comm.title, 200),
+    preview: comm.message ? clip(comm.message, 500) : null,
     sender_label: comm.sender.label ? clip(comm.sender.label, 200) : null,
-    attachment_document_ids: comm.attachments.map((a) => a.documentId).filter(Boolean),
-    transcript_status: comm.transcript.state, transcript_ref: comm.transcript.ref,
-    dedupe_key: comm.dedupeKey, created_by: ctx.userId,
-  }).select('id').single()
-  if (item.error) {
-    if (isUnique(item.error)) return { outcome: 'duplicate', conversationId }
-    return { outcome: 'error', error: 'item_insert_failed' }
+    transcript_status: comm.transcript.state,
+    actions: (turn?.actions ?? []).map((a) => {
+      const gate = a.outcome === 'auto' && opts.execute && opts.mayExecute ? opts.mayExecute(a) : null
+      const execute = !!gate?.allowed
+      const reasons = [...a.reasons, ...(gate && !gate.allowed ? [`ai_actor:${gate.reason ?? 'blocked'}`] : []), ...(!opts.execute && a.outcome === 'auto' ? ['indtaget fra kilde: kun forslag'] : [])]
+      return { action_type: a.type.slice(0, 40), policy_outcome: a.outcome, reasons, payload: { ...a.payload, proposedBy: a.proposedBy }, idempotency_key: a.idempotencyKey, execute }
+    }),
   }
-  await insertAuditRow({ user_id: ctx.userId, entity_type: 'conversation', entity_id: conversationId, action: 'conversation_ingested',
-    action_description: `Henvendelse indtaget (${comm.channel})`, metadata: { source_table: comm.source.table, actor: turn ? AI_ACTOR : 'system', on_behalf_of: ctx.userId } })
-  return { outcome: 'created', conversationId, itemId: (item.data as { id: string }).id }
+  return p
+}
+
+/** Kald DB-funktionen (medarbejderens klient eller baggrundsaktørens rpc-port) */
+export async function callReceptionIngest(rpc: (fn: 'reception_ingest', args: { p: Record<string, unknown> }) => PromiseLike<{ data: unknown; error: { code?: string | null } | null }>, payload: Record<string, unknown>): Promise<IngestResult> {
+  const { data, error } = await rpc('reception_ingest', { p: payload })
+  if (error) return { outcome: 'error', error: mapIngestError(error) }
+  const d = (data ?? {}) as { outcome?: string; conversation_id?: string | null; item_id?: string; actions?: RpcAction[] }
+  if (d.outcome === 'duplicate') return { outcome: 'duplicate', conversationId: d.conversation_id ?? null }
+  if (d.outcome === 'created' && d.conversation_id && d.item_id) return { outcome: 'created', conversationId: d.conversation_id, itemId: d.item_id, actions: Array.isArray(d.actions) ? d.actions : [] }
+  return { outcome: 'error', error: 'insert_failed' }
+}
+
+/** Indtag på vegne af den indloggede medarbejder (simulator, "Hent nye", Henvendelser) */
+export async function ingestCommunication(ctx: ActorCtx, comm: InboundCommunication, turn: ReceptionTurn | null, opts: { execute: boolean }): Promise<IngestResult> {
+  const payload = buildIngestPayload(comm, turn, {
+    execute: opts.execute,
+    mayExecute: (a) => {
+      const d = aiActorMayExecute(a.type, ctx.hasPermission, ACTION_PERMISSIONS[a.type] ?? [])
+      return d.allowed ? { allowed: true } : { allowed: false, reason: d.reason }
+    },
+  })
+  return callReceptionIngest((fn, args) => ctx.supabase.rpc(fn, args), payload)
 }
 
 export interface ActionOutcome { type: string; state: 'executed' | 'proposed' | 'blocked' | 'failed' | 'duplicate'; detail: string | null }
 
-async function executeAuto(ctx: ActorCtx, a: PlannedAction, conversationId: string, summary: string): Promise<{ ok: true; ref: string } | { ok: false; code: string }> {
+async function executeAuto(a: PlannedAction, conversationId: string, summary: string): Promise<{ ok: true; ref: string } | { ok: false; code: string }> {
   const customerId = typeof a.payload.customerCandidateId === 'string' ? a.payload.customerCandidateId : null
   const caseId = typeof a.payload.caseCandidateId === 'string' ? a.payload.caseCandidateId : undefined
   const note = `${summary}\n\nOprettet af AI-receptionisten fra Henvendelse ${conversationId}. Kunden er en kandidat (deterministisk match) — kontrollér før kontakt.`
@@ -147,33 +166,32 @@ async function executeAuto(ctx: ActorCtx, a: PlannedAction, conversationId: stri
   return { ok: false, code: 'not_executable' }
 }
 
-/** execute=false (fx indtag fra mail/portal): også auto-handlinger gemmes kun som FORSLAG */
-export async function recordAndExecuteActions(ctx: ActorCtx, conversationId: string, turn: ReceptionTurn, opts: { execute: boolean }): Promise<ActionOutcome[]> {
+/**
+ * Udfør de handlinger databasen gav tilstanden 'approved' (kun medarbejder-indtag med execute). Kunde/sag i payload er
+ * dem databasen selv satte (afledt/valideret) — ikke kalderens.
+ */
+export async function executeApprovedActions(ctx: ActorCtx, conversationId: string, turn: ReceptionTurn, rpcActions: RpcAction[]): Promise<ActionOutcome[]> {
   const out: ActionOutcome[] = []
-  for (const a of turn.actions) {
-    // AI-aktøren: allowlist + lånte rettigheder (fællesmængde). En 'auto' fra politikken kan stadig afvises her.
-    const actor = a.outcome === 'auto' ? aiActorMayExecute(a.type, ctx.hasPermission, ACTION_PERMISSIONS[a.type] ?? []) : null
-    const blockedByActor = actor && !actor.allowed
-    const initialState = a.outcome === 'forbidden' || a.outcome === 'handoff' ? 'blocked' : a.outcome === 'proposal' || blockedByActor || !opts.execute ? 'proposed' : 'approved'
-    const reasons = [...a.reasons, ...(blockedByActor ? [`ai_actor:${actor!.allowed ? '' : actor!.reason}`] : []), ...(!opts.execute && a.outcome === 'auto' && !blockedByActor ? ['indtaget fra kilde: kun forslag'] : [])]
-    const ins = await ctx.supabase.from('conversation_actions').insert({
-      conversation_id: conversationId, action_type: a.type.slice(0, 40), policy_outcome: a.outcome, state: initialState, actor: AI_ACTOR,
-      payload: { ...a.payload, proposedBy: a.proposedBy }, reasons, idempotency_key: a.idempotencyKey, created_by: ctx.userId,
-    }).select('id').single()
-    if (ins.error) {
-      out.push(isUnique(ins.error) ? { type: a.type, state: 'duplicate', detail: null } : { type: a.type, state: 'failed', detail: 'record_failed' })
+  for (const ra of rpcActions) {
+    if (ra.state !== 'approved' || !ra.id) {
+      out.push({ type: ra.type, state: ra.state === 'duplicate' ? 'duplicate' : ra.state === 'blocked' ? 'blocked' : 'proposed', detail: null })
       continue
     }
-    const id = (ins.data as { id: string }).id
-    if (initialState !== 'approved') { out.push({ type: a.type, state: initialState === 'blocked' ? 'blocked' : 'proposed', detail: reasons[0] ?? null }); continue }
-    const r = await executeAuto(ctx, a, conversationId, turn.summary)
-    const upd = await ctx.supabase.from('conversation_actions').update(r.ok ? { state: 'executed', executed_ref: r.ref, decided_at: new Date().toISOString() } : { state: 'failed', error_code: r.code })
-      .eq('id', id)
-    if (upd.error) { out.push({ type: a.type, state: 'failed', detail: 'state_update_failed' }); continue }
-    await insertAuditRow({ user_id: ctx.userId, entity_type: 'conversation', entity_id: conversationId, action: `${AI_ACTOR}.${a.type}`,
-      action_description: r.ok ? `AI-receptionist: ${a.type} udført` : `AI-receptionist: ${a.type} fejlede`,
-      metadata: { actor: AI_ACTOR, on_behalf_of: ctx.userId, outcome: r.ok ? 'executed' : 'failed', ref: r.ok ? r.ref : r.code } })
-    out.push(r.ok ? { type: a.type, state: 'executed', detail: r.ref } : { type: a.type, state: 'failed', detail: r.code })
+    const stored = await ctx.supabase.from('conversation_actions').select('payload').eq('id', ra.id).maybeSingle()
+    const planned = turn.actions.find((a) => a.idempotencyKey === ra.idempotency_key)
+    if (stored.error || !stored.data || !planned) { out.push({ type: ra.type, state: 'failed', detail: 'read_failed' }); continue }
+    const a: PlannedAction = { ...planned, payload: (stored.data as { payload: Record<string, unknown> }).payload ?? {} }
+    const r = await executeAuto(a, conversationId, turn.summary)
+    const upd = await ctx.supabase.from('conversation_actions')
+      // DB-værnet kræver at en brugers tilstandsændring har brugeren som beslutter (review F3)
+      .update(r.ok ? { state: 'executed', executed_ref: r.ref, decided_by: ctx.userId, decided_at: new Date().toISOString() }
+        : { state: 'failed', error_code: r.code, decided_by: ctx.userId, decided_at: new Date().toISOString() })
+      .eq('id', ra.id).eq('state', 'approved')
+    if (upd.error) { out.push({ type: ra.type, state: 'failed', detail: 'state_update_failed' }); continue }
+    await insertAuditRow({ user_id: ctx.userId, entity_type: 'conversation', entity_id: conversationId, action: `${AI_ACTOR}.${ra.type}`,
+      action_description: r.ok ? `AI-receptionist: ${ra.type} udført` : `AI-receptionist: ${ra.type} fejlede`,
+      metadata: { actor: AI_ACTOR, mode: 'on_behalf_of_user', on_behalf_of: ctx.userId, outcome: r.ok ? 'executed' : 'failed', ref: r.ok ? r.ref : r.code } })
+    out.push(r.ok ? { type: ra.type, state: 'executed', detail: r.ref } : { type: ra.type, state: 'failed', detail: r.code })
   }
   return out
 }

@@ -13,7 +13,7 @@ import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { isMissingTableError } from '@/lib/notes/customer-notes-availability'
 import { clip, TEAMS, type Team } from '@/lib/reception/contract'
 import { runReceptionTurn, type ReceptionTurn } from '@/lib/reception/engine'
-import { enginePortsFor, ingestCommunication, recordAndExecuteActions, type ActionOutcome } from '@/lib/reception/henvendelser-core'
+import { enginePortsFor, executeApprovedActions, ingestCommunication, type ActionOutcome, type IngestError } from '@/lib/reception/henvendelser-core'
 import { emailToInbound, isFormSubmit, portalToInbound, type EmailSourceRow, type PortalSourceRow } from '@/lib/reception/adapters'
 import { receptionLlmEnabled, uploadLinksEnabled } from '@/lib/reception/flags'
 
@@ -23,6 +23,15 @@ const UNAVAILABLE = 'Henvendelser er ikke slået til i dette miljø endnu (migra
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const dbErr = (e: { code?: string | null; message?: string | null } | null, fallback: string) => (isMissingTableError(e) ? UNAVAILABLE : fallback)
 
+const INGEST_ERROR_TEXT: Record<IngestError, string> = {
+  unavailable: UNAVAILABLE,
+  permission_denied: 'Du må ikke oprette denne henvendelse (rettighed, eller kilden er skjult for dig). Intet er gemt.',
+  source_mismatch: 'Kunde/sag passer ikke til kilden. Intet er gemt.',
+  invalid_input: 'Ugyldige data. Intet er gemt.',
+  not_supported: 'Denne kilde kan ikke indtages endnu. Intet er gemt.',
+  insert_failed: 'Henvendelsen kunne ikke gemmes. Intet er gemt — prøv igen.',
+}
+
 export type HenvendelseFilter = 'new' | 'urgent' | 'phone' | 'email' | 'sms' | 'portal_chat' | 'mine' | 'team' | 'handoff' | 'all'
 
 export interface HenvendelseRow {
@@ -30,7 +39,7 @@ export interface HenvendelseRow {
   lastAt: string; customer: { id: string; name: string } | null; customerState: string
   candidate: { id: string; name: string } | null; candidateHidden: boolean; candidateCount: number
   caseRef: { id: string; number: string | null } | null; caseState: string; caseCandidate: { id: string; number: string | null } | null
-  assignedName: string | null; assignedTeam: string | null; nextAction: string | null; handoffReasons: string[]; matchVersion: number
+  assignedName: string | null; assignedTeam: string | null; nextAction: string | null; handoffReasons: string[]; matchVersion: number; intakeActor: string
 }
 
 const ROLE_TEAM: Record<string, Team> = { admin: 'kontor', serviceleder: 'service', salg: 'salg', bogholderi: 'bogholderi', montør: 'montor', montor: 'montor' }
@@ -41,7 +50,7 @@ export async function listHenvendelser(filter: HenvendelseFilter = 'new'): Promi
   if (!ctx.hasPermission('conversations.view')) return { success: false, error: permissionDeniedText('conversations.view') }
   const myTeam = ROLE_TEAM[ctx.role] ?? null
   let q = ctx.supabase.from('conversations')
-    .select('id, channel, status, title, ai_summary, intent, urgency, last_at, customer_id, customer_candidate_id, customer_match_state, candidate_count, service_case_id, case_candidate_id, case_match_state, assigned_profile_id, assigned_team, next_action, handoff_reasons, match_version')
+    .select('id, channel, status, title, ai_summary, intent, urgency, last_at, customer_id, customer_candidate_id, customer_match_state, candidate_count, service_case_id, case_candidate_id, case_match_state, assigned_profile_id, assigned_team, next_action, handoff_reasons, match_version, intake_actor')
   if (filter === 'new') q = q.in('status', ['new', 'open', 'handoff', 'awaiting_customer'])
   if (filter === 'urgent') q = q.in('urgency', ['high', 'emergency']).neq('status', 'handled')
   if (filter === 'handoff') q = q.eq('status', 'handoff')
@@ -86,6 +95,7 @@ export async function listHenvendelser(filter: HenvendelseFilter = 'new'): Promi
           assignedName: s(r.assigned_profile_id) ? pName.get(String(r.assigned_profile_id)) ?? 'Medarbejder' : null,
           assignedTeam: s(r.assigned_team), nextAction: s(r.next_action),
           handoffReasons: Array.isArray(r.handoff_reasons) ? (r.handoff_reasons as string[]) : [], matchVersion: Number(r.match_version ?? 0),
+          intakeActor: String(r.intake_actor ?? 'user'),
         }
       }),
     },
@@ -94,7 +104,7 @@ export async function listHenvendelser(filter: HenvendelseFilter = 'new'): Promi
 
 export interface HenvendelseDetail {
   items: Array<{ id: string; channel: string; direction: string; occurredAt: string; title: string | null; preview: string | null; sender: string | null; transcript: string; sourceTable: string; attachments: number }>
-  actions: Array<{ id: string; type: string; outcome: string; state: string; reasons: string[]; createdAt: string }>
+  actions: Array<{ id: string; type: string; outcome: string; state: string; actor: string; reasons: string[]; createdAt: string }>
   uploadLinks: Array<{ id: string; expiresAt: string; filesUploaded: number; maxFiles: number; revoked: boolean }>
   openCases: Array<{ id: string; number: string | null; title: string }>
 }
@@ -110,7 +120,7 @@ export async function getHenvendelseDetail(id: string): Promise<R<HenvendelseDet
   const custForCases = (conv.data as { customer_id: string | null; customer_candidate_id: string | null }).customer_id ?? (conv.data as { customer_candidate_id: string | null }).customer_candidate_id
   const [items, actions, links, cases] = await Promise.all([
     ctx.supabase.from('conversation_items').select('id, channel, direction, occurred_at, title, body_preview, sender_label, transcript_status, source_table, attachment_document_ids').eq('conversation_id', id).order('occurred_at'),
-    ctx.supabase.from('conversation_actions').select('id, action_type, policy_outcome, state, reasons, created_at').eq('conversation_id', id).order('created_at'),
+    ctx.supabase.from('conversation_actions').select('id, action_type, policy_outcome, state, actor, reasons, created_at').eq('conversation_id', id).order('created_at'),
     ctx.supabase.from('upload_requests').select('id, expires_at, files_uploaded, max_files, revoked_at').eq('conversation_id', id).order('created_at'),
     custForCases ? ctx.supabase.from('service_cases').select('id, case_number, title').eq('customer_id', custForCases).eq('is_proposal', false).not('status', 'in', '(closed,converted)').limit(20) : Promise.resolve({ data: [], error: null }),
   ])
@@ -119,7 +129,7 @@ export async function getHenvendelseDetail(id: string): Promise<R<HenvendelseDet
     success: true,
     data: {
       items: ((items.data ?? []) as Array<Record<string, unknown>>).map((i) => ({ id: String(i.id), channel: String(i.channel), direction: String(i.direction), occurredAt: String(i.occurred_at), title: (i.title as string) ?? null, preview: (i.body_preview as string) ?? null, sender: (i.sender_label as string) ?? null, transcript: String(i.transcript_status), sourceTable: String(i.source_table), attachments: Array.isArray(i.attachment_document_ids) ? (i.attachment_document_ids as unknown[]).length : 0 })),
-      actions: ((actions.data ?? []) as Array<Record<string, unknown>>).map((a) => ({ id: String(a.id), type: String(a.action_type), outcome: String(a.policy_outcome), state: String(a.state), reasons: (a.reasons as string[]) ?? [], createdAt: String(a.created_at) })),
+      actions: ((actions.data ?? []) as Array<Record<string, unknown>>).map((a) => ({ id: String(a.id), type: String(a.action_type), outcome: String(a.policy_outcome), state: String(a.state), actor: String(a.actor ?? 'ai_receptionist'), reasons: (a.reasons as string[]) ?? [], createdAt: String(a.created_at) })),
       uploadLinks: ((links.data ?? []) as Array<Record<string, unknown>>).map((l) => ({ id: String(l.id), expiresAt: String(l.expires_at), filesUploaded: Number(l.files_uploaded), maxFiles: Number(l.max_files), revoked: !!l.revoked_at })),
       openCases: ((cases.data ?? []) as Array<{ id: string; case_number: string | null; title: string | null }>).map((c) => ({ id: c.id, number: c.case_number, title: c.title ?? 'Sag' })),
     },
@@ -314,15 +324,18 @@ export async function syncHenvendelserFromSources(): Promise<R<{ created: number
   const since = new Date(Date.now() - 14 * 86_400_000).toISOString()
   const actorCtx = { supabase: ctx.supabase, userId: ctx.userId, hasPermission: ctx.hasPermission }
   const counts = { created: 0, duplicates: 0, failed: 0, skipped: 0 }
+  let unavailable = false
   const handle = async (comm: ReturnType<typeof emailToInbound>, text: string | null) => {
     if (!comm) { counts.skipped++; return }
     // Review-fund M4: uden conversations.view_unmatched kan kun BEKRÆFTEDE henvendelser oprettes (RLS) — spring resten over
     if (comm.customer.state !== 'confirmed' && !ctx.hasPermission('conversations.view_unmatched')) { counts.skipped++; return }
     const ports = enginePortsFor(ctx.supabase, { confirmedCustomerId: comm.customer.customerId, candidateCustomerId: comm.customer.candidateId })
     const turn = await runReceptionTurn({ channel: comm.channel, text, sender: { phone: comm.sender.phone, email: comm.sender.email, contactId: comm.sender.contactId }, conversationKey: comm.dedupeKey }, ports)
-    const r = await ingestCommunication(actorCtx, comm, turn)
-    if (r.outcome === 'created') { counts.created++; await recordAndExecuteActions(actorCtx, r.conversationId, turn, { execute: false }) }
+    // Ét atomisk DB-kald: henvendelse + item + forslag + audit (kun forslag — execute: false)
+    const r = await ingestCommunication(actorCtx, comm, turn, { execute: false })
+    if (r.outcome === 'created') counts.created++
     else if (r.outcome === 'duplicate') counts.duplicates++
+    else if (r.error === 'unavailable') unavailable = true
     else counts.failed++
   }
   if (ctx.hasPermission('customers.emails.view') || ctx.hasPermission('inbox.view')) {
@@ -343,6 +356,7 @@ export async function syncHenvendelserFromSources(): Promise<R<{ created: number
     const comm = portalToInbound(row)
     await handle(comm, comm?.message ?? null)
   }
+  if (unavailable) return { success: false, error: UNAVAILABLE }
   await audit(ctx.userId, '00000000-0000-0000-0000-000000000000', 'conversations_synced', 'Henvendelser indtaget fra mail/portal', counts)
   revalidatePath('/dashboard/henvendelser')
   return { success: true, data: counts }
@@ -378,9 +392,9 @@ export async function simulateReception(input: SimulatorInput): Promise<R<{ turn
     title: turn.title, message: clip(text, 500), transcript: { state: input.transcriptUnavailable ? 'unavailable' : 'not_applicable', ref: null },
     attachments: [], urgency: turn.urgency, requestedActions: turn.actions.map((a) => a.type), assigned: { profileId: null, team: turn.handoff?.team ?? null },
     processingState: turn.handoff ? 'handoff' : 'new', dedupeKey: key, source: { table: 'simulator', id: null },
-  }, turn)
-  if (r.outcome !== 'created') return { success: false, error: r.outcome === 'error' ? dbErr({ code: r.error === 'insert_failed' ? null : r.error }, `Henvendelsen kunne ikke gemmes (${r.error}).`) : 'Allerede gemt.' }
-  const actions = await recordAndExecuteActions(actorCtx, r.conversationId, turn, { execute: true })
+  }, turn, { execute: true })
+  if (r.outcome !== 'created') return { success: false, error: r.outcome === 'error' ? INGEST_ERROR_TEXT[r.error] : 'Allerede gemt.' }
+  const actions = await executeApprovedActions(actorCtx, r.conversationId, turn, r.actions)
   revalidatePath('/dashboard/henvendelser')
   return { success: true, data: { turn, conversationId: r.conversationId, actions } }
 }

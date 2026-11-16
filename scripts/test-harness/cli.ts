@@ -2733,10 +2733,92 @@ Total inkl. moms 11.718,75
     log('✅ rollback-blokken kørt (verificér med tel-00247-state: applied=false, katalog 114/273)')
     return
   }
+  if (SUB === 'staging-ro-sql') {
+    // STAGING READ-ONLY: én forespørgsel i en READ ONLY-transaktion (skema-/politik-opslag). Skriv KUN metadata-forespørgsler
+    // — aldrig personværdier ud. Brug: cli.ts staging-ro-sql "<SELECT …>"
+    const q = String(process.argv[3] || '')
+    if (!/^\s*(select|with)\b/i.test(q)) { log('kun SELECT/WITH'); process.exitCode = 2; return }
+    log(JSON.stringify(await stagingSql(`BEGIN READ ONLY; ${q.replace(/;\s*$/, '')}; `)))
+    return
+  }
   if (SUB === 'reception-00249-state') {
     // STAGING read-only: 00249 Henvendelser — tabeller/politikker/grants/katalog + md5 af kernetabeller (før/efter)
     const { STATE_00249_SQL } = await import('./reception-00249-probe')
     log(JSON.stringify((await stagingSql(STATE_00249_SQL))[0].f))
+    return
+  }
+  if (SUB === 'reception-bg-staging') {
+    // STAGING: 00249 anvendt. Baggrundsaktøren (service_role via snævret kapabilitet) + samtidigt indtag mod rigtig DB.
+    // Skriver kun henvendelser med egne nøgler (p249-bg-*) og sletter dem igen; audit_logs-rækker bliver (staging).
+    const st = (await stagingSql((await import('./reception-00249-probe')).STATE_00249_SQL))[0].f
+    if (!st.applied) { log('00249 er ikke anvendt på staging'); process.exitCode = 2; return }
+    const { backgroundCapability, receptionBackgroundIngest } = await import('../../src/lib/reception/background-actor')
+    const cap = backgroundCapability(admin)
+    const checks: Array<{ id: string; ok: boolean; note?: string }> = []
+    const created: string[] = []
+    const ev = `p249-bg-${Date.now()}`
+    // 1. samtidigt indtag af SAMME udbyder-hændelse → præcis ét created
+    const pl = { source_table: 'manual', provider: 'web_chat', provider_event_id: ev, channel: 'web_chat', title: 'P249 baggrund', actions: [{ action_type: 'create_task', policy_outcome: 'auto', idempotency_key: `${ev}:t`, execute: true }] }
+    const par = await Promise.all(Array.from({ length: 6 }, () => cap.ingest(pl)))
+    const nCreated = par.filter((r) => r.outcome === 'created').length, nDup = par.filter((r) => r.outcome === 'duplicate').length
+    for (const r of par) if (r.outcome === 'created') created.push(r.conversationId)
+    checks.push({ id: '6 samtidige indtag af samme hændelse → 1 created + 5 duplicate', ok: nCreated === 1 && nDup === 5, note: JSON.stringify(par.map((r) => r.outcome)) })
+    const bgAct = created[0] ? await admin.from('conversation_actions').select('state, actor, created_by').eq('conversation_id', created[0]) : { data: [] }
+    checks.push({ id: 'baggrund: auto+execute gemt som proposed, actor ai_receptionist, ingen bruger', ok: (bgAct.data ?? []).length === 1 && (bgAct.data ?? []).every((a: { state: string; actor: string; created_by: string | null }) => a.state === 'proposed' && a.actor === 'ai_receptionist' && a.created_by === null) })
+    // 2. samtidigt indtag af SAMME rigtige kilderække (ukoblet mail) → præcis ét created
+    const mail = await admin.from('incoming_emails').select('id').is('customer_id', null).neq('link_status', 'ignored').order('received_at', { ascending: true }).limit(1).maybeSingle()
+    if (mail.data) {
+      const pre = await admin.from('conversation_items').select('conversation_id').eq('source_table', 'incoming_emails').eq('source_id', mail.data.id).maybeSingle()
+      if (pre.data) { checks.push({ id: 'mail-kilde allerede indtaget før testen (springer over)', ok: true }) } else {
+        const parM = await Promise.all(Array.from({ length: 6 }, () => cap.ingest({ source_table: 'incoming_emails', source_id: mail.data!.id, title: 'P249 mail' })))
+        for (const r of parM) if (r.outcome === 'created') created.push(r.conversationId)
+        checks.push({ id: '6 samtidige indtag af samme mail → 1 created + 5 duplicate', ok: parM.filter((r) => r.outcome === 'created').length === 1 && parM.filter((r) => r.outcome === 'duplicate').length === 5, note: JSON.stringify(parM.map((r) => r.outcome)) })
+        const wrong = await cap.ingest({ source_table: 'incoming_emails', source_id: mail.data.id, confirmed_customer_id: '00000000-0000-4000-8000-000000000001' })
+        checks.push({ id: 'forkert forventet kunde på kilden → afvist (source_mismatch)', ok: wrong.outcome === 'error' && wrong.error === 'source_mismatch', note: JSON.stringify(wrong) })
+      }
+    }
+    // 3. baggrundsaktør end-to-end: nød via web-chat → emergency + handoff + kun forslag + audit
+    const comm = { provider: 'web_chat', providerEventId: `${ev}-emerg`, channel: 'web_chat' as const, direction: 'inbound' as const, occurredAt: new Date().toISOString(),
+      sender: { label: null, phone: null, email: null, customerNumber: null, contactId: null },
+      customer: { state: 'insufficient_information' as const, customerId: null, candidateId: null, candidateCount: 0 }, case: { state: 'not_applicable' as const, caseId: null, candidateId: null },
+      title: 'Web-chat', message: 'Det ryger fra eltavlen', transcript: { state: 'not_applicable' as const, ref: null }, attachments: [], urgency: 'normal' as const,
+      requestedActions: [], assigned: { profileId: null, team: null }, processingState: 'new' as const, dedupeKey: `web_chat:event:${ev}-emerg`, source: { table: 'manual' as const, id: null } }
+    const off = await receptionBackgroundIngest(comm, 'Det ryger og slår gnister fra eltavlen!', { capability: () => cap, env: {} })
+    checks.push({ id: 'flag fra → disabled (intet skrevet)', ok: off.outcome === 'disabled' })
+    const on = await receptionBackgroundIngest(comm, 'Det ryger og slår gnister fra eltavlen!', { capability: () => cap, env: { RECEPTION_BACKGROUND_ENABLED: 'true' } })
+    if (on.outcome === 'created') created.push(on.conversationId)
+    const row = on.outcome === 'created' ? (await admin.from('conversations').select('urgency, status, intake_actor, created_by, assigned_profile_id').eq('id', on.conversationId).single()).data : null
+    checks.push({ id: 'baggrund nød: emergency + handoff + intake_actor ai_receptionist + ingen bruger/person', ok: !!row && row.urgency === 'emergency' && row.status === 'handoff' && row.intake_actor === 'ai_receptionist' && row.created_by === null && row.assigned_profile_id === null, note: JSON.stringify(row ?? on) })
+    const aud = on.outcome === 'created' ? await admin.from('audit_logs').select('user_id, metadata').eq('entity_id', on.conversationId).eq('action', 'conversation_ingested') : { data: [] }
+    checks.push({ id: 'baggrund: auditeret i samme transaktion (user_id NULL, mode background)', ok: (aud.data ?? []).length === 1 && (aud.data ?? [])[0].user_id === null && (aud.data ?? [])[0].metadata?.mode === 'background' })
+    // 4. service_role kan ikke godkende et AI-forslag (kun mennesker)
+    if (created[0]) {
+      const up = await admin.from('conversation_actions').update({ state: 'approved' }).eq('conversation_id', created[0]).select('id')
+      checks.push({ id: 'service_role kan ikke godkende AI-forslag (23514)', ok: !!up.error && up.error.code === '23514', note: up.error?.code ?? 'ingen fejl' })
+    }
+    // oprydning (kun egne henvendelser)
+    if (created.length) await admin.from('conversations').delete().in('id', created)
+    const left = created.length ? (await admin.from('conversations').select('id').in('id', created)).data ?? [] : []
+    checks.push({ id: 'oprydning: testens henvendelser slettet', ok: left.length === 0 })
+    for (const c of checks) log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.id}${!c.ok && c.note ? ` (${c.note})` : ''}`)
+    const failed = checks.filter((c) => !c.ok).length
+    log(failed ? `❌ ${failed} af ${checks.length}` : `✅ ${checks.length} tjek`)
+    process.exitCode = failed ? 2 : 0
+    return
+  }
+  if (SUB === 'reception-00249-rollback-staging') {
+    // STAGING-ONLY: kør filens ROLLBACK-blok (DROP IF EXISTS — fjerner også en tidligere anvendt version af 00249).
+    // Henvendelser/upload-links på staging går tabt (kun testdata). Kræver --confirm.
+    if (!process.argv.includes('--confirm')) { log('kræver --confirm (sletter staging-henvendelser)'); process.exitCode = 2; return }
+    const P = await import('./reception-00249-probe')
+    const before = (await stagingSql(P.STATE_00249_SQL))[0].f
+    log(`før: applied=${before.applied} katalog=${before.catalog}/${before.defaults} md5_core=${before.md5_core}`)
+    await stagingSql(P.rollback00249Sql(true))
+    const after = (await stagingSql(P.STATE_00249_SQL))[0].f
+    log(`efter: ${JSON.stringify({ applied: after.applied, tables: after.tables, functions: after.functions, catalog: after.catalog, defaults: after.defaults, md5_core: after.md5_core, md5_struct: after.md5_struct })}`)
+    const ok = !after.applied && !after.tables && !after.functions && after.md5_core === before.md5_core
+    log(ok ? '✅ 00249 rullet tilbage på staging (kernedata uændret)' : '❌ rollback efterlod noget')
+    process.exitCode = ok ? 0 : 2
     return
   }
   if (SUB === 'reception-00249-probe' || SUB === 'reception-00249-rollback-proof') {
@@ -2771,8 +2853,9 @@ Total inkl. moms 11.718,75
       log(failed ? `❌ ${failed} af ${checks.length}` : `✅ ${checks.length} tjek — rullet tilbage`)
       process.exitCode = failed ? 2 : 0
     } else {
-      const ok = json.tables_left === 0 && json.functions_left === 0 && json.catalog_left === 0 && json.defaults_left === 0 && untouched
-      log(`rollback-blok efter krop: ${JSON.stringify(json)} · staging uændret: ${untouched}`)
+      const structSame = json.md5_struct === st0.md5_struct
+      const ok = json.tables_left === 0 && json.functions_left === 0 && json.catalog_left === 0 && json.defaults_left === 0 && structSame && untouched
+      log(`rollback-blok efter krop: ${JSON.stringify(json)} · struktur = før: ${structSame} · staging uændret: ${untouched}`)
       log(ok ? '✅ rollback-blokken fjerner alt det nye' : '❌ rollback-blokken efterlader noget')
       process.exitCode = ok ? 0 : 2
     }

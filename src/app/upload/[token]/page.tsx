@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { getUploadLinkState } from '@/lib/actions/upload-links-public'
 import { UploadForm } from './upload-form'
 
-export const metadata: Metadata = { title: 'Upload billeder — Elta Solar', robots: { index: false, follow: false } }
+export const metadata: Metadata = { title: 'Upload billeder — Elta Solar', robots: { index: false, follow: false }, referrer: 'no-referrer' }
 export const dynamic = 'force-dynamic'
 
 /**

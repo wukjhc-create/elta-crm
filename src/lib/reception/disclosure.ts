@@ -1,13 +1,24 @@
 /**
- * AI-receptionist fase 2 — DETERMINISTISK oplysningspolitik (hvad må siges til afsenderen). Ingen LLM-vurdering.
+ * AI-receptionist — DETERMINISTISK oplysningspolitik (hvad må siges til afsenderen). Ingen LLM-vurdering: modellen
+ * hverken vælger niveau eller formulerer kundeoplysninger; svaret bygges af faste skabeloner i engine.composeReply.
  * Bevidst IKKE 'use server'.
  *
- *  L0  ukendt / tvetydig / skjult nummer           kun generel firmaviden
- *  L1  kandidat via opkalds-nummer / afsender-mail  må bekræfte et SANDSYNLIGT kundeforhold — ingen sagsoplysninger
- *  L2  L1 + bekræftet ikke-hemmelig kundefakta      (postnr. + vejnavn, eller sagsnummer på kandidaten) → ikke-følsom sagsstatus
- *  L3  stærkere verifikation                        indlogget portal (token) eller fremtidig engangskode → konto-/følsomme oplysninger
+ * Final review (mindst mulig oplysning) — se docs/runbooks/ELTA_AI_RECEPTIONIST_PHASE_2_FINAL_REVIEW.md §6:
+ *  L0  ukendt / tvetydig / skjult nummer / læsefejl / for mange fejlede forsøg
+ *        → kun generel firmaviden. Bekræfter ALDRIG om personen er kunde.
+ *  L1  ÉN kandidat via opkalds-nummer, afsender-mail eller oplyst kundenummer (kan forfalskes / er ikke hemmeligt)
+ *        → udadtil SAMME som L0. Internt: kandidaten bruges til opslag og bekræftelsesspørgsmål. Intet bekræftes.
+ *  L2  L1 + to uafhængige ikke-hemmelige fakta, der passer på kandidaten:
+ *        postnr. OG vejnavn  — eller —  sagsnummer OG postnr.   (et sagsnummer ALENE er ikke nok: det står på mails,
+ *        fakturaer og papirer og er fortløbende)
+ *        → må bekræfte kundeforholdet og oplyse STATUS-KATEGORIEN (fast tekst fra status-enum) for ÉN åben sag.
+ *          Aldrig sagstitel/beskrivelse, adresse, datoer, medarbejdernavne, beløb, dokumenter, kontaktdata.
+ *  L3  stærk verifikation: gyldigt portal-token (kunden er logget ind i portalen) eller en fremtidig engangskode
+ *        → L2 + sagsnumre på åbne sager + planlagt besøgsdato som INFORMATION (aldrig løfte).
+ *  Aldrig (uanset niveau, også L3): kontaktdata, beløb/fakturaer/saldi, dokumenter/filer, tekniske/lovgivningsmæssige
+ *  vurderinger, garanti-afgørelser — de henvises til portalen eller en medarbejder.
  *
- * Telefonnummer og afsender-mail kan forfalskes → giver højst L1. Ingen adgangskoder eller sikkerhedsspørgsmål.
+ * Telefonnummer og afsender-mail er ALTID højst en kandidat (L1). Ingen adgangskoder eller sikkerhedsspørgsmål.
  */
 import type { IdentityResult } from './identity-match'
 import type { Channel } from './contract'
@@ -16,32 +27,43 @@ export type DisclosureLevel = 0 | 1 | 2 | 3
 
 export type InfoKind =
   | 'company_info'          // åbningstider, serviceområde, ydelser, standardproces
-  | 'relationship_exists'   // "vi kan se, at du har været i kontakt med os"
-  | 'case_list'             // titler på åbne sager
-  | 'case_status'           // ikke-følsom status-kategori
+  | 'relationship_exists'   // "vi kan se, at du er kunde hos os"
+  | 'case_status'           // status-KATEGORI (fast enum-tekst) for ÉN åben sag
+  | 'case_numbers'          // sagsnumre på åbne sager
   | 'next_visit_date'       // planlagt besøgsdato — som information, aldrig som løfte
-  | 'contact_details'       // kundens registrerede kontaktdata
-  | 'invoice_amounts'       // beløb, saldi
+  | 'case_details'          // sagstitel/beskrivelse/noter
+  | 'contact_details'       // kundens registrerede kontaktdata/adresse
+  | 'invoice_amounts'       // beløb, saldi, fakturaer
   | 'documents'             // dokumenter/filer
+  | 'employee_names'        // hvem der kommer / er tildelt
 
-export const REQUIRED_LEVEL: Record<InfoKind, DisclosureLevel> = {
+/** null = aldrig via AI-receptionisten (uanset niveau) */
+export const REQUIRED_LEVEL: Record<InfoKind, DisclosureLevel | null> = {
   company_info: 0,
-  relationship_exists: 1,
-  case_list: 2,
+  relationship_exists: 2,
   case_status: 2,
-  next_visit_date: 2,
-  contact_details: 3,
-  invoice_amounts: 3,
-  documents: 3,
+  case_numbers: 3,
+  next_visit_date: 3,
+  case_details: null,
+  contact_details: null,
+  invoice_amounts: null,
+  documents: null,
+  employee_names: null,
 }
 
 export function canDisclose(level: DisclosureLevel, info: InfoKind): boolean {
-  return level >= REQUIRED_LEVEL[info]
+  const req = REQUIRED_LEVEL[info]
+  return req !== null && level >= req
+}
+
+/** Det et niveau må vise (til runbook/test — samme kilde som canDisclose) */
+export function disclosableAt(level: DisclosureLevel): InfoKind[] {
+  return (Object.keys(REQUIRED_LEVEL) as InfoKind[]).filter((k) => canDisclose(level, k))
 }
 
 /** Kandidatens kendte ikke-hemmelige fakta (læses server-side; sendes ALDRIG til afsenderen) */
 export interface CandidateFacts {
-  postalCodes: string[]       // fakturerings-/leverings-/sags-postnumre
+  postalCodes: string[]       // fakturerings-/leverings-postnumre
   streetNames: string[]       // vejnavne uden husnummer (normaliseret)
   caseNumbers: string[]       // kandidatens sagsnumre (SVC-…)
 }
@@ -63,16 +85,18 @@ export const normStreet = (s: string | null | undefined) => {
 const normCase = (s: string | null | undefined) => { const t = String(s ?? '').toUpperCase().replace(/[^A-Z0-9]/g, ''); return t.length >= 4 ? t : null }
 
 /**
- * Bekræftelse kræver EN af: (postnr. OG vejnavn) eller kandidatens sagsnummer. Kun eksakt match på normaliserede værdier.
- * Et forkert svar er 'failed' (ikke 'not_attempted').
+ * Bekræftelse kræver TO fakta: (postnr. OG vejnavn) eller (sagsnummer OG postnr.). Kun eksakt match på normaliserede
+ * værdier. Et komplet men forkert svar er 'failed'. Ét faktum alene (fx kun sagsnummer) er 'not_attempted' — der
+ * spørges om resten, og intet afsløres.
  */
 export function verifyFacts(candidate: CandidateFacts, claimed: ClaimedFacts): VerificationOutcome {
   const pc = normPostal(claimed.postalCode), st = normStreet(claimed.streetName), cn = normCase(claimed.caseNumber)
-  if (!pc && !st && !cn) return 'not_attempted'
-  if (cn && candidate.caseNumbers.map(normCase).includes(cn)) return 'verified'
-  if (pc && st && candidate.postalCodes.map(normPostal).includes(pc) && candidate.streetNames.map(normStreet).includes(st)) return 'verified'
-  if (cn || (pc && st)) return 'failed'
-  // kun én af postnr./vejnavn oplyst → endnu ikke nok (spørg om resten)
+  const pcOk = !!pc && candidate.postalCodes.map(normPostal).includes(pc)
+  const stOk = !!st && candidate.streetNames.map(normStreet).includes(st)
+  const cnOk = !!cn && candidate.caseNumbers.map(normCase).includes(cn)
+  if ((pcOk && stOk) || (cnOk && pcOk)) return 'verified'
+  const complete = (pc && st) || (cn && pc)
+  if (complete) return 'failed'
   return 'not_attempted'
 }
 

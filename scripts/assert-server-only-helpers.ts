@@ -33,6 +33,7 @@ const SERVER_ONLY_MODULES = [
   'src/lib/ai/ai-client.ts',
   'src/lib/reception/henvendelser-core.ts',
   'src/lib/reception/upload-links.ts',
+  'src/lib/reception/background-actor.ts',
   'src/lib/reception/llm-classify.ts',
 ]
 

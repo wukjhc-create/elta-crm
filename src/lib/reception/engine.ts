@@ -13,6 +13,7 @@ import type { IdentityInput, IdentityResult } from './identity-match'
 import { canDisclose, disclosureLevel, verifyFacts, MAX_VERIFICATION_ATTEMPTS, type CandidateFacts, type ClaimedFacts, type DisclosureLevel, type VerificationOutcome } from './disclosure'
 import { classifyIntent, detectSignals, INTENTS, maxUrgency, urgencyFor, type Classification, type Intent, type Signals } from './signals'
 import { evaluateAction, handoffReasons, impliedCommitments, replyViolations, type ForbiddenCommitment, type HandoffReason, type PolicyOutcome } from './action-policy'
+import { emergencyReply } from './emergency-policy'
 
 export interface ReceptionMessage {
   channel: Channel
@@ -87,6 +88,8 @@ export const INTENT_LABEL: Record<Intent, string> = {
   emergency_safety: 'NØD/sikkerhed', other: 'Andet',
 }
 
+const IDENTITY_REASONS = new Set<HandoffReason>(['ambiguous_identity', 'identity_read_error'])
+
 export const HANDOFF_NEXT: Record<HandoffReason, string> = {
   safety_emergency: 'Ring kunden op NU — vurder fare og evt. vagt',
   urgent_outage: 'Ring kunden op hurtigst muligt (ingen strøm)',
@@ -159,17 +162,23 @@ function planFor(intent: Intent, s: Signals, idState: IdentityResult['state'], c
   return p
 }
 
-const SAFETY_TEXT = 'Hvis der er fare for liv, brand eller røg, så ring 112 med det samme. Sluk på hovedafbryderen, hvis det kan gøres uden fare.'
-
+/**
+ * Svaret bygges KUN af faste skabeloner. Nød: præcis den godkendte nød-tekst (emergency-policy.ts) — intet andet.
+ * Kundeoplysninger følger disclosure.ts: L2 = status-KATEGORI for én åben sag (ingen titel, intet sagsnummer, ingen
+ * datoer/navne/beløb); L3 tilføjer sagsnummeret. L0/L1 bekræfter intet om kundeforholdet.
+ */
 function composeReply(t: { handoff: Handoff | null; intent: Intent; level: DisclosureLevel; needsVerification: boolean; refused: ForbiddenCommitment[]; caseForStatus: OpenCase | null; identityKnown: boolean }): string {
+  if (t.handoff?.reasons.includes('safety_emergency')) return emergencyReply()
   const parts: string[] = []
-  if (t.handoff?.reasons.includes('safety_emergency')) parts.push(SAFETY_TEXT)
   if (t.refused.includes('quote_binding_price')) parts.push('Jeg kan ikke give en pris her, men din forespørgsel går videre, så du kan få et skriftligt tilbud.')
   if (t.refused.includes('promise_date')) parts.push('Jeg kan ikke love et tidspunkt — det gør planlægningen, når de kontakter dig.')
   if (t.refused.includes('warranty_decision')) parts.push('Spørgsmål om garanti vurderes af en medarbejder.')
   if (t.refused.includes('compliance_answer')) parts.push('Tekniske og lovgivningsmæssige spørgsmål besvares af en autoriseret installatør.')
-  if (t.needsVerification) parts.push('For at kunne fortælle om din sag skal jeg lige bekræfte: hvad er postnummer og vejnavn på adressen — eller dit sagsnummer?')
-  else if (t.caseForStatus && canDisclose(t.level, 'case_status')) parts.push(`Jeg kan se sag ${t.caseForStatus.caseNumber ?? ''} (${t.caseForStatus.title}). Status: ${t.caseForStatus.statusLabel}.`.replace(/ {2,}/g, ' '))
+  if (t.needsVerification) parts.push('For at kunne fortælle om din sag skal jeg lige bekræfte to ting: postnummer og vejnavn på adressen — eller dit sagsnummer og postnummeret.')
+  else if (t.caseForStatus && canDisclose(t.level, 'case_status')) {
+    const nr = canDisclose(t.level, 'case_numbers') && t.caseForStatus.caseNumber ? ` ${t.caseForStatus.caseNumber}` : ''
+    parts.push(`Din sag${nr} har status: ${t.caseForStatus.statusLabel}.`)
+  }
   if (t.handoff) parts.push('Jeg sender din henvendelse videre til en medarbejder, som vender tilbage hurtigst muligt.')
   else parts.push('Tak for din henvendelse. Jeg har noteret den, og en medarbejder følger op.')
   const text = parts.join(' ')
@@ -190,6 +199,12 @@ export async function runReceptionTurn(msg: ReceptionMessage, ports: EnginePorts
   // 2. Bekræftelse og oplysningsniveau
   let verification: VerificationOutcome = 'not_attempted'
   let failed = msg.failedVerificationAttempts ?? 0
+  const claimedComplete = !!msg.claimed && ((!!msg.claimed.postalCode && !!msg.claimed.streetName) || (!!msg.claimed.caseNumber && !!msg.claimed.postalCode))
+  if (!candidateId && claimedComplete) {
+    // Ingen kandidat at holde faktaene op imod → et forsøg der ikke kan lykkes (samme forløb som et forkert svar)
+    verification = 'failed'
+    failed += 1
+  }
   if (candidateId && msg.claimed) {
     const facts = await ports.candidateFacts(candidateId)
     if (!facts.ok) notes.push('kundefakta kunne ikke læses — bekræftelse ikke mulig')
@@ -234,7 +249,12 @@ export async function runReceptionTurn(msg: ReceptionMessage, ports: EnginePorts
   const ctx = { identity: identity.state, caseState, level, confidence: cls.confidence, urgency, signals, contentUnavailable, verificationFailed: failed >= MAX_VERIFICATION_ATTEMPTS }
   const reasons = handoffReasons(ctx)
   const team = teamFor(cls.intent, signals, reasons)
-  const needsVerification = cls.intent === 'existing_case_status' && level === 1 && !reasons.length
+  // L0 og L1 er udadtil ens: der spørges om bekræftelse UANSET om nummeret/mailen gav en kandidat (ellers afslører
+  // spørgsmålet, at nummeret tilhører en kunde)
+  // Review F4: identitets-baserede årsager (tvetydig/læsefejl) styrer KUN det interne handoff — aldrig svaret til
+  // afsenderen, ellers kan en opkalder skelne L0 fra L1 (fx at et nummer findes hos flere kunder)
+  const replyReasons = reasons.filter((r) => !IDENTITY_REASONS.has(r))
+  const needsVerification = cls.intent === 'existing_case_status' && level <= 1 && !replyReasons.length
   const refused = impliedCommitments(signals)
 
   const planned: Array<{ type: string; payload: Record<string, unknown>; proposedBy: 'planner' | 'llm' }> = planFor(cls.intent, signals, identity.state, caseState, team).map((a) => ({ ...a, proposedBy: 'planner' as const }))
@@ -252,7 +272,7 @@ export async function runReceptionTurn(msg: ReceptionMessage, ports: EnginePorts
   const label = INTENT_LABEL[cls.intent]
   const summary = contentUnavailable ? 'Indholdet kunne ikke leveres (fx manglende transskription).' : `${label}: ${clip(text, 300)}`
   const reply = composeReply({
-    handoff, intent: cls.intent, level, needsVerification, refused,
+    handoff: replyReasons.length && handoff ? { ...handoff, reasons: replyReasons } : null, intent: cls.intent, level, needsVerification, refused,
     caseForStatus: cls.intent === 'existing_case_status' && caseState === 'exact' ? caseCandidate : null,
     identityKnown: identity.state === 'unique_match',
   })

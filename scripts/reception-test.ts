@@ -11,7 +11,10 @@ import { canonicalPhone, samePhone, localPhoneDigits } from '../src/lib/utils/ph
 import { toRelatelNumber } from '../src/lib/integrations/relatel/phone'
 import { phoneDigits } from '../src/lib/customers/csv-import'
 import { classifyIdentity, matchIdentity } from '../src/lib/reception/identity-match'
-import { canDisclose, disclosureLevel, verifyFacts } from '../src/lib/reception/disclosure'
+import { canDisclose, disclosableAt, disclosureLevel, verifyFacts, REQUIRED_LEVEL } from '../src/lib/reception/disclosure'
+import { emergencyReply, EMERGENCY_TEMPLATE, APPROVED_EMERGENCY_ADDITIONS, UNAPPROVED_SAFETY_INSTRUCTION } from '../src/lib/reception/emergency-policy'
+import { backgroundCapability, receptionBackgroundIngest, BACKGROUND_READ_TABLES, BackgroundCapabilityError } from '../src/lib/reception/background-actor'
+import { receptionBackgroundEnabled } from '../src/lib/reception/flags'
 import { evaluateAction, replyViolations, FORBIDDEN_COMMITMENTS } from '../src/lib/reception/action-policy'
 import { runReceptionTurn, mergeClassification } from '../src/lib/reception/engine'
 import { detectSignals, classifyIntent } from '../src/lib/reception/signals'
@@ -20,9 +23,9 @@ import { validateLlmClassification } from '../src/lib/reception/llm-classify'
 import { aiActorMayExecute, ACTION_PERMISSIONS } from '../src/lib/reception/ai-actor'
 import { emailToInbound, portalToInbound, callToInbound, smsToInbound } from '../src/lib/reception/adapters'
 import { validateInbound, dedupeKeyFor } from '../src/lib/reception/contract'
-import { contentMatchesType, checkUploadRequest, acceptUploadFiles, hashUploadToken, isWellFormedUploadToken, newUploadToken } from '../src/lib/reception/upload-links'
+import { contentMatchesType, checkUploadRequest, acceptUploadFiles, hashUploadToken, isWellFormedUploadToken, newUploadToken, safeUploadName } from '../src/lib/reception/upload-links'
 import { EXTERNAL_SENDS_ENABLED, uploadLinksEnabled, receptionLlmEnabled } from '../src/lib/reception/flags'
-import { ingestCommunication, recordAndExecuteActions } from '../src/lib/reception/henvendelser-core'
+import { buildIngestPayload, callReceptionIngest, executeApprovedActions, ingestCommunication, mapIngestError } from '../src/lib/reception/henvendelser-core'
 import { ROWS, ID, fakePorts, SCENARIOS } from './reception-fixtures'
 import type { Permission } from '../src/lib/auth/permissions'
 
@@ -66,13 +69,16 @@ async function main() {
   const uniq = { state: 'unique_match' as const }
   ok('L0: ukendt', disclosureLevel({ identity: { state: 'no_match' }, channel: 'phone', verification: 'not_attempted', strongVerification: false, failedAttempts: 0 }) === 0)
   ok('L0: tvetydig', disclosureLevel({ identity: { state: 'ambiguous' }, channel: 'phone', verification: 'verified', strongVerification: false, failedAttempts: 0 }) === 0)
-  ok('L1: kun opkalds-nummer (forfalskbart) — ingen sagsoplysninger', disclosureLevel({ identity: uniq, channel: 'phone', verification: 'not_attempted', strongVerification: false, failedAttempts: 0 }) === 1 && !canDisclose(1, 'case_status') && canDisclose(1, 'relationship_exists'))
+  ok('L1: kun opkalds-nummer (forfalskbart) — ingen sagsoplysninger', disclosureLevel({ identity: uniq, channel: 'phone', verification: 'not_attempted', strongVerification: false, failedAttempts: 0 }) === 1 && !canDisclose(1, 'case_status') && !canDisclose(1, 'relationship_exists') && canDisclose(2, 'relationship_exists'))
   ok('L2: bekræftet postnr.+vej → sagsstatus', disclosureLevel({ identity: uniq, channel: 'phone', verification: 'verified', strongVerification: false, failedAttempts: 0 }) === 2 && canDisclose(2, 'case_status') && !canDisclose(2, 'invoice_amounts'))
   ok('L3: kun stærk verifikation (portal)', disclosureLevel({ identity: uniq, channel: 'portal', verification: 'not_attempted', strongVerification: true, failedAttempts: 0 }) === 3)
   ok('2 mislykkede bekræftelser → L0', disclosureLevel({ identity: uniq, channel: 'phone', verification: 'verified', strongVerification: false, failedAttempts: 2 }) === 0)
   const facts = { postalCodes: ['8000'], streetNames: ['solvej'], caseNumbers: ['SVC-01824'] }
   ok('bekræftelse: postnr.+vejnavn (med husnr.) → verified', verifyFacts(facts, { postalCode: '8000', streetName: 'Solvej 4' }) === 'verified')
-  ok('bekræftelse: sagsnummer → verified', verifyFacts(facts, { caseNumber: 'svc 01824' }) === 'verified')
+  ok('bekræftelse: sagsnummer ALENE → ikke nok (not_attempted, spørg om postnr.)', verifyFacts(facts, { caseNumber: 'svc 01824' }) === 'not_attempted')
+  ok('bekræftelse: sagsnummer + postnr. → verified', verifyFacts(facts, { caseNumber: 'svc 01824', postalCode: '8000' }) === 'verified')
+  ok('bekræftelse: sagsnummer + forkert postnr. → failed', verifyFacts(facts, { caseNumber: 'svc 01824', postalCode: '9999' }) === 'failed')
+  ok('bekræftelse: postnr. ALENE → not_attempted', verifyFacts(facts, { postalCode: '8000' }) === 'not_attempted')
   ok('bekræftelse: forkert postnr. → failed', verifyFacts(facts, { postalCode: '9000', streetName: 'Solvej' }) === 'failed')
   ok('bekræftelse: kun postnr. → not_attempted (ikke nok)', verifyFacts(facts, { postalCode: '8000' }) === 'not_attempted')
 
@@ -103,9 +109,17 @@ async function main() {
   ok('tilbud: opgave uden entydig kunde → forslag (aldrig auto-kobling)', t2.actions.find((a) => a.type === 'create_task')?.outcome === 'proposal')
   const t3 = await turn('Jeg har en sag hos jer, hvornår kommer montøren?', '20304050')
   ok('forfalsket/ubekræftet nummer: L1 → beder om bekræftelse, INGEN sagsoplysning i svar', t3.level === 1 && t3.needsVerification && !/SVC-01824|Batteri/.test(t3.reply), t3.reply)
+  const t3u = await turn('Jeg har en sag hos jer, hvornår kommer montøren?', '61616161')
+  ok('L0 og L1 er udadtil ens (spørgsmålet afslører ikke, om nummeret er kunde)', t3u.level === 0 && t3u.reply === t3.reply, `${t3u.reply} ≠ ${t3.reply}`)
+  const t3u2 = await turn('Jeg har en sag hos jer, hvornår kommer montøren?', '61616161', { claimed: { postalCode: '8000', streetName: 'Solvej 4' } })
+  const t3amb = await turn('Jeg har en sag hos jer, hvornår kommer montøren?', '30303030')
+  ok('review F4: tvetydigt nummer giver SAMME svar som ukendt (internt stadig handoff)', t3amb.reply === t3u.reply && !!t3amb.handoff?.reasons.includes('ambiguous_identity'), `${t3amb.reply} ≠ ${t3u.reply}`)
+  const tReadErr = await turn('Jeg har en sag hos jer, hvornår kommer montøren?', '20304050', {}, { ...fakePorts(), identify: async () => ({ state: 'read_error', candidates: [], leadIds: [], keysUsed: [], error: 'boom' }) })
+  ok('review F4: kundeopslag-fejl giver SAMME svar som ukendt', tReadErr.reply === t3u.reply, tReadErr.reply)
+  ok('ukendt nummer + fakta: tæller som fejlet forsøg (som et forkert svar), intet afsløres', t3u2.verification === 'failed' && t3u2.level === 0 && !/status:/.test(t3u2.reply))
   ok('dato-spørgsmål → promise_date afvist, planlægnings-anmodning', t3.commitmentsRefused.includes('promise_date') && t3.actions.some((a) => a.type === 'create_planning_request'))
   const t4 = await turn('Jeg har en sag hos jer, hvornår kommer montøren?', '20304050', { claimed: { postalCode: '8000', streetName: 'Solvej 4' } })
-  ok('bekræftet (L2) → ikke-følsom sagsstatus, stadig ingen dato-løfte', t4.level === 2 && /SVC-01824/.test(t4.reply) && /kan ikke love et tidspunkt/.test(t4.reply) && replyViolations(t4.reply).length === 0, t4.reply)
+  ok('bekræftet (L2) → ikke-følsom sagsstatus, stadig ingen dato-løfte', t4.level === 2 && /har status:/.test(t4.reply) && !/SVC-01824|Batteri/i.test(t4.reply) && /kan ikke love et tidspunkt/.test(t4.reply) && replyViolations(t4.reply).length === 0, t4.reply)
   const t4b = await turn('Jeg har en sag hos jer, hvornår kommer montøren?', '20304050', { claimed: { postalCode: '9999', streetName: 'Forkertvej' } })
   ok('bekræftelse fejlet (1. gang) → L1, ingen sagsdata', t4b.verification === 'failed' && t4b.level === 1 && !/SVC/.test(t4b.reply))
   const t4c = await turn('Jeg har en sag hos jer, hvornår kommer montøren?', '20304050', { claimed: { postalCode: '9999', streetName: 'Forkertvej' }, failedVerificationAttempts: 1 })
@@ -115,7 +129,8 @@ async function main() {
   const t6 = await turn('Jeg vil klage over fakturaen.', '21212121')
   ok('fakturaklage: handoff dispute → bogholderi, høj', t6.intent === 'invoice_question' && !!t6.handoff?.reasons.includes('customer_dispute') && t6.handoff?.team === 'bogholderi' && t6.urgency === 'high')
   const t7 = await turn('Det slår gnister fra eltavlen og lugter brændt!', '20304050')
-  ok('nød: emergency, sikkerhedstekst (112), dispatch afvist, ingen udsendelse', t7.urgency === 'emergency' && /112/.test(t7.reply) && t7.commitmentsRefused.includes('dispatch_emergency') && !t7.actions.some((a) => a.type === 'dispatch_emergency' && a.outcome !== 'forbidden') && !!t7.handoff?.reasons.includes('safety_emergency'))
+  ok('nød: svar = PRÆCIS den godkendte nød-tekst (ingen hovedafbryder/fejlsøgning/sagsdata)', t7.reply === emergencyReply() && !UNAPPROVED_SAFETY_INSTRUCTION.test(t7.reply) && !/SVC|status/i.test(t7.reply), t7.reply)
+  ok('nød: emergency, 112, dispatch afvist, ingen udsendelse', t7.urgency === 'emergency' && /112/.test(t7.reply) && t7.commitmentsRefused.includes('dispatch_emergency') && !t7.actions.some((a) => a.type === 'dispatch_emergency' && a.outcome !== 'forbidden') && !!t7.handoff?.reasons.includes('safety_emergency'))
   const t8 = await turn('Mit batteri går offline.', '30303030')
   ok('tvetydig opkalder: handoff, ingen kandidatdata, ingen kundeforslag', t8.identity.state === 'ambiguous' && !!t8.handoff?.reasons.includes('ambiguous_identity') && t8.level === 0 && !t8.actions.some((a) => a.payload.customerCandidateId))
   const t9 = await turn('Jeg vil gerne tale med en medarbejder.', '20304050')
@@ -217,6 +232,13 @@ async function main() {
   ok('upload: tilbagekaldt', (checkUploadRequest({ ...req, revoked_at: '2026-11-16T00:00:00Z' }, now) as { reason?: string }).reason === 'revoked')
   ok('upload: kvote brugt', (checkUploadRequest({ ...req, files_uploaded: 2 }, now) as { reason?: string }).reason === 'quota_used')
   ok('upload: ukendt token', (checkUploadRequest(null, now) as { reason?: string }).reason === 'invalid')
+  ok('upload: brugt link (consumed) afvises — én afsendelse pr. link', (checkUploadRequest({ ...req, files_uploaded: 1, consumed_at: '2026-11-16T09:00:00Z' }, now) as { reason?: string }).reason === 'consumed')
+  ok('upload: filnavn — sti, RTL-override og falsk endelse fjernes; endelse fra kontrolleret type', safeUploadName('..\\..\\evil\u202Egpj.exe', 'image/jpeg') === 'evilgpj.jpg' && safeUploadName('../../x.pdf', 'application/pdf') === 'x.pdf' && safeUploadName('', 'image/png') === 'fil.png')
+  const heic = Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from('ftypheic', 'latin1'), Buffer.alloc(8)])
+  const mp4 = Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from('ftypisom', 'latin1'), Buffer.alloc(8)])
+  ok('upload: HEIC kræver HEIF-brand (MP4 forklædt som HEIC afvises)', contentMatchesType('image/heic', heic) && !contentMatchesType('image/heic', mp4))
+  ok('upload: SVG/HTML/EXE kan aldrig accepteres (ikke i MIME-listen)', !contentMatchesType('image/svg+xml', Buffer.from('<svg')) && !contentMatchesType('text/html', Buffer.from('<html')))
+  const usedReq = { ...req, files_uploaded: 1, consumed_at: '2026-11-16T09:00:00Z' }
   const tok = newUploadToken()
   ok('upload: token 43 tegn base64url, kun hash gemmes', isWellFormedUploadToken(tok.token) && tok.hash === hashUploadToken(tok.token) && /^[0-9a-f]{64}$/.test(tok.hash) && !isWellFormedUploadToken('../../etc'))
   let writes = 0
@@ -230,6 +252,15 @@ async function main() {
   const total = await acceptUploadFiles(noWrite, req, [1, 2].map((i) => ({ name: `${i}.jpg`, type: 'image/jpeg', size: 5 * 1024 * 1024, bytes: Buffer.concat([jpg, Buffer.alloc(5 * 1024 * 1024 - 6)]) })))
   ok('upload: forklædt fil og > 9 MB samlet afvises før skrivning', !fake.ok && !total.ok && writes === 0)
   ok('upload: for stor/forkert type/for mange afvises FØR nogen skrivning', !tooBig.ok && !badType.ok && !tooMany.ok && writes === 0)
+  const replay = await acceptUploadFiles(noWrite, usedReq, [{ name: 'a.jpg', type: 'image/jpeg', size: 6, bytes: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0]) }])
+  ok('upload: replay af brugt link afvises før nogen skrivning', !replay.ok && writes === 0)
+  // samtidige afsendelser: kun én reservation lykkes (optimistisk lås på consumed_at IS NULL)
+  let reserved = false
+  const chain = (onSelect: () => Promise<unknown>): Record<string, unknown> => { const c: Record<string, unknown> = {}; for (const m of ['eq', 'is', 'gt']) c[m] = () => c; c.select = onSelect; c.then = (res: (v: unknown) => void) => res({ data: null, error: null }); return c }
+  const race = { from: (t: string) => { if (t !== 'upload_requests') throw new Error(t); return { update: () => chain(async () => { if (reserved) return { data: [], error: null }; reserved = true; return { data: [{ id: 'x' }], error: null } }) } }, storage: { from: () => ({ upload: async () => ({ error: { message: 'stop' } }) }) } }
+  const okFile = [{ name: 'a.jpg', type: 'image/jpeg', size: 6, bytes: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0]) }]
+  const raceRes = await Promise.all([acceptUploadFiles(race, req, okFile), acceptUploadFiles(race, req, okFile)])
+  ok('upload: to samtidige afsendelser → højst én reserverer linket', raceRes.filter((x) => !x.ok && /allerede brugt/.test((x as { error: string }).error)).length === 1, JSON.stringify(raceRes))
   const prevFlag = process.env.RECEPTION_UPLOAD_LINKS_ENABLED
   delete process.env.RECEPTION_UPLOAD_LINKS_ENABLED
   const { validateUploadToken } = await import('../src/lib/reception/upload-links')
@@ -245,73 +276,93 @@ async function main() {
   ok('receptionist-koden kalder ingen afsendere og ikke createServiceCase (sender kundemail)', offenders.length === 0, offenders.join(', '))
   const aiFetch = files.filter((f) => /fetch\(/.test(readFileSync(join(process.cwd(), f), 'utf8')))
   ok('receptionist-koden laver ingen egne netværkskald (kun via ai-client)', aiFetch.length === 0, aiFetch.join(', '))
+  // Nila/Relatel: ingen routing, ingen flag, ingen opkalds-/SMS-klient — kun den rene telefon-normalisering
+  const strip = (f: string) => readFileSync(join(process.cwd(), f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+  const telOffenders = files.filter((f) => /RELATEL_|TELEPHONY_/.test(strip(f)) || /integrations\/relatel\/(?!phone)|integrations\/telephony|\bnila\b|routing|dial\(|originate|initiateCall|sendSms/i.test(strip(f)))
+  ok('receptionist-koden rører ikke Nila, Relatel-routing/-flag, telefoni-persistens, opkald eller SMS', telOffenders.length === 0, telOffenders.join(', '))
+  const envKeys = new Set(files.flatMap((f) => [...strip(f).matchAll(/process\.env\.([A-Z0-9_]+)|env\.([A-Z0-9_]+)/g)].map((m) => m[1] ?? m[2])))
+  ok('receptionist-koden læser kun egne flag (RECEPTION_*) + app-URL', [...envKeys].every((k) => /^RECEPTION_|^NEXT_PUBLIC_(APP|SITE)_URL$/.test(k)), [...envKeys].join(','))
 
-  // ── 12. Idempotent indtag + forslag (falsk DB, RLS-klient-lignende) ───────────────────────────────────────────
-  const db = fakeDb()
-  const actor = { supabase: db, userId: ID.hansen, hasPermission: (_p: Permission) => true }
+  // ── 12. Atomisk indtag via reception_ingest (final review S1) ────────────────────────────────────────────
   const t = await turn('Mit batteri går offline.', '20304050')
-  const r1 = await ingestCommunication(actor, { ...mail, dedupeKey: 'mail:incoming_emails:x1', source: { table: 'incoming_emails', id: ID.hansen } }, t)
-  const r2 = await ingestCommunication(actor, { ...mail, dedupeKey: 'mail:incoming_emails:x1', source: { table: 'incoming_emails', id: ID.hansen } }, t)
-  ok('indtag: første = created, gentaget hændelse = duplicate (én henvendelse, ét item)', r1.outcome === 'created' && r2.outcome === 'duplicate' && db.rows('conversations').length === 1 && db.rows('conversation_items').length === 1)
-  const convId = (r1 as { conversationId: string }).conversationId
-  const a1 = await recordAndExecuteActions(actor, convId, t, { execute: false })
-  const a2 = await recordAndExecuteActions(actor, convId, t, { execute: false })
-  ok('forslag: gentaget kørsel → duplicate, ingen nye rækker', a2.every((x) => x.state === 'duplicate') && db.rows('conversation_actions').length === t.actions.length, JSON.stringify(a2))
-  ok('forslag ved indtag: intet udføres (kun proposed/blocked)', a1.every((x) => x.state === 'proposed' || x.state === 'blocked'))
-  const conv = db.rows('conversations')[0]
-  ok('indtag: bekræftet kunde kun fra kildens menneskelige kobling', conv.customer_id === ID.hansen && conv.customer_match_state === 'confirmed')
-  const tAmb = await turn('Mit batteri går offline.', '30303030')
-  await ingestCommunication(actor, { ...auto, customer: { state: 'insufficient_information', customerId: null, candidateId: null, candidateCount: 0 }, dedupeKey: 'k2', source: { table: 'incoming_emails', id: ID.jensen } }, tAmb)
-  const c2 = db.rows('conversations')[1]
-  ok('indtag: tvetydig → ingen customer_id, ingen kandidat, status handoff', c2.customer_id === null && c2.customer_candidate_id === null && c2.customer_match_state === 'ambiguous' && c2.status === 'handoff')
-  const failDb = fakeDb({ failInsert: 'conversations' })
-  const rf = await ingestCommunication({ ...actor, supabase: failDb }, { ...mail, dedupeKey: 'k3' }, t)
-  ok('indtag: skrivefejl → error (ikke created/tom succes)', rf.outcome === 'error')
-  const denyDb = fakeDb({ failInsert: 'conversations', code: '42501' })
-  const rd = await ingestCommunication({ ...actor, supabase: denyDb }, { ...mail, dedupeKey: 'k4' }, t)
-  ok('indtag: RLS-afvisning → permission_denied', rd.outcome === 'error' && (rd as { error: string }).error === 'permission_denied')
+  const pl = buildIngestPayload(mail, t, { execute: false })
+  ok('payload: kilde-reference + forventet bekræftet kunde (DB afleder og afviser ved uenighed)', pl.source_table === 'incoming_emails' && pl.source_id === mail.source.id && pl.confirmed_customer_id === mail.customer.customerId)
+  ok('payload: ingen dedupe-nøgle/kanal/tid fra kalderen for en CRM-kilde', !('dedupe_key' in pl) && !('channel' in pl) && !('occurred_at' in pl) && !('provider' in pl))
+  ok('payload: indtag fra kilde → ingen handling beder om udførelse', (pl.actions as Array<{ execute: boolean }>).every((a) => a.execute === false))
+  const plx = buildIngestPayload(mail, t, { execute: true, mayExecute: (a) => (a.type === 'create_task' ? { allowed: false, reason: 'missing_user_permission' } : { allowed: true }) })
+  const ctAct = (plx.actions as Array<{ action_type: string; execute: boolean; reasons: string[] }>).find((a) => a.action_type === 'create_task')
+  ok('payload: AI-aktørens/medarbejderens afvisning → ingen execute + begrundelse', !!ctAct && !ctAct.execute && ctAct.reasons.some((r) => r.startsWith('ai_actor:')))
+  const simComm = { ...mail, provider: 'simulator', source: { table: 'simulator' as const, id: null }, dedupeKey: 'sim:00000000-0000-4000-8000-000000000001', customer: { state: 'insufficient_information' as const, customerId: null, candidateId: null, candidateCount: 0 } }
+  ok('payload: simulator sender sin sim-nøgle (DB kræver formatet)', buildIngestPayload(simComm, t, { execute: true }).dedupe_key === simComm.dedupeKey)
+  ok('fejlkoder → stabile fejl', mapIngestError({ code: '42501' }) === 'permission_denied' && mapIngestError({ code: '23514' }) === 'source_mismatch' && mapIngestError({ code: 'PGRST202' }) === 'unavailable' && mapIngestError({ code: '0A000' }) === 'not_supported' && mapIngestError({ code: 'XX000' }) === 'insert_failed')
+  const calls: string[] = []
+  const rpcDb = (resp: { data: unknown; error: { code: string } | null }) => ({ rpc: async (fn: string) => { calls.push(fn); return resp }, from: () => { throw new Error('indtag må ikke skrive direkte i tabeller') } })
+  const actor = { userId: ID.hansen, hasPermission: (_p: Permission) => true }
+  const rc = await ingestCommunication({ ...actor, supabase: rpcDb({ data: { outcome: 'created', conversation_id: ID.hansen, item_id: ID.jensen, actions: [] }, error: null }) }, mail, t, { execute: false })
+  const rdup = await ingestCommunication({ ...actor, supabase: rpcDb({ data: { outcome: 'duplicate', conversation_id: null }, error: null }) }, mail, t, { execute: false })
+  const rerr = await ingestCommunication({ ...actor, supabase: rpcDb({ data: null, error: { code: '42501' } }) }, mail, t, { execute: false })
+  ok('indtag: ÉT rpc-kald (reception_ingest), ingen direkte tabel-skrivning', calls.length === 3 && calls.every((c) => c === 'reception_ingest') && rc.outcome === 'created')
+  ok('indtag: duplicate og RLS-afvisning mappes (aldrig tom succes)', rdup.outcome === 'duplicate' && rerr.outcome === 'error' && (rerr as { error: string }).error === 'permission_denied')
+  const rweird = await callReceptionIngest(async () => ({ data: { outcome: 'created' }, error: null }), {})
+  ok('indtag: ufuldstændigt svar → error (ikke created)', rweird.outcome === 'error')
+  const ex = await executeApprovedActions({ ...actor, supabase: { from: () => { throw new Error('må ikke læse/skrive') } } }, ID.hansen, t, [
+    { id: ID.hansen, type: 'create_task', state: 'proposed', idempotency_key: 'k1' }, { id: null, type: 'x', state: 'duplicate', idempotency_key: 'k2' }, { id: ID.jensen, type: 'alter_invoice', state: 'blocked', idempotency_key: 'k3' }])
+  ok('udførelse: kun DB-godkendte (approved) handlinger udføres — forslag/blokeret/dublet røres ikke', ex.map((x) => x.state).join(',') === 'proposed,duplicate,blocked')
+
+  // ── 13. Baggrundsaktøren (uden medarbejder) ─────────────────────────────────────────────────────────────────
+  ok('baggrund: flag FRA som standard', !receptionBackgroundEnabled({}))
+  const bgOff = await receptionBackgroundIngest(mail, 'Mit batteri går offline.', { capability: () => { throw new Error('må ikke bygges når flaget er fra') }, env: {} })
+  ok('baggrund: flag fra → disabled, intet kald', bgOff.outcome === 'disabled')
+  const adminCalls: string[] = []
+  const fakeAdmin = {
+    from: (tbl: string) => { adminCalls.push(`from:${tbl}`); const q: Record<string, unknown> = {}; for (const m of ['eq', 'not', 'order', 'limit', 'or', 'ilike', 'range', 'in']) q[m] = () => q; q.maybeSingle = async () => ({ data: null, error: null }); q.then = (res: (v: unknown) => void) => res({ data: [], error: null }); return { select: () => q, insert: () => { throw new Error('insert') }, update: () => { throw new Error('update') }, delete: () => { throw new Error('delete') } } },
+    rpc: async (fn: string, args: { p: Record<string, unknown> }) => { adminCalls.push(`rpc:${fn}`); lastBg = args.p; return { data: { outcome: 'created', conversation_id: ID.hansen, item_id: ID.jensen, actions: [{ id: ID.hansen, type: 'create_task', state: 'proposed', idempotency_key: 'k' }] }, error: null } },
+    storage: { from: () => { throw new Error('storage') } },
+  }
+  let lastBg: Record<string, unknown> | null = null
+  const cap = backgroundCapability(fakeAdmin)
+  ok('baggrund: læse-port nægter tabeller uden for allowlisten', (() => { try { cap.readPort.from('invoices'); return false } catch (e) { return e instanceof BackgroundCapabilityError } })())
+  ok('baggrund: læse-port giver KUN select (ingen insert/update/delete)', Object.keys(cap.readPort.from('customers')).join(',') === 'select')
+  ok('review F9: læse-porten nægter indlejrede relationer', (() => { try { cap.readPort.from('customers').select('id, incoming_emails(*)'); return false } catch (e) { return e instanceof BackgroundCapabilityError } })())
+  ok('baggrund: allowlist = kunder, kontakter, leads, sager', BACKGROUND_READ_TABLES.join(',') === 'customers,customer_contacts,leads,service_cases')
+  const bgComm = { ...mail, customer: { state: 'unique_match' as const, customerId: null, candidateId: ID.hansen, candidateCount: 1 } }
+  const bg = await receptionBackgroundIngest(bgComm, 'Mit batteri går offline.', { capability: () => cap, env: { RECEPTION_BACKGROUND_ENABLED: 'true' } })
+  ok('baggrund: created med forslag; eneste skrivevej = rpc:reception_ingest', bg.outcome === 'created' && adminCalls.filter((c) => c.startsWith('rpc:')).join() === 'rpc:reception_ingest', JSON.stringify(adminCalls))
+  ok('baggrund: ALLE handlinger sendes uden execute (kun forslag)', !!lastBg && (lastBg.actions as Array<{ execute: boolean }>).every((a) => a.execute === false))
+  const srcBg = readFileSync(join(process.cwd(), 'src', 'lib', 'reception', 'background-actor.ts'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+  ok('baggrund (kildescan): ingen insert/update/delete/upsert/storage/andre rpc i modulet', !/\.(insert|update|delete|upsert)\(|\.storage\b|createAdminClient/.test(srcBg) && (srcBg.match(/\.rpc\(/g) ?? []).length === 1)
+
+  // ── 14. Oplysningsmatrix (deterministisk) ───────────────────────────────────────────────────────────────────
+  ok('matrix L0 = kun firmaviden', disclosableAt(0).join(',') === 'company_info')
+  ok('matrix L1 = som L0 udadtil', disclosableAt(1).join(',') === 'company_info')
+  ok('matrix L2 = + kundeforhold + status-kategori', disclosableAt(2).join(',') === 'company_info,relationship_exists,case_status')
+  ok('matrix L3 = + sagsnumre + besøgsdato (information)', disclosableAt(3).join(',') === 'company_info,relationship_exists,case_status,case_numbers,next_visit_date')
+  ok('matrix: kontaktdata/beløb/dokumenter/sagsdetaljer/medarbejdernavne ALDRIG (heller ikke L3)', (['contact_details', 'invoice_amounts', 'documents', 'case_details', 'employee_names'] as const).every((k) => REQUIRED_LEVEL[k] === null && !canDisclose(3, k)))
+  ok('matrix: opkalds-nummer/afsender-mail giver højst L1 (uden fakta)', disclosureLevel({ identity: { state: 'unique_match' }, channel: 'email', verification: 'not_attempted', strongVerification: false, failedAttempts: 0 }) === 1)
+
+  // ── 15. Nød-politik ─────────────────────────────────────────────────────────────────────────────────────────
+  ok('nød: skabelonen nævner 112 og at gå væk fra faren — intet om at betjene installationen', /112/.test(EMERGENCY_TEMPLATE) && /væk fra faren/.test(EMERGENCY_TEMPLATE) && !UNAPPROVED_SAFETY_INSTRUCTION.test(emergencyReply()))
+  ok('nød: ingen godkendte tilføjelser endnu (kræver særskilt godkendelse)', APPROVED_EMERGENCY_ADDITIONS.length === 0)
+  const allReplies = await Promise.all(SCENARIOS.map((sc) => turn(sc.text, sc.phone, sc.claimed ? { claimed: sc.claimed } : {})))
+  ok('ingen svar i nogen scenarie indeholder improviserede el-instruktioner', allReplies.every((x) => !UNAPPROVED_SAFETY_INSTRUCTION.test(x.reply)), allReplies.map((x) => x.reply).find((r) => UNAPPROVED_SAFETY_INSTRUCTION.test(r)) ?? '')
+  const gn = await turn('Der er røg og gnister fra inverteren, hvad skal jeg slå fra?', '20304050', {}, { ...fakePorts(), classify: async () => ({ ok: true, value: { intent: 'service_fault', confidence: 0.99, proposedActions: ['dispatch_emergency'] } }) })
+  ok('nød: LLM bliver ikke spurgt og kan ikke nedgradere/tilføje udsendelse', gn.urgency === 'emergency' && gn.reply === emergencyReply() && gn.classificationSource === 'keywords' && !gn.actions.some((a) => a.type === 'dispatch_emergency'))
+
+  // ── 16. Én kontrakt for alle kanaler (ingen parallel forretningslogik) ─────────────────────────────────────
+  const callC = callToInbound({ id: ID.nielsen, provider: 'relatel', provider_call_id: 'c-1', direction: 'inbound', started_at: '2026-11-16T08:00:00Z', external_number_normalized: '4520304050', customer_id: null, suggested_customer_id: null, candidate_count: 0, missed: true, has_voicemail: false, service_case_id: null })!
+  const smsC = smsToInbound({ id: ID.jensen, customer_id: null, to_phone: null, message: 'Hej', status: 'received', created_at: '2026-11-16T08:00:00Z', direction: 'inbound', from_phone: '20304050' })!
+  const portalC = portalToInbound({ id: ID.hansen, customer_id: ID.hansen, sender_type: 'customer', sender_name: 'Hansen', message: 'Hej', attachments: [], created_at: '2026-11-16T08:00:00Z' })!
+  const allC = [mail, portalC, callC, smsC]
+  ok('kontrakt: mail, portal, telefoni og SMS giver alle gyldig InboundCommunication', allC.every((c) => validateInbound(c).length === 0))
+  ok('kontrakt: dedupe-nøgler = databasens afledning (reception_source_identity)', mail.dedupeKey === `mail:incoming_emails:${mail.source.id}` && portalC.dedupeKey === `portal:portal_messages:${ID.hansen}` && callC.dedupeKey === `relatel:telephony_calls:${ID.nielsen}`)
+  ok('kontrakt: samme payload-bygger for alle kanaler', allC.every((c) => buildIngestPayload(c, null, { execute: false }).source_table === c.source.table))
+  const coreSrc = ['adapters.ts', 'henvendelser-core.ts', 'background-actor.ts'].map((f) => readFileSync(join(process.cwd(), 'src', 'lib', 'reception', f), 'utf8')).join('\n')
+  ok('ingen kanal-specifik indtags-logik uden for reception_ingest (ingen direkte insert i conversations/items)', !/from\(['"]conversations['"]\)\.insert|from\(['"]conversation_items['"]\)\.insert/.test(coreSrc))
+  const tlSrc = readFileSync(join(process.cwd(), 'src', 'lib', 'actions', 'communication-timeline.ts'), 'utf8')
+  ok('tidslinje: henvendelser vises i den EKSISTERENDE kunde-tidslinje (ingen ny tidslinje)', /inquiries/.test(tlSrc) && !readdirSync(join(process.cwd(), 'src', 'lib', 'reception')).some((f) => /timeline/i.test(f)))
 
   console.log(`\n${fail ? '❌' : '✅'} reception-test: ${pass} bestået, ${fail} fejlet`)
   process.exitCode = fail ? 1 : 0
-}
-
-/** Minimal PostgREST-lignende falsk klient med UNIQUE-nøgler (23505) — nok til indtag/forslag-stierne */
-function fakeDb(opts: { failInsert?: string; code?: string } = {}) {
-  const tables: Record<string, Array<Record<string, unknown>>> = { conversations: [], conversation_items: [], conversation_actions: [] }
-  const uniques: Record<string, string[][]> = { conversations: [['dedupe_key']], conversation_items: [['dedupe_key']], conversation_actions: [['conversation_id', 'idempotency_key']] }
-  let seq = 0
-  const api = {
-    rows: (t: string) => tables[t] ?? [],
-    from(table: string) {
-      const filters: Array<[string, unknown]> = []
-      let op: 'select' | 'insert' | 'update' = 'select'
-      let payload: Record<string, unknown> | null = null
-      const run = () => {
-        const rows = tables[table] ?? []
-        const match = (r: Record<string, unknown>) => filters.every(([k, v]) => r[k] === v)
-        if (op === 'insert') {
-          if (opts.failInsert === table) return { data: null, error: { code: opts.code ?? 'XX000', message: 'fail' } }
-          for (const u of uniques[table] ?? []) if (rows.some((r) => u.every((k) => r[k] === payload![k]))) return { data: null, error: { code: '23505', message: 'dup' } }
-          const row = { id: `00000000-0000-4000-9000-${String(++seq).padStart(12, '0')}`, ...payload }
-          rows.push(row); tables[table] = rows
-          return { data: [row], error: null }
-        }
-        if (op === 'update') { const hit = rows.filter(match); for (const r of hit) Object.assign(r, payload); return { data: hit, error: null } }
-        return { data: rows.filter(match), error: null }
-      }
-      const b = {
-        select: () => b,
-        insert: (p: Record<string, unknown>) => { op = 'insert'; payload = p; return b },
-        update: (p: Record<string, unknown>) => { op = 'update'; payload = p; return b },
-        eq: (k: string, v: unknown) => { filters.push([k, v]); return b },
-        maybeSingle: async () => { const r = run(); return { data: (r.data as unknown[] | null)?.[0] ?? null, error: r.error } },
-        single: async () => { const r = run(); return { data: (r.data as unknown[] | null)?.[0] ?? null, error: r.error } },
-        then: (res: (v: unknown) => unknown) => Promise.resolve(run()).then(res),
-      }
-      return b
-    },
-  }
-  return api
 }
 
 main().catch((e) => { console.error(e); process.exitCode = 1 })
