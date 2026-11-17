@@ -2747,6 +2747,26 @@ Total inkl. moms 11.718,75
     log(JSON.stringify((await stagingSql(STATE_00249_SQL))[0].f))
     return
   }
+  if (SUB === 'reception-race-staging') {
+    // STAGING: gentaget kapløb — N runder × M samtidige reception_ingest (service_role) på SAMME hændelse; rå fejlkoder ud.
+    const rounds = Number(process.argv[3] || 10), par = Number(process.argv[4] || 8)
+    const created: string[] = []
+    const tally: Record<string, number> = {}
+    let badRounds = 0
+    for (let i = 0; i < rounds; i++) {
+      const ev = `p249-race-${Date.now()}-${i}`
+      const res = await Promise.all(Array.from({ length: par }, () => admin.rpc('reception_ingest', { p: { source_table: 'manual', provider: 'web_chat', provider_event_id: ev, channel: 'web_chat', title: 'P249 race', ...(process.argv[5] === 'actions' ? { actions: [{ action_type: 'create_task', policy_outcome: 'auto', idempotency_key: `${ev}:t`, execute: true }] } : {}) } })))
+      const outs = res.map((r) => r.error ? `err:${r.error.code ?? 'none'}:${String(r.error.message ?? '').slice(0, 80)}` : String((r.data as { outcome?: string })?.outcome))
+      for (const o of outs) tally[o] = (tally[o] ?? 0) + 1
+      for (const r of res) if (!r.error && (r.data as { outcome?: string })?.outcome === 'created') created.push((r.data as { conversation_id: string }).conversation_id)
+      if (outs.filter((o) => o === 'created').length !== 1 || outs.some((o) => o.startsWith('err'))) badRounds++
+    }
+    if (created.length) await admin.from('conversations').delete().in('id', created)
+    log(JSON.stringify(tally))
+    log(badRounds ? `❌ ${badRounds}/${rounds} runder med fejl` : `✅ ${rounds} runder × ${par}: præcis 1 created pr. runde, resten duplicate`)
+    process.exitCode = badRounds ? 2 : 0
+    return
+  }
   if (SUB === 'reception-bg-staging') {
     // STAGING: 00249 anvendt. Baggrundsaktøren (service_role via snævret kapabilitet) + samtidigt indtag mod rigtig DB.
     // Skriver kun henvendelser med egne nøgler (p249-bg-*) og sletter dem igen; audit_logs-rækker bliver (staging).
