@@ -8,7 +8,7 @@
  *   B  skrive-grant rækker ikke ud over læse-scopet (Henrik 2026-10-29)
  *   C  rigtige data: rækketal pr. aktiv profil + lækage-invarianter (intet barn uden synlig forælder) + forventet
  *      kunde-/sagsantal beregnet uafhængigt af hjælpefunktionerne
- *   D  funktions-ACL, ingen bred fallback-politik, customer_notes håndteret som designet, ydelse (EXPLAIN ANALYZE)
+ *   D  funktions-ACL, ingen bred fallback-politik, customer_notes = 00245-politikkerne (i prod siden 2026-11-03), ydelse (EXPLAIN ANALYZE)
  *   npx tsx scripts/prod-read-scope-effective.ts
  */
 import { randomUUID } from 'crypto'
@@ -242,8 +242,11 @@ runMain(() => withProdRollbackProbe('read-scope-effective', async ({ q, as, add,
       AND ('authenticated' = ANY (roles) OR 'public' = ANY (roles) OR 'anon' = ANY (roles)) AND (qual IS NULL OR qual = 'true')`, [scopeTables])) as Array<{ p: string }>
   add('NY', 'ingen bred SELECT/ALL-politik (qual true) på scope-tabellerne', broad.length === 0, broad.map((x) => x.p).join(',') || 'ingen')
   if (s241) {
-    const cn = (await q(`SELECT to_regclass('public.customer_notes') IS NULL absent, (SELECT count(*)::int FROM pg_policies WHERE schemaname='public' AND tablename='customer_notes') pols`))[0]
-    add('NY', 'customer_notes findes ikke i prod → ingen politik oprettet (som designet)', cn.absent === true && cn.pols === 0, `absent=${cn.absent} politikker=${cn.pols}`)
+    // 00245 (prod 2026-11-03): customer_notes findes med præcis de fire scope-politikker og ingen bred USING (true)
+    const cn = (await q(`SELECT to_regclass('public.customer_notes') IS NOT NULL present,
+      (SELECT coalesce(string_agg(policyname, ',' ORDER BY policyname), '') FROM pg_policies WHERE schemaname='public' AND tablename='customer_notes') pols,
+      (SELECT count(*)::int FROM pg_policies WHERE schemaname='public' AND tablename='customer_notes' AND (qual IS NULL OR qual = 'true') AND cmd IN ('SELECT','ALL')) broad`))[0]
+    add('NY', 'customer_notes (00245): kun de fire scope-politikker, ingen bred SELECT', cn.present === true && cn.pols === 'customer_notes_delete_scope,customer_notes_insert_scope,customer_notes_select_scope,customer_notes_update_scope' && cn.broad === 0, `politikker=${cn.pols} brede=${cn.broad}`)
   }
   const perf = async (who: Who, t: string) => {
     const r = await as(who, `EXPLAIN (ANALYZE, FORMAT JSON) SELECT count(*) FROM public.${t}`)
