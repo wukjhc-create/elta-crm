@@ -188,7 +188,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   sales: ['U263', 'U262', 'U261', 'U260', 'U259', 'U258', 'U257', 'U256', 'U230', 'U229', 'U228', 'U227', 'U223', 'U222', 'U220', 'U219', 'U218', 'U217', 'U216', 'U214', 'U213', 'U210', 'U209', 'U208', 'U207', 'U206', 'U205', 'U202', 'U192', 'U147', 'U146', 'U131', 'U128', 'U126', 'U125', 'U118', 'U74', 'U75', 'U76', 'U77', 'U82', 'U83', 'U84', 'U85', 'U86', 'U87', 'U93', 'U95', 'U100', 'U111', 'U115', 'U7', 'U8', 'U9', 'U14', 'U24', 'U27', 'U42', 'U45', 'U47', 'U51', 'U54', 'U55', 'U57', 'U58', 'U60', 'U167', 'U168', 'U169', 'U170', 'U171', 'U172', 'U173', 'U174', 'U175', 'U176', 'U177', 'U178', 'U179', 'U182', 'U185', 'U186', 'U187'],
   montor: ['U265', 'U255', 'U233', 'U232', 'U231', 'U226', 'U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U266', 'U264', 'U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
-  reception: ['U267'],
+  reception: ['U267', 'U268'],
   'pilot-sim': ['U240', 'U241', 'U242', 'U243', 'U244', 'U245', 'U246', 'U247', 'U248', 'U249', 'U250', 'U251', 'U252', 'U253', 'U254'],
   'portal-mail': ['U215', 'U211', 'U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
@@ -321,6 +321,9 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     OFFER_REVISIONS_ENABLED: process.env.UI_OFFER_REVISIONS_ENABLED ?? 'true',
     // 00249 (staging only): engangs-upload-links i Henvendelser (U267)
     RECEPTION_UPLOAD_LINKS_ENABLED: process.env.UI_RECEPTION_UPLOAD_LINKS_ENABLED ?? 'true',
+    // 00250 (staging only): ELTA web-chat-testsiden (U268). Mail-/portal-indtag tændes IKKE i serveren (U268 kalder adapteren
+    // med flag i selve kaldet), så andre tests' portalbeskeder ikke bliver til henvendelser
+    RECEPTION_WEBCHAT_ENABLED: process.env.UI_RECEPTION_WEBCHAT_ENABLED ?? 'true',
     // `next dev` genstarter ved 80 % af heap-grænsen, og efter en genstart fejler resten af kørslen (O1).
     // Mere heap KUN til testserveren (ændrer ikke next.config for andre).
     NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --max-old-space-size=3584`.trim() }
@@ -6528,6 +6531,148 @@ ${m.text()}`) })
         }
         const ok = Object.values(r).every(Boolean)
         out.push({ id: 'U267 AI-receptionist fase 2: Henvendelser, simulator, kandidat→bekræft, auto-opgave, upload-link, tidslinje, roller, intet sendt', ok, note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + ` |${diag}` })
+      }
+
+      // U268 KOMMUNIKATIONS-HUB FASE 3A (00250 på staging): mail + portal ind via den RIGTIGE kanal-adapter (flag kun i kaldet),
+      // Henvendelser-visninger (Nye/Ikke tildelt/Venter på ELTA) og kanalfilter, én tråd (svar i samme mail-tråd), vedhæftnings-
+      // reference, venter-på-ELTA + tildeling + tilbageringning, ELTA web-chat (test-side) med nød → godkendt tekst og
+      // henvendelsen øverst, montør afvist, intet sendt.
+      if (want('U268')) {
+        const r: Record<string, boolean> = {}
+        const tag = `U268${stamp}`
+        const mailAddr = `u268-${stamp}@harness-u268.dk`
+        let custId: string | null = null, caseId: string | null = null, offerId: string | null = null
+        const emailIds: string[] = [], portalIds: string[] = []
+        let diag = ''
+        try {
+          const cu = await c.admin.from('customers').insert([{ customer_number: `U268-${stamp}`, company_name: `[HARNESS] ${tag}`, contact_person: 'R', email: mailAddr,
+            billing_address: 'Harnessvej 8', billing_postal_code: '8000', created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
+          custId = (cu.data?.[0] as { id: string } | undefined)?.id ?? null
+          const of = custId ? await c.admin.from('offers').insert([{ offer_number: `U268-${stamp}`, title: `[HARNESS] ${tag} tilbud`, created_by: adminUser.id, customer_id: custId }]).select('id') : null
+          offerId = (of?.data?.[0] as { id: string } | undefined)?.id ?? null
+          const sc = custId && offerId ? await c.admin.from('service_cases').insert([{ title: `[HARNESS] ${tag} sag`, customer_id: custId, source_offer_id: offerId, status: 'in_progress', priority: 'medium', created_by: adminUser.id }]).select('id') : null
+          caseId = (sc?.data?.[0] as { id: string } | undefined)?.id ?? null
+          if (cu.error || of?.error || sc?.error) diag += ` seed:${cu.error?.message ?? of?.error?.message ?? sc?.error?.message}`
+          r.seed = !!custId && !!offerId && !!caseId
+          const sendCounts = async () => {
+            const [m, s] = await Promise.all([c.admin.from('email_messages').select('id', { count: 'exact', head: true }), c.admin.from('sms_messages').select('id', { count: 'exact', head: true })])
+            return `${m.count}/${s.count}`
+          }
+          const sendsBefore = await sendCounts()
+          // Kilder gemmes som den eksisterende kode gør; indtag via den rigtige kanal-adapter (flag KUN i dette kald)
+          const { backgroundCapability } = await import('../../src/lib/reception/background-actor')
+          const { ingestEmailSource, ingestPortalMessageSource } = await import('../../src/lib/reception/channel-intake')
+          const cap = backgroundCapability(c.admin)
+          const flags = { RECEPTION_EMAIL_INGEST_ENABLED: 'true', RECEPTION_PORTAL_INGEST_ENABLED: 'true' }
+          for (const [i, over] of [[0, { subject: `${tag} batteri`, body_preview: `Mit batteri går offline. ${tag}` }], [1, { subject: `Re: ${tag} batteri`, body_preview: 'Det sker stadig hver dag.', attachment_urls: [{ filename: 'fejl.jpg', contentType: 'image/jpeg', size: 1200, url: '' }], has_attachments: true }]] as const) {
+            const e = await c.admin.from('incoming_emails').insert([{ sender_email: mailAddr, sender_name: 'R', received_at: new Date(Date.now() - (2 - i) * 60_000).toISOString(), graph_message_id: `${tag}-${i}`, conversation_id: `${tag}-thread`, ...over }]).select('id')
+            const id = (e.data?.[0] as { id: string } | undefined)?.id
+            if (id) { emailIds.push(id); const res = await ingestEmailSource(id, { env: flags, capability: cap }); diag += ` mail${i}:${res.outcome}` }
+          }
+          const pm = custId ? await c.admin.from('portal_messages').insert([{ customer_id: custId, offer_id: offerId, sender_type: 'customer', sender_name: 'R', message: `Hvornår kommer montøren? ${tag}`, attachments: [{ name: 'tavle.jpg', url: 'https://x/sign?token=HEMMELIG', size: 10, type: 'image/jpeg' }] }]).select('id') : null
+          const pid = (pm?.data?.[0] as { id: string } | undefined)?.id
+          if (pid) { portalIds.push(pid); diag += ` portal:${(await ingestPortalMessageSource(pid, { env: flags, capability: cap })).outcome}` }
+          r.indtag = /mail0:created/.test(diag) && /mail1:appended/.test(diag) && /portal:created/.test(diag)
+
+          const s = await login(await mkUser('admin'))
+          await gotoSafe(s.page, `${base}/dashboard/henvendelser?filter=new`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.visninger = (await Promise.all(['new', 'mine', 'unassigned', 'urgent', 'awaiting_customer', 'awaiting_elta', 'handled'].map((v) => s.page.getByTestId(`filter-${v}`).count()))).every((n) => n === 1)
+            && (await Promise.all(['email', 'portal', 'web_chat', 'phone', 'sms'].map((ch) => s.page.getByTestId(`channel-${ch}`).count()))).every((n) => n === 1)
+          const mailRow = s.page.getByTestId('henvendelse-row').filter({ hasText: `${tag} batteri` }).first()
+          r.mail_raekke = (await mailRow.count()) === 1 && (await mailRow.getByTestId('row-thread-count').innerText().catch(() => '')).includes('2 beskeder')
+            && (await mailRow.getByTestId('match-customer').getAttribute('data-state')) === 'candidate' && /Ikke tildelt/.test(await mailRow.getByTestId('row-owner').innerText())
+          await s.page.screenshot({ caret: 'initial', path: join(shots, 'henvendelser-3a-liste.png'), fullPage: true })
+          // Kanalfilter: kun portal
+          await gotoSafe(s.page, `${base}/dashboard/henvendelser?filter=all&channel=portal`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.kanalfilter = (await s.page.getByTestId('henvendelse-row').filter({ hasText: tag }).count()) === 1 && (await s.page.getByTestId('henvendelse-row').filter({ hasText: `${tag} batteri` }).count()) === 0
+          // Portal: bekræftet kunde + sag, vedhæftning (navn, ingen URL), tilbageringning
+          await s.page.getByTestId('henvendelse-row').filter({ hasText: tag }).first().click()
+          await s.page.getByTestId('henvendelse-detail').waitFor({ timeout: 30_000 })
+          await s.page.getByTestId('thread-item').first().waitFor({ timeout: 60_000 })
+          const pdet = await s.page.getByTestId('henvendelse-detail').innerText()
+          r.portal_detalje = (await s.page.getByTestId('detail-customer-confirmed').count()) === 1 && /Bekræftet sag/.test(pdet) && /tavle\.jpg/.test(pdet) && !/HEMMELIG/.test(pdet)
+          await s.page.getByTestId('create-callback').click()
+          await s.page.waitForFunction(() => /Tilbageringning oprettet/.test(document.querySelector('[data-testid="henvendelse-detail"]')?.textContent ?? ''), null, { timeout: 60_000 }).catch(() => {})
+          r.tilbageringning = (await c.admin.from('customer_tasks').select('id', { count: 'exact', head: true }).eq('customer_id', custId!)).count === 1
+          // Mail-tråd: 2 beskeder i én tråd, vedhæftning, venter på ELTA, tildeling
+          await gotoSafe(s.page, `${base}/dashboard/henvendelser?filter=all&channel=email`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await s.page.getByTestId('henvendelse-row').filter({ hasText: `${tag} batteri` }).first().click()
+          await s.page.getByTestId('henvendelse-detail').waitFor({ timeout: 30_000 })
+          await s.page.getByTestId('thread-item').nth(1).waitFor({ timeout: 60_000 }).catch(() => {})
+          r.mail_traad = (await s.page.getByTestId('thread-item').count()) === 2 && /fejl\.jpg/.test(await s.page.getByTestId('henvendelse-detail').innerText())
+          await s.page.screenshot({ caret: 'initial', path: join(shots, 'henvendelser-3a-traad.png'), fullPage: true })
+          await s.page.getByTestId('mark-awaiting-elta').click()
+          await s.page.waitForFunction(() => /venter på ELTA/i.test(document.querySelector('[role="status"]')?.textContent ?? ''), null, { timeout: 60_000 }).catch(() => {})
+          await s.page.getByTestId('assign-select').selectOption('t:service')
+          await s.page.waitForFunction(() => /Tildelt/.test(document.querySelector('[data-testid="henvendelse-detail"] [role="status"]')?.textContent ?? ''), null, { timeout: 60_000 }).catch(() => {})
+          await gotoSafe(s.page, `${base}/dashboard/henvendelser?filter=awaiting_elta`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const ae = s.page.getByTestId('henvendelse-row').filter({ hasText: `${tag} batteri` }).first()
+          r.venter_paa_elta_tildelt = (await ae.count()) === 1 && (await ae.getAttribute('data-status')) === 'awaiting_elta' && /Service/.test(await ae.getByTestId('row-owner').innerText())
+          await gotoSafe(s.page, `${base}/dashboard/henvendelser?filter=unassigned`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.ikke_tildelt_opdateret = (await s.page.getByTestId('henvendelse-row').filter({ hasText: `${tag} batteri` }).count()) === 0
+
+          // ELTA web-chat (test-side, ingen login): kendt kunde via e-mail, nød → godkendt tekst
+          const wctx = await browser.newContext({ viewport: { width: 480, height: 900 } })
+          const wp = await wctx.newPage()
+          await gotoSafe(wp, `${base}/webchat-test`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await wp.getByTestId('webchat-topic-service').click()
+          await wp.getByTestId('webchat-name').fill('R')
+          await wp.getByTestId('webchat-email').fill(mailAddr)
+          await wp.getByTestId('webchat-begin').click()
+          await wp.getByTestId('webchat-input').waitFor({ timeout: 60_000 })
+          await wp.getByTestId('webchat-input').fill(`Der kommer røg og gnister fra eltavlen ${tag}`)
+          await wp.getByTestId('webchat-send').click()
+          await wp.waitForFunction(() => document.querySelectorAll('[data-testid="webchat-msg-assistant"]').length >= 2, null, { timeout: 90_000 }).catch(() => {})
+          const wlog = await wp.getByTestId('webchat-log').innerText()
+          r.webchat_noed = wlog.includes('Gå væk fra faren. Er der fare for liv, brand, røg eller gnister, så ring 112 nu.') && /medarbejder ringer dig op/.test(wlog)
+          await wp.screenshot({ caret: 'initial', path: join(shots, 'webchat-3a-noed.png'), fullPage: true })
+          await wctx.close().catch(() => {})
+          await gotoSafe(s.page, `${base}/dashboard/henvendelser?filter=urgent&channel=web_chat`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const wr = s.page.getByTestId('henvendelse-row').first()
+          r.webchat_henvendelse = (await wr.count()) === 1 && (await wr.getAttribute('data-urgency')) === 'emergency' && (await wr.getByTestId('match-customer').getAttribute('data-state')) === 'candidate'
+          if (await wr.count()) {
+            await wr.click()
+            await s.page.getByTestId('thread-item').nth(1).waitFor({ timeout: 60_000 }).catch(() => {})
+            r.webchat_traad = (await s.page.locator('[data-testid="thread-item"][data-direction="outbound"]').count()) >= 1
+            await s.page.screenshot({ caret: 'initial', path: join(shots, 'henvendelser-3a-webchat.png'), fullPage: true })
+          }
+          await s.ctx.close().catch(() => {})
+          // Montør: ingen adgang
+          const mo = await login(await mkUser('montør'))
+          await gotoSafe(mo.page, `${base}/dashboard/henvendelser`, { waitUntil: 'networkidle', timeout: 180_000 })
+          r.montor_afvist = (await mo.page.getByText('Du har ikke adgang').count()) > 0 && !(await mo.page.locator('body').innerText()).includes(tag)
+          await mo.ctx.close().catch(() => {})
+          r.intet_sendt = (await sendCounts()) === sendsBefore
+          if (!r.intet_sendt) diag += ` sends ${sendsBefore}→${await sendCounts()}`
+        } catch (e) {
+          diag += ` EXC:${e instanceof Error ? e.message.slice(0, 200) : String(e)}`
+          r.ingen_undtagelse = false
+        } finally {
+          // Oprydning: henvendelser (via kilder + web-chat-sessionen), sessionen, kilder, opgaver, sag, tilbud, kunde
+          const convIds = new Set<string>()
+          for (const [t, ids] of [['incoming_emails', emailIds], ['portal_messages', portalIds]] as const) {
+            if (!ids.length) continue
+            const q = await c.admin.from('conversation_items').select('conversation_id').eq('source_table', t).in('source_id', ids)
+            for (const x of (q.data ?? []) as Array<{ conversation_id: string }>) convIds.add(x.conversation_id)
+          }
+          const ses = await c.admin.from('web_chat_sessions').select('id').eq('visitor_email', mailAddr)
+          const sesIds = ((ses.data ?? []) as Array<{ id: string }>).map((x) => x.id)
+          if (sesIds.length) {
+            const ms = await c.admin.from('web_chat_messages').select('id').in('session_id', sesIds)
+            const mids = ((ms.data ?? []) as Array<{ id: string }>).map((x) => x.id)
+            if (mids.length) { const q = await c.admin.from('conversation_items').select('conversation_id').eq('source_table', 'web_chat_messages').in('source_id', mids); for (const x of (q.data ?? []) as Array<{ conversation_id: string }>) convIds.add(x.conversation_id) }
+          }
+          if (convIds.size) await c.admin.from('conversations').delete().in('id', [...convIds])
+          if (sesIds.length) await c.admin.from('web_chat_sessions').delete().in('id', sesIds)
+          if (portalIds.length) await c.admin.from('portal_messages').delete().in('id', portalIds)
+          if (emailIds.length) await c.admin.from('incoming_emails').delete().in('id', emailIds)
+          if (custId) await c.admin.from('customer_tasks').delete().eq('customer_id', custId)
+          if (caseId) await c.admin.from('service_cases').delete().eq('id', caseId)
+          if (offerId) await c.admin.from('offers').delete().eq('id', offerId)
+          if (custId) await c.admin.from('customers').delete().eq('id', custId)
+        }
+        const ok = Object.values(r).every(Boolean)
+        out.push({ id: 'U268 kommunikations-hub 3A: mail/portal via adapter, visninger+kanal, én tråd, venter på ELTA/tildel/tilbageringning, web-chat nød, montør afvist, intet sendt', ok, note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + ` |${diag}` })
       }
 
       // U263 FINANS BATCH 1 (Claude-review): Likviditet viser bogført saldo som regnskabstal, Ikke konfigureret/Ukendt er aldrig 0,

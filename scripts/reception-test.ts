@@ -270,7 +270,9 @@ async function main() {
   // ── 11. Ingen ekstern afsendelse ───────────────────────────────────────────────────────────────────────────────
   ok('flag: ekstern afsendelse findes ikke i fase 2', EXTERNAL_SENDS_ENABLED === false)
   ok('flag: LLM og upload-links er FRA som standard', !receptionLlmEnabled({}) && !uploadLinksEnabled({}))
-  const files = [...readdirSync(join(process.cwd(), 'src', 'lib', 'reception')).map((f) => join('src', 'lib', 'reception', f)), join('src', 'lib', 'actions', 'henvendelser.ts'), join('src', 'lib', 'actions', 'upload-links-public.ts')]
+  // fase 3A: rekursivt (lib/reception/webchat/ m.fl.) + web-chat-ruten
+  const walkDir = (d: string): string[] => readdirSync(join(process.cwd(), d), { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walkDir(join(d, e.name)) : [join(d, e.name)])
+  const files = [...walkDir(join('src', 'lib', 'reception')), join('src', 'lib', 'actions', 'henvendelser.ts'), join('src', 'lib', 'actions', 'upload-links-public.ts'), join('src', 'app', 'api', 'webchat', 'route.ts')]
   const SEND = /sendEmailViaGraph|sendEmailToCustomer|sendQuickReply|sendSms\(|sendMessage\(|createServiceCase\(|sendServiceCaseConfirmation|replyToCustomerEmail|\.messages\.create|fetch\(['"]https:\/\/(?!api\.openai\.com)/
   const offenders = files.filter((f) => SEND.test(readFileSync(join(process.cwd(), f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')))
   ok('receptionist-koden kalder ingen afsendere og ikke createServiceCase (sender kundemail)', offenders.length === 0, offenders.join(', '))
@@ -281,7 +283,8 @@ async function main() {
   const telOffenders = files.filter((f) => /RELATEL_|TELEPHONY_/.test(strip(f)) || /integrations\/relatel\/(?!phone)|integrations\/telephony|\bnila\b|routing|dial\(|originate|initiateCall|sendSms/i.test(strip(f)))
   ok('receptionist-koden rører ikke Nila, Relatel-routing/-flag, telefoni-persistens, opkald eller SMS', telOffenders.length === 0, telOffenders.join(', '))
   const envKeys = new Set(files.flatMap((f) => [...strip(f).matchAll(/process\.env\.([A-Z0-9_]+)|env\.([A-Z0-9_]+)/g)].map((m) => m[1] ?? m[2])))
-  ok('receptionist-koden læser kun egne flag (RECEPTION_*) + app-URL', [...envKeys].every((k) => /^RECEPTION_|^NEXT_PUBLIC_(APP|SITE)_URL$/.test(k)), [...envKeys].join(','))
+  // fase 3A: CRON_SECRET = godkendelse af den (ikke-planlagte) retention-rute, samme mønster som telefoni-retention
+  ok('receptionist-koden læser kun egne flag (RECEPTION_*) + app-URL + CRON_SECRET (retention-rute)', [...envKeys].every((k) => /^RECEPTION_|^NEXT_PUBLIC_(APP|SITE)_URL$|^CRON_SECRET$/.test(k)), [...envKeys].join(','))
 
   // ── 12. Atomisk indtag via reception_ingest (final review S1) ────────────────────────────────────────────
   const t = await turn('Mit batteri går offline.', '20304050')

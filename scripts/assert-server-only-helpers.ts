@@ -34,6 +34,10 @@ const SERVER_ONLY_MODULES = [
   'src/lib/reception/henvendelser-core.ts',
   'src/lib/reception/upload-links.ts',
   'src/lib/reception/background-actor.ts',
+  'src/lib/reception/channel-intake.ts',
+  'src/lib/reception/retention.ts',
+  'src/lib/reception/webchat/store.ts',
+  'src/lib/reception/webchat/service.ts',
   'src/lib/reception/llm-classify.ts',
 ]
 

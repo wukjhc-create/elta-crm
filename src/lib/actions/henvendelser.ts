@@ -16,6 +16,9 @@ import { runReceptionTurn, type ReceptionTurn } from '@/lib/reception/engine'
 import { enginePortsFor, executeApprovedActions, ingestCommunication, type ActionOutcome, type IngestError } from '@/lib/reception/henvendelser-core'
 import { emailToInbound, isFormSubmit, portalToInbound, type EmailSourceRow, type PortalSourceRow } from '@/lib/reception/adapters'
 import { receptionLlmEnabled, uploadLinksEnabled } from '@/lib/reception/flags'
+import { OPEN_STATES as OPEN_STATE_LIST, type HenvendelseChannel, type HenvendelseView } from '@/lib/reception/henvendelser-views'
+
+const OPEN_STATES = [...OPEN_STATE_LIST]
 
 type R<T> = { success: true; data: T } | { success: false; error: string }
 
@@ -32,7 +35,9 @@ const INGEST_ERROR_TEXT: Record<IngestError, string> = {
   insert_failed: 'Henvendelsen kunne ikke gemmes. Intet er gemt — prøv igen.',
 }
 
-export type HenvendelseFilter = 'new' | 'urgent' | 'phone' | 'email' | 'sms' | 'portal_chat' | 'mine' | 'team' | 'handoff' | 'all'
+/** Fase 3A: kontor-visninger (status/ejerskab) — kanal er et separat filter (lib/reception/henvendelser-views.ts) */
+export type HenvendelseFilter = HenvendelseView
+export type { HenvendelseChannel }
 
 export interface HenvendelseRow {
   id: string; channel: string; status: string; title: string; aiSummary: string | null; intent: string | null; urgency: string
@@ -40,27 +45,38 @@ export interface HenvendelseRow {
   candidate: { id: string; name: string } | null; candidateHidden: boolean; candidateCount: number
   caseRef: { id: string; number: string | null } | null; caseState: string; caseCandidate: { id: string; number: string | null } | null
   assignedName: string | null; assignedTeam: string | null; nextAction: string | null; handoffReasons: string[]; matchVersion: number; intakeActor: string
+  /** Antal beskeder i tråden (00250); null hvis ikke læsbart */
+  itemCount: number | null; textPurged: boolean
 }
 
 const ROLE_TEAM: Record<string, Team> = { admin: 'kontor', serviceleder: 'service', salg: 'salg', bogholderi: 'bogholderi', montør: 'montor', montor: 'montor' }
 
-export async function listHenvendelser(filter: HenvendelseFilter = 'new'): Promise<R<{ rows: HenvendelseRow[]; myTeam: Team | null; canManage: boolean }>> {
+export async function listHenvendelser(filter: HenvendelseFilter = 'new', channel: HenvendelseChannel | null = null): Promise<R<{ rows: HenvendelseRow[]; myTeam: Team | null; canManage: boolean }>> {
   const ctx = await getAuthenticatedClientWithRole().catch(() => null)
   if (!ctx) return { success: false, error: 'Ikke logget ind' }
   if (!ctx.hasPermission('conversations.view')) return { success: false, error: permissionDeniedText('conversations.view') }
   const myTeam = ROLE_TEAM[ctx.role] ?? null
-  let q = ctx.supabase.from('conversations')
-    .select('id, channel, status, title, ai_summary, intent, urgency, last_at, customer_id, customer_candidate_id, customer_match_state, candidate_count, service_case_id, case_candidate_id, case_match_state, assigned_profile_id, assigned_team, next_action, handoff_reasons, match_version, intake_actor')
-  if (filter === 'new') q = q.in('status', ['new', 'open', 'handoff', 'awaiting_customer'])
-  if (filter === 'urgent') q = q.in('urgency', ['high', 'emergency']).neq('status', 'handled')
-  if (filter === 'handoff') q = q.eq('status', 'handoff')
-  if (filter === 'phone') q = q.eq('channel', 'phone')
-  if (filter === 'email') q = q.eq('channel', 'email')
-  if (filter === 'sms') q = q.eq('channel', 'sms')
-  if (filter === 'portal_chat') q = q.in('channel', ['portal', 'web_chat', 'upload_link'])
-  if (filter === 'mine') q = q.eq('assigned_profile_id', ctx.userId)
-  if (filter === 'team') q = myTeam ? q.eq('assigned_team', myTeam) : q.eq('assigned_team', '__none__')
-  const { data, error } = await q.order('last_at', { ascending: false }).limit(200)
+  const cols = 'id, channel, status, title, ai_summary, intent, urgency, last_at, customer_id, customer_candidate_id, customer_match_state, candidate_count, service_case_id, case_candidate_id, case_match_state, assigned_profile_id, assigned_team, next_action, handoff_reasons, match_version, intake_actor'
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const build = (sel: string): any => {
+    let q = ctx.supabase.from('conversations').select(sel)
+    if (filter === 'new') q = q.in('status', ['new', 'handoff'])
+    if (filter === 'mine') q = q.eq('assigned_profile_id', ctx.userId).in('status', OPEN_STATES)
+    if (filter === 'unassigned') q = q.is('assigned_profile_id', null).is('assigned_team', null).in('status', OPEN_STATES)
+    if (filter === 'urgent') q = q.in('urgency', ['high', 'emergency']).in('status', OPEN_STATES)
+    if (filter === 'awaiting_customer') q = q.eq('status', 'awaiting_customer')
+    if (filter === 'awaiting_elta') q = q.eq('status', 'awaiting_elta')
+    if (filter === 'handled') q = q.eq('status', 'handled')
+    if (filter === 'handoff') q = q.eq('status', 'handoff')
+    if (filter === 'team') q = myTeam ? q.eq('assigned_team', myTeam).in('status', OPEN_STATES) : q.eq('assigned_team', '__none__')
+    if (channel) q = channel === 'web_chat' ? q.in('channel', ['web_chat', 'upload_link']) : q.eq('channel', channel)
+    return q.order('last_at', { ascending: false }).limit(200)
+  }
+  // 00250: trådens længde + ryddet-markør; uden 00250 (fx prod før migration) bruges 00249-kolonnerne — aldrig en tom liste
+  let res = await build(`${cols}, text_purged_at, conversation_items(count)`)
+  const has250 = !res.error
+  if (res.error) res = await build(cols)
+  const { data, error } = res as { data: unknown[] | null; error: { code?: string | null; message?: string | null } | null }
   if (error) return { success: false, error: dbErr(error, 'Henvendelserne kunne ikke læses. Listen er ikke tom — prøv igen.') }
   const rows = (data ?? []) as Array<Record<string, unknown>>
 
@@ -96,6 +112,8 @@ export async function listHenvendelser(filter: HenvendelseFilter = 'new'): Promi
           assignedTeam: s(r.assigned_team), nextAction: s(r.next_action),
           handoffReasons: Array.isArray(r.handoff_reasons) ? (r.handoff_reasons as string[]) : [], matchVersion: Number(r.match_version ?? 0),
           intakeActor: String(r.intake_actor ?? 'user'),
+          itemCount: has250 && Array.isArray(r.conversation_items) ? Number((r.conversation_items as Array<{ count?: number }>)[0]?.count ?? 0) : null,
+          textPurged: has250 && !!r.text_purged_at,
         }
       }),
     },
@@ -103,7 +121,11 @@ export async function listHenvendelser(filter: HenvendelseFilter = 'new'): Promi
 }
 
 export interface HenvendelseDetail {
-  items: Array<{ id: string; channel: string; direction: string; occurredAt: string; title: string | null; preview: string | null; sender: string | null; transcript: string; sourceTable: string; attachments: number }>
+  /** Én kronologisk tråd: beskeder (alle kanaler), med vedhæftnings-REFERENCER (navn/type, aldrig URL) */
+  items: Array<{ id: string; channel: string; direction: string; occurredAt: string; title: string | null; preview: string | null; sender: string | null; transcript: string; sourceTable: string; attachments: Array<{ name: string; mime: string | null }>; fullText: string | null; purged: boolean; sourceMissing: boolean }>
+  /** Historik (audit) — admin ser alt, andre deres egne handlinger (audit_logs-RLS) */
+  history: Array<{ at: string; action: string; description: string; byUser: boolean }>
+  status: { status: string; handledAt: string | null; textPurged: boolean }
   actions: Array<{ id: string; type: string; outcome: string; state: string; actor: string; reasons: string[]; createdAt: string }>
   uploadLinks: Array<{ id: string; expiresAt: string; filesUploaded: number; maxFiles: number; revoked: boolean }>
   openCases: Array<{ id: string; number: string | null; title: string }>
@@ -118,17 +140,39 @@ export async function getHenvendelseDetail(id: string): Promise<R<HenvendelseDet
   if (conv.error) return { success: false, error: dbErr(conv.error, 'Henvendelsen kunne ikke læses.') }
   if (!conv.data) return { success: false, error: 'Henvendelsen findes ikke eller er skjult for dig.' }
   const custForCases = (conv.data as { customer_id: string | null; customer_candidate_id: string | null }).customer_id ?? (conv.data as { customer_candidate_id: string | null }).customer_candidate_id
-  const [items, actions, links, cases] = await Promise.all([
-    ctx.supabase.from('conversation_items').select('id, channel, direction, occurred_at, title, body_preview, sender_label, transcript_status, source_table, attachment_document_ids').eq('conversation_id', id).order('occurred_at'),
+  const itemCols = 'id, channel, direction, occurred_at, title, body_preview, sender_label, transcript_status, source_table, source_id, attachment_document_ids'
+  const items250 = await ctx.supabase.from('conversation_items').select(`${itemCols}, attachment_refs, text_purged_at, source_missing_at`).eq('conversation_id', id).order('occurred_at')
+  const itemsRes = items250.error ? await ctx.supabase.from('conversation_items').select(itemCols).eq('conversation_id', id).order('occurred_at') : items250
+  const [items, actions, links, cases, conv2, hist] = await Promise.all([
+    Promise.resolve(itemsRes),
     ctx.supabase.from('conversation_actions').select('id, action_type, policy_outcome, state, actor, reasons, created_at').eq('conversation_id', id).order('created_at'),
     ctx.supabase.from('upload_requests').select('id, expires_at, files_uploaded, max_files, revoked_at').eq('conversation_id', id).order('created_at'),
     custForCases ? ctx.supabase.from('service_cases').select('id, case_number, title').eq('customer_id', custForCases).eq('is_proposal', false).not('status', 'in', '(closed,converted)').limit(20) : Promise.resolve({ data: [], error: null }),
+    ctx.supabase.from('conversations').select('status, handled_at').eq('id', id).maybeSingle(),
+    // Historik er et supplement: læsefejl giver en tom historik med note, aldrig en fejl i tråden
+    ctx.supabase.from('audit_logs').select('created_at, action, action_description, user_id').eq('entity_type', 'conversation').eq('entity_id', id).order('created_at').limit(100),
   ])
-  if (items.error || actions.error || links.error || cases.error) return { success: false, error: 'Detaljerne kunne ikke læses helt. Prøv igen — intet vises som tomt.' }
+  if (items.error || actions.error || links.error || cases.error || conv2.error) return { success: false, error: 'Detaljerne kunne ikke læses helt. Prøv igen — intet vises som tomt.' }
+  // Web-chat: fuld tekst fra den kanoniske kilde (RLS: kun beskeder i henvendelser brugeren selv kan se)
+  const chatIds = ((items.data ?? []) as Array<Record<string, unknown>>).filter((i) => i.source_table === 'web_chat_messages' && typeof i.source_id === 'string').map((i) => String(i.source_id))
+  const chat = chatIds.length ? await ctx.supabase.from('web_chat_messages').select('id, body').in('id', chatIds) : { data: [], error: null }
+  const chatBody = new Map(((chat.data ?? []) as Array<{ id: string; body: string }>).map((m) => [m.id, m.body]))
+  const st = (conv2.data ?? {}) as { status?: string; handled_at?: string | null }
   return {
     success: true,
     data: {
-      items: ((items.data ?? []) as Array<Record<string, unknown>>).map((i) => ({ id: String(i.id), channel: String(i.channel), direction: String(i.direction), occurredAt: String(i.occurred_at), title: (i.title as string) ?? null, preview: (i.body_preview as string) ?? null, sender: (i.sender_label as string) ?? null, transcript: String(i.transcript_status), sourceTable: String(i.source_table), attachments: Array.isArray(i.attachment_document_ids) ? (i.attachment_document_ids as unknown[]).length : 0 })),
+      items: ((items.data ?? []) as Array<Record<string, unknown>>).map((i) => ({
+        id: String(i.id), channel: String(i.channel), direction: String(i.direction), occurredAt: String(i.occurred_at), title: (i.title as string) ?? null,
+        preview: (i.body_preview as string) ?? null, sender: (i.sender_label as string) ?? null, transcript: String(i.transcript_status), sourceTable: String(i.source_table),
+        attachments: [
+          ...(Array.isArray(i.attachment_refs) ? (i.attachment_refs as Array<{ name?: string; mime?: string }>).map((a) => ({ name: String(a.name ?? 'vedhæftning'), mime: a.mime ? String(a.mime) : null })) : []),
+          ...(Array.isArray(i.attachment_document_ids) ? (i.attachment_document_ids as unknown[]).map(() => ({ name: 'Uploadet fil', mime: null })) : []),
+        ],
+        fullText: i.source_table === 'web_chat_messages' && typeof i.source_id === 'string' ? chatBody.get(String(i.source_id)) ?? null : null,
+        purged: !!i.text_purged_at, sourceMissing: !!i.source_missing_at,
+      })),
+      history: hist.error ? [] : ((hist.data ?? []) as Array<{ created_at: string; action: string; action_description: string | null; user_id: string | null }>).map((h) => ({ at: h.created_at, action: h.action, description: h.action_description ?? h.action, byUser: !!h.user_id })),
+      status: { status: String(st.status ?? ''), handledAt: st.handled_at ?? null, textPurged: (items.data ?? []).some((i) => !!(i as Record<string, unknown>).text_purged_at) },
       actions: ((actions.data ?? []) as Array<Record<string, unknown>>).map((a) => ({ id: String(a.id), type: String(a.action_type), outcome: String(a.policy_outcome), state: String(a.state), actor: String(a.actor ?? 'ai_receptionist'), reasons: (a.reasons as string[]) ?? [], createdAt: String(a.created_at) })),
       uploadLinks: ((links.data ?? []) as Array<Record<string, unknown>>).map((l) => ({ id: String(l.id), expiresAt: String(l.expires_at), filesUploaded: Number(l.files_uploaded), maxFiles: Number(l.max_files), revoked: !!l.revoked_at })),
       openCases: ((cases.data ?? []) as Array<{ id: string; case_number: string | null; title: string | null }>).map((c) => ({ id: c.id, number: c.case_number, title: c.title ?? 'Sag' })),
@@ -243,6 +287,72 @@ export async function markHenvendelseHandled(id: string): Promise<R<null>> {
   return { success: true, data: null }
 }
 
+const STATUS_TEXT: Record<'open' | 'awaiting_customer' | 'awaiting_elta', string> = { open: 'genåbnet', awaiting_customer: 'venter på kunden', awaiting_elta: 'venter på ELTA' }
+
+/** Fase 3A: venter på kunde / venter på ELTA / genåbn (også en afsluttet henvendelse). Intet sendes til kunden. */
+export async function setHenvendelseStatus(id: string, status: 'open' | 'awaiting_customer' | 'awaiting_elta'): Promise<R<null>> {
+  if (!UUID.test(id) || !(['open', 'awaiting_customer', 'awaiting_elta'] as string[]).includes(status)) return { success: false, error: 'Ugyldige data' }
+  const m = await requireManageCtx(); if ('error' in m) return { success: false, error: m.error! }
+  const { ctx } = m
+  const u = await ctx.supabase.from('conversations').update({ status, handled_at: null, handled_by: null }).eq('id', id).neq('status', status).select('id')
+  if (u.error) return { success: false, error: dbErr(u.error, 'Status kunne ikke ændres. Intet er ændret.') }
+  if (!(u.data ?? []).length) return { success: false, error: 'Henvendelsen har allerede den status eller er skjult for dig.' }
+  await audit(ctx.userId, id, 'conversation_status_changed', `Henvendelse ${STATUS_TEXT[status]}`, { status })
+  revalidatePath('/dashboard/henvendelser')
+  return { success: true, data: null }
+}
+
+/** Fase 3A: tilbageringning via den EKSISTERENDE opgave-action (tilbageringnings-køen; kræver bekræftet kunde) */
+export async function createCallbackFromHenvendelse(id: string): Promise<R<{ existing: boolean }>> {
+  if (!UUID.test(id)) return { success: false, error: 'Ugyldig henvendelse' }
+  const m = await requireManageCtx(); if ('error' in m) return { success: false, error: m.error! }
+  const { ctx } = m
+  if (!ctx.hasPermission('tasks.create')) return { success: false, error: permissionDeniedText('tasks.create') }
+  const conv = await ctx.supabase.from('conversations').select('customer_id, ai_summary, title').eq('id', id).maybeSingle()
+  if (conv.error || !conv.data) return { success: false, error: 'Henvendelsen kunne ikke læses. Intet er oprettet.' }
+  const c = conv.data as { customer_id: string | null; ai_summary: string | null; title: string }
+  if (!c.customer_id) return { success: false, error: 'Bekræft kunden først. Intet er oprettet.' }
+  const { createCustomerTask } = await import('@/lib/actions/customer-tasks')
+  const r = await createCustomerTask({ customer_id: c.customer_id, title: 'Ring tilbage (Henvendelse)', description: clip(`${c.ai_summary ?? c.title}
+
+Fra Henvendelse ${id}.`, 10_000), priority: 'normal', callbackQueue: true })
+  if (!r.success) return { success: false, error: r.error ?? 'Tilbageringningen kunne ikke oprettes' }
+  const rec = await ctx.supabase.from('conversation_actions').insert({ conversation_id: id, action_type: 'create_callback', policy_outcome: 'auto', state: 'executed', actor: 'user',
+    payload: {}, reasons: [], idempotency_key: `user:create_callback:${Date.now()}`, executed_ref: r.existingCallback ? 'callback:existing' : 'callback:created', decided_by: ctx.userId, decided_at: new Date().toISOString(), created_by: ctx.userId })
+  await audit(ctx.userId, id, 'conversation_callback_created', 'Tilbageringning oprettet fra henvendelse', { recorded: !rec.error, existing: !!r.existingCallback })
+  revalidatePath('/dashboard/henvendelser')
+  return { success: true, data: { existing: !!r.existingCallback } }
+}
+
+/**
+ * Fase 3A: sagsforslag (service_cases.is_proposal = true) for den BEKRÆFTEDE kunde — med brugerens egen klient
+ * (RLS: cases.create). Ingen mail til kunden (det er createServiceCase, som receptionisten aldrig kalder); forslaget
+ * forfremmes/afvises i den eksisterende Forslag-indbakke og bekræftes derefter på henvendelsen.
+ */
+export async function createCaseProposalFromHenvendelse(id: string): Promise<R<{ caseId: string }>> {
+  if (!UUID.test(id)) return { success: false, error: 'Ugyldig henvendelse' }
+  const m = await requireManageCtx(); if ('error' in m) return { success: false, error: m.error! }
+  const { ctx } = m
+  if (!ctx.hasPermission('cases.create')) return { success: false, error: permissionDeniedText('cases.create') }
+  const conv = await ctx.supabase.from('conversations').select('customer_id, channel, title, ai_summary, urgency').eq('id', id).maybeSingle()
+  if (conv.error || !conv.data) return { success: false, error: 'Henvendelsen kunne ikke læses. Intet er oprettet.' }
+  const c = conv.data as { customer_id: string | null; channel: string; title: string; ai_summary: string | null; urgency: string }
+  if (!c.customer_id) return { success: false, error: 'Bekræft kunden først. Intet er oprettet.' }
+  const source = c.channel === 'email' ? 'email' : c.channel === 'phone' ? 'phone' : c.channel === 'portal' ? 'portal' : 'manual'
+  const priority = c.urgency === 'emergency' ? 'urgent' : c.urgency === 'high' ? 'high' : c.urgency === 'low' ? 'low' : 'medium'
+  const ins = await ctx.supabase.from('service_cases').insert({ customer_id: c.customer_id, title: clip(c.title, 200), description: clip(`${c.ai_summary ?? ''}
+
+Forslag fra Henvendelse ${id}.`, 2000),
+    status: 'new', priority, source, is_proposal: true, created_by: ctx.userId }).select('id').single()
+  if (ins.error || !ins.data) return { success: false, error: 'Sagsforslaget kunne ikke oprettes (rettighed eller data). Intet er oprettet.' }
+  const caseId = (ins.data as { id: string }).id
+  const rec = await ctx.supabase.from('conversation_actions').insert({ conversation_id: id, action_type: 'create_case_proposal', policy_outcome: 'proposal', state: 'executed', actor: 'user',
+    payload: {}, reasons: [], idempotency_key: `user:create_case_proposal:${Date.now()}`, executed_ref: `case_proposal:${caseId}`, decided_by: ctx.userId, decided_at: new Date().toISOString(), created_by: ctx.userId })
+  await audit(ctx.userId, id, 'conversation_case_proposal_created', 'Sagsforslag oprettet fra henvendelse', { service_case_id: caseId, recorded: !rec.error })
+  revalidatePath('/dashboard/henvendelser')
+  return { success: true, data: { caseId } }
+}
+
 /** Opret opgave fra henvendelsen via den EKSISTERENDE opgave-action (kræver bekræftet kunde) */
 export async function createTaskFromHenvendelse(id: string, title: string): Promise<R<null>> {
   if (!UUID.test(id)) return { success: false, error: 'Ugyldig henvendelse' }
@@ -333,7 +443,7 @@ export async function syncHenvendelserFromSources(): Promise<R<{ created: number
     const turn = await runReceptionTurn({ channel: comm.channel, text, sender: { phone: comm.sender.phone, email: comm.sender.email, contactId: comm.sender.contactId }, conversationKey: comm.dedupeKey }, ports)
     // Ét atomisk DB-kald: henvendelse + item + forslag + audit (kun forslag — execute: false)
     const r = await ingestCommunication(actorCtx, comm, turn, { execute: false })
-    if (r.outcome === 'created') counts.created++
+    if (r.outcome === 'created' || r.outcome === 'appended') counts.created++
     else if (r.outcome === 'duplicate') counts.duplicates++
     else if (r.error === 'unavailable') unavailable = true
     else counts.failed++

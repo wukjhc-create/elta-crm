@@ -74,7 +74,18 @@ export function emailToInbound(row: EmailSourceRow): InboundCommunication | null
   }
 }
 
-export interface PortalSourceRow { id: string; customer_id: string; sender_type: string; sender_name: string | null; message: string; attachments: unknown[] | null; created_at: string }
+export interface PortalSourceRow { id: string; customer_id: string; sender_type: string; sender_name: string | null; message: string; attachments: unknown[] | null; created_at: string; offer_id?: string | null }
+
+/** Vedhæftnings-REFERENCER (navn/type) — aldrig URL. Databasen afleder de gemte referencer selv af kilden (00250). */
+export function attachmentRefs(list: unknown): Array<{ documentId: null; name: string; mimeType: string | null }> {
+  if (!Array.isArray(list)) return []
+  return list.slice(0, 10).map((a) => {
+    const o = (a ?? {}) as Record<string, unknown>
+    const name = typeof o.name === 'string' ? o.name : typeof o.filename === 'string' ? o.filename : 'vedhæftning'
+    const mime = typeof o.type === 'string' ? o.type : typeof o.contentType === 'string' ? o.contentType : null
+    return { documentId: null, name: clip(name, 200), mimeType: mime }
+  })
+}
 
 export function portalToInbound(row: PortalSourceRow): InboundCommunication | null {
   if (row.sender_type !== 'customer') return null // medarbejderens egne svar er ikke en henvendelse
@@ -88,7 +99,7 @@ export function portalToInbound(row: PortalSourceRow): InboundCommunication | nu
     title: clip(n ? `Portalbesked (${n} vedhæftet)` : 'Portalbesked', TITLE_MAX),
     message: clip(row.message, PREVIEW_MAX),
     transcript: { state: 'not_applicable', ref: null },
-    attachments: [],
+    attachments: attachmentRefs(row.attachments),
     urgency: 'normal', requestedActions: [], assigned: { profileId: null, team: null }, processingState: 'new',
     dedupeKey: dedupeKeyFor('portal', source, null), source,
   }
@@ -136,5 +147,32 @@ export function smsToInbound(row: SmsSourceRow): InboundCommunication | null {
     title: 'SMS', message: clip(row.message, PREVIEW_MAX), transcript: { state: 'not_applicable', ref: null },
     attachments: [], urgency: 'normal', requestedActions: [], assigned: { profileId: null, team: null }, processingState: 'new',
     dedupeKey: dedupeKeyFor('sms', source, null), source,
+  }
+}
+
+/**
+ * Fase 3A — ELTAs egen web-chat (web_chat_messages = kanonisk kilde, 00250). Besøgendes navn/telefon/mail er
+ * UBEKRÆFTEDE: de bruges KUN til den deterministiske kandidat-matcher, aldrig som bekræftet kunde.
+ */
+export interface WebChatSessionRow { id: string; visitor_name: string | null; visitor_phone: string | null; visitor_email: string | null; visitor_postal_code: string | null; topic: string | null }
+export interface WebChatMessageRow { id: string; session_id: string; direction: 'inbound' | 'outbound'; author: 'visitor' | 'assistant'; body: string; created_at: string }
+
+export const WEBCHAT_TOPIC_TITLE: Record<string, string> = {
+  general: 'Web-chat', service: 'Web-chat — service', quote: 'Web-chat — tilbud', existing_case: 'Web-chat — eksisterende sag', human: 'Web-chat — ønsker en medarbejder',
+}
+
+export function webChatToInbound(msg: WebChatMessageRow, session: WebChatSessionRow): InboundCommunication {
+  const source = { table: 'web_chat_messages' as const, id: msg.id }
+  return {
+    provider: 'elta_webchat', providerEventId: null, channel: 'web_chat', direction: msg.direction, occurredAt: msg.created_at,
+    sender: msg.direction === 'inbound'
+      ? { ...emptySender(), label: session.visitor_name, phone: session.visitor_phone, email: session.visitor_email }
+      : { ...emptySender(), label: 'ELTA web-chat (automatisk svar)' },
+    customer: { state: 'insufficient_information', customerId: null, candidateId: null, candidateCount: 0 },
+    case: { state: 'not_applicable', caseId: null, candidateId: null },
+    title: clip(WEBCHAT_TOPIC_TITLE[session.topic ?? 'general'] ?? 'Web-chat', TITLE_MAX),
+    message: clip(msg.body, PREVIEW_MAX), transcript: { state: 'not_applicable', ref: null },
+    attachments: [], urgency: 'normal', requestedActions: [], assigned: { profileId: null, team: null }, processingState: 'new',
+    dedupeKey: dedupeKeyFor('webchat', source, null), source,
   }
 }
