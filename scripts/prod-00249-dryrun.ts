@@ -7,7 +7,8 @@
  * 4. fixtures I transaktionen via reception_ingest (som rigtige prod-profiler) + én prøve-opkaldsrække; personaer
  *    admin / serviceleder / salg / bogholderi (rolle sat på montør-profilen i en savepoint, som 00245/00246) / montør / anon
  * 5. filens ROLLBACK-blok køres → struktur-md5 og katalog = før, alle 00249-objekter væk, data-fingeraftryk = før
- * 6. transaktionen rulles tilbage (intet består). Kun PASS/FAIL + antal/koder ud — ingen id'er, navne eller indhold.
+ * 6. transaktionen rulles tilbage (intet består).
+ * --post: EFTER permanent anvendelse — springer 2 (krop) og 5 (rollback-blok) over; personaer/ACL mod det anvendte skema. Kun PASS/FAIL + antal/koder ud — ingen id'er, navne eller indhold.
  */
 import { withProdRollbackProbe, runMain } from './prod-rollback-probe'
 import { STRUCT_MD5, NEW_TABLES, NEW_FUNCS, migration00249Body, rollback00249Sql } from './test-harness/reception-00249-probe'
@@ -15,24 +16,28 @@ import { FP_00249, FP_00249_SQL } from './prod-00249-preflight-shared'
 
 type Who = { uid: string } | 'anon'
 
-runMain(() => withProdRollbackProbe('00249-dryrun', async ({ q, as, add, notTestable }) => {
+const POST = process.argv.includes('--post')
+
+runMain(() => withProdRollbackProbe(POST ? '00249-post-personas' : '00249-dryrun', async ({ q, as, add, notTestable }) => {
   // ---- 1) før
   const cat0 = (await q(`SELECT (SELECT count(*)::int FROM permission_catalog) k, (SELECT count(*)::int FROM role_permission_defaults) p`))[0]
   const fp0 = (await q(FP_00249_SQL))[0]
   const struct0 = (await q(`SELECT ${STRUCT_MD5} s`))[0].s as string
-  add('UÆNDRET', 'før: 00249 ikke anvendt', ((await q(`SELECT count(*)::int n FROM pg_class WHERE relnamespace='public'::regnamespace AND relname IN ${NEW_TABLES}`))[0].n === 0), `katalog ${cat0.k}/${cat0.p}, struktur ${struct0.slice(0, 8)}…`)
+  const nT = (await q(`SELECT count(*)::int n FROM pg_class WHERE relnamespace='public'::regnamespace AND relname IN ${NEW_TABLES}`))[0].n
+  if (POST) add('NY', 'efter: 00249 er anvendt (4 tabeller, katalog 120/291)', nT === 4 && cat0.k === 120 && cat0.p === 291, `katalog ${cat0.k}/${cat0.p}, struktur ${struct0.slice(0, 8)}…`)
+  else add('UÆNDRET', 'før: 00249 ikke anvendt', nT === 0, `katalog ${cat0.k}/${cat0.p}, struktur ${struct0.slice(0, 8)}…`)
 
   // ---- 2) præcis migrationskrop
   const body = migration00249Body()
   if (/^\s*(BEGIN|COMMIT|ROLLBACK)\s*;/im.test(body)) throw new Error('kroppen indeholder transaktionskontrol')
   let applied = true
-  try { await q(body) } catch (e) { applied = false; add('NY', 'migrationskroppen kører rent', false, (e as { code?: string }).code ?? 'fejl') }
+  if (POST) { /* allerede anvendt permanent */ } else try { await q(body) } catch (e) { applied = false; add('NY', 'migrationskroppen kører rent', false, (e as { code?: string }).code ?? 'fejl') }
   if (!applied) return
-  add('NY', 'migrationskroppen kører rent (guard-blok, tabeller, værn, funktioner, politikker, grants)', true, '')
+  if (!POST) add('NY', 'migrationskroppen kører rent (guard-blok, tabeller, værn, funktioner, politikker, grants)', true, '')
 
   // ---- 3) efter krop
   const cat1 = (await q(`SELECT (SELECT count(*)::int FROM permission_catalog) k, (SELECT count(*)::int FROM role_permission_defaults) p`))[0]
-  add('NY', 'katalog +3 nøgler, +10 rollestandarder', cat1.k === cat0.k + 3 && cat1.p === cat0.p + 10, `${cat0.k}/${cat0.p} → ${cat1.k}/${cat1.p}`)
+  if (!POST) add('NY', 'katalog +3 nøgler, +10 rollestandarder', cat1.k === cat0.k + 3 && cat1.p === cat0.p + 10, `${cat0.k}/${cat0.p} → ${cat1.k}/${cat1.p}`)
   const keys = await q(`SELECT role || ':' || permission d FROM role_permission_defaults WHERE permission LIKE 'conversations.%' ORDER BY 1`)
   add('NY', 'standarder: view (admin/serviceleder/salg/bogholderi), view_unmatched (admin/serviceleder), manage (admin/serviceleder/salg/bogholderi); ingen montør',
     keys.map((k) => k.d).join(',') === 'admin:conversations.manage,admin:conversations.view,admin:conversations.view_unmatched,bogholderi:conversations.manage,bogholderi:conversations.view,salg:conversations.manage,salg:conversations.view,serviceleder:conversations.manage,serviceleder:conversations.view,serviceleder:conversations.view_unmatched', `${keys.length}`)
@@ -198,7 +203,8 @@ runMain(() => withProdRollbackProbe('00249-dryrun', async ({ q, as, add, notTest
   const anonRpc = await as('anon', `SELECT public.reception_ingest('{}'::jsonb)`)
   add('NY', 'anon: reception_ingest kan ikke kaldes (42501)', !anonRpc.ok && anonRpc.code === '42501', anonRpc.ok ? 'tilladt' : anonRpc.code)
 
-  // ---- 5) filens ROLLBACK-blok → præcis før-tilstand
+  // ---- 5) filens ROLLBACK-blok → præcis før-tilstand (kun dry-run; --post ruller blot transaktionen tilbage)
+  if (POST) return
   if (call) await q(`DELETE FROM telephony_calls WHERE id = $1`, [call.id])
   await q(rollback00249Sql(false))
   const cat2 = (await q(`SELECT (SELECT count(*)::int FROM permission_catalog) k, (SELECT count(*)::int FROM role_permission_defaults) p`))[0]

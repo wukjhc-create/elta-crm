@@ -168,3 +168,14 @@ deployment `a1c17320`. Koden tåler at tabellerne mangler.
 - Kopieret præsentationstekst i henvendelser og ukoblede henvendelser efter kundesletning — retention-regel før vækst.
 - Prod har kun admin/montør aktive; serviceleder/salg/bogholderi er prøvet ved rolleskift i transaktionen.
 - Upload: crash mellem reservation og første fil bruger linket (nyt link). Voice/no-SIP og Relatel-payload er uændrede åbne punkter.
+
+## 11. Produktionskørsel 2026-11-17 (godkendt af Henrik)
+
+- main hurtigspolet a1c17320 → 56decaaf (ingen merge/rebase/force); Vercel Production = 56decaaf (GitHub-deployment "Production", success)
+- kode-smoke `--migration absent`: 7/7 · precheck = kendt før-tilstand (117/281, struktur 0e95b41c…)
+- `prod:apply-migration -- 00249 --approved-by-henrik` → COMMIT · post 12/12: 120/291, 3 nøgler/10 standarder (ingen montør),
+  4 tabeller m. RLS, 9 funktioner, 9 politikker/20 indeks/5 triggere, ingen anon/PUBLIC, alle 13 data-fingeraftryk = før
+- personaer efter anvendelse (rollback-only, `prod-00249-dryrun.ts --post`): 45/45
+- dormancy (`prod-00249-post-dormancy.ts --since`): 0 kunder/sager/opgaver/SMS/receptionist-audit; 0 rækker i 00249-tabellerne
+- Relatel: webhook 401 uden signatur = observationstilstand (§14b i RELATEL_FINAL_REVIEW, uændret); 0 opkald/hændelser
+  (`prod-smoke-00247.ts` forventer stadig 404 fra før observationstilstand — forældet forventning, ikke en regression)
