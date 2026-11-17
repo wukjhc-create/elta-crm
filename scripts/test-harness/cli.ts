@@ -2881,6 +2881,222 @@ Total inkl. moms 11.718,75
     }
     return
   }
+  if (SUB === 'reception-hub-staging') {
+    // STAGING (00249+00250 anvendt): fase 3A med den RIGTIGE kode (channel-intake, web-chat-service) mod staging-DB.
+    // Syntetiske fixtures (p250hub-*), som slettes igen; audit_logs-rækker bliver (staging). Flag sættes kun i env-objektet
+    // til kaldene her — intet miljø ændres. Ingen afsendelse: udgående tabeller tælles før/efter.
+    const P = await import('./reception-00250-probe')
+    const st = (await stagingSql(P.STATE_00250_SQL))[0].f
+    if (!st.applied_250) { log('00250 er ikke anvendt på staging'); process.exitCode = 2; return }
+    const { backgroundCapability } = await import('../../src/lib/reception/background-actor')
+    const { ingestEmailSource, ingestPortalMessageSource } = await import('../../src/lib/reception/channel-intake')
+    const { startWebChat, postWebChatMessage } = await import('../../src/lib/reception/webchat/service')
+    const { webChatStore } = await import('../../src/lib/reception/webchat/store')
+    const { emergencyReply } = await import('../../src/lib/reception/emergency-policy')
+    const env = { RECEPTION_EMAIL_INGEST_ENABLED: 'true', RECEPTION_PORTAL_INGEST_ENABLED: 'true', RECEPTION_WEBCHAT_ENABLED: 'true' }
+    const cap = backgroundCapability(admin)
+    const store = webChatStore(admin)
+    const checks: Array<{ id: string; ok: boolean; note?: string }> = []
+    const add = (id: string, ok: boolean, note = '') => checks.push({ id, ok, note })
+    const tag = `p250hub-${Date.now()}`
+    const rnd = () => String(Math.floor(10_000_000 + Math.random() * 89_999_999))
+    const startIso = new Date().toISOString()
+    const outboundTables = ['sms_messages', 'email_logs', 'sent_emails', 'outbound_messages', 'mail_route_log']
+    const countOutbound = async () => {
+      const out: Record<string, number> = {}
+      for (const t of outboundTables) { const r = await admin.from(t).select('id', { count: 'exact', head: true }).gte('created_at', startIso); if (!r.error) out[t] = r.count ?? 0 }
+      return out
+    }
+    const created = { customers: [] as string[], cases: [] as string[], offers: [] as string[], emails: [] as string[], portal: [] as string[], sessions: [] as string[] }
+    try {
+      const adminProfile = (await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1).maybeSingle()).data as { id: string } | null
+      const cA = (await admin.from('customers').insert({ company_name: `${tag} A`, contact_person: 'P250', customer_number: `${tag}-A`.slice(0, 40), email: `${tag}-a@p250hub-test.dk`, phone: rnd() }).select('id, phone').single()).data as { id: string; phone: string }
+      created.customers.push(cA.id)
+      const offer = (await admin.from('offers').insert({ offer_number: `${tag}-O`.slice(0, 40), title: `${tag} tilbud`, created_by: adminProfile?.id, customer_id: cA.id }).select('id').single()).data as { id: string }
+      created.offers.push(offer.id)
+      const caseO = (await admin.from('service_cases').insert({ title: `${tag} sag`, customer_id: cA.id, source_offer_id: offer.id }).select('id').single()).data as { id: string }
+      created.cases.push(caseO.id)
+      const before = await countOutbound()
+      const mail = async (over: Record<string, unknown>) => {
+        const r = await admin.from('incoming_emails').insert({ subject: `${tag} mail`, sender_email: `${tag}-a@p250hub-test.dk`, received_at: new Date().toISOString(), graph_message_id: `${tag}-${Math.random()}`, ...over }).select('id').single()
+        created.emails.push((r.data as { id: string }).id); return (r.data as { id: string }).id
+      }
+      const convOf = async (table: string, id: string) => (await admin.from('conversation_items').select('conversation_id').eq('source_table', table).eq('source_id', id).maybeSingle()).data?.conversation_id as string | undefined
+      const conv = async (id: string) => (await admin.from('conversations').select('channel, status, urgency, customer_id, customer_candidate_id, customer_match_state, service_case_id, case_match_state, intake_actor, thread_key').eq('id', id).single()).data as Record<string, unknown>
+
+      // 1. Mail: kendt afsender (ukoblet) → kandidat; svar i samme tråd → appended; ny tråd fra samme kunde → ny henvendelse
+      const m1 = await mail({ conversation_id: `${tag}-T1`, body_preview: 'Mit batteri går offline igen.' })
+      const r1 = await ingestEmailSource(m1, { env, capability: cap })
+      const c1 = await convOf('incoming_emails', m1)
+      add('mail ny (kendt afsender, ukoblet) → created via backbone', r1.outcome === 'created' && !!c1, JSON.stringify(r1))
+      const row1 = c1 ? await conv(c1) : {}
+      add('mail: kandidat = samme kunde (deterministisk e-mail), aldrig bekræftet', row1.customer_candidate_id === cA.id && row1.customer_id === null && row1.intake_actor === 'ai_receptionist', JSON.stringify(row1))
+      const m2 = await mail({ conversation_id: `${tag}-T1`, subject: `Re: ${tag} mail`, body_preview: 'Det sker stadig.' })
+      const r2 = await ingestEmailSource(m2, { env, capability: cap })
+      add('mail svar i samme Graph-tråd → appended til samme henvendelse', r2.outcome === 'appended' && (await convOf('incoming_emails', m2)) === c1, JSON.stringify(r2))
+      add('mail samme levering igen → duplicate', (await ingestEmailSource(m1, { env, capability: cap })).outcome === 'duplicate')
+      const m3 = await mail({ conversation_id: `${tag}-T2`, subject: `${tag} ny sag`, body_preview: 'Jeg vil gerne have et tilbud på en ladestander.' })
+      await ingestEmailSource(m3, { env, capability: cap })
+      const c3 = await convOf('incoming_emails', m3)
+      add('urelateret mail fra SAMME kunde (anden tråd) → egen henvendelse (ikke flettet)', !!c3 && c3 !== c1)
+      const m4 = await mail({ conversation_id: `${tag}-T3`, customer_id: cA.id, linked_by: 'manual', link_status: 'linked', service_case_id: caseO.id })
+      await ingestEmailSource(m4, { env, capability: cap })
+      const c4 = await convOf('incoming_emails', m4)
+      const row4 = c4 ? await conv(c4) : {}
+      add('manuelt koblet mail → bekræftet kunde + bekræftet sag', row4.customer_id === cA.id && row4.customer_match_state === 'confirmed' && row4.service_case_id === caseO.id, JSON.stringify(row4))
+      const m5 = await mail({ sender_email: `${tag}-ukendt@example.org`, conversation_id: `${tag}-T4` })
+      await ingestEmailSource(m5, { env, capability: cap })
+      const c5 = await convOf('incoming_emails', m5)
+      const row5 = c5 ? await conv(c5) : {}
+      add('ukoblet ukendt afsender forbliver ukoblet (ingen kunde/kandidat)', row5.customer_id === null && row5.customer_candidate_id === null && ['no_match', 'insufficient_information'].includes(String(row5.customer_match_state)), JSON.stringify(row5))
+      const mOld = await mail({ received_at: new Date(Date.now() - 5 * 86_400_000).toISOString(), conversation_id: `${tag}-T5` })
+      add('gammel mail indtages ikke automatisk (ingen stille historik-import)', (await ingestEmailSource(mOld, { env, capability: cap })).reason === 'not_new' && !(await convOf('incoming_emails', mOld)))
+      add('mail flag FRA → intet indtag', (await ingestEmailSource(m5, { env: {}, capability: cap })).outcome === 'disabled')
+
+      // 2. Portal: samme kunde, eksplicit sag via tilbud, vedhæftnings-reference, svar → samme tråd
+      const p1 = (await admin.from('portal_messages').insert({ customer_id: cA.id, sender_type: 'customer', sender_name: 'P250', message: 'Hvornår kommer montøren?', offer_id: offer.id, attachments: [{ name: 'tavle.jpg', url: 'https://x/sign?token=HEMMELIG', size: 10, type: 'image/jpeg' }] }).select('id').single()).data as { id: string }
+      created.portal.push(p1.id)
+      const rp1 = await ingestPortalMessageSource(p1.id, { env, capability: cap })
+      const cp1 = await convOf('portal_messages', p1.id)
+      const rowp = cp1 ? await conv(cp1) : {}
+      add('portal kundebesked → created; bekræftet kunde = samme kunde som mailen', rp1.outcome === 'created' && rowp.customer_id === cA.id && rowp.customer_match_state === 'confirmed', JSON.stringify(rowp))
+      add('portal: eksplicit sag (tilbuddets sag) bekræftet', rowp.service_case_id === caseO.id && rowp.case_match_state === 'confirmed')
+      add('portal ≠ mail-henvendelse (ingen fletning på tværs af kanaler)', cp1 !== c1 && cp1 !== c4)
+      const it = (await admin.from('conversation_items').select('attachment_refs').eq('source_table', 'portal_messages').eq('source_id', p1.id).single()).data as { attachment_refs: Array<Record<string, unknown>> }
+      add('portal: vedhæftning som reference (navn), aldrig URL/token', it.attachment_refs?.[0]?.name === 'tavle.jpg' && !JSON.stringify(it.attachment_refs).includes('HEMMELIG'))
+      const p2 = (await admin.from('portal_messages').insert({ customer_id: cA.id, sender_type: 'customer', sender_name: 'P250', message: 'Og husk lige billedet', offer_id: offer.id }).select('id').single()).data as { id: string }
+      created.portal.push(p2.id)
+      add('portal svar på samme tilbud → appended', (await ingestPortalMessageSource(p2.id, { env, capability: cap })).outcome === 'appended' && (await convOf('portal_messages', p2.id)) === cp1)
+
+      // 3. Web-chat: samme matcher (kundens e-mail → kandidat), politik, tråd, nød, gentagelse
+      const s1 = await startWebChat({ visitor: { name: 'P250', email: `${tag}-a@p250hub-test.dk` }, topic: 'existing_case' }, { env, store, capability: cap })
+      if (!s1.ok) throw new Error('webchat start')
+      const sess = (await admin.from('web_chat_sessions').select('id').eq('token_hash', (await import('../../src/lib/reception/webchat/store')).hashChatToken(s1.token)).single()).data as { id: string }
+      created.sessions.push(sess.id)
+      const w1 = await postWebChatMessage({ token: s1.token, text: 'Hvad er status på min sag?', clientMessageId: `${tag}-w1`.replace(/[^A-Za-z0-9_-]/g, '') }, { env, store, capability: cap })
+      const msgs = (await admin.from('web_chat_messages').select('id, direction').eq('session_id', sess.id).order('created_at')).data as Array<{ id: string; direction: string }>
+      const cw = await convOf('web_chat_messages', msgs[0].id)
+      const roww = cw ? await conv(cw) : {}
+      add('web-chat kendt kunde → kandidat (samme matcher), aldrig bekræftet', roww.customer_candidate_id === cA.id && roww.customer_id === null && roww.channel === 'web_chat', JSON.stringify(roww))
+      add('web-chat: uden bekræftelse intet kundespecifikt i svaret', w1.ok && !w1.duplicate && !/status:/i.test(w1.reply ?? '') && /postnummer og vejnavn/.test(w1.reply ?? ''), (w1 as { reply?: string }).reply)
+      add('web-chat: svar gemt (ud) og i samme tråd', msgs.length === 2 && msgs[1].direction === 'outbound' && (await convOf('web_chat_messages', msgs[1].id)) === cw)
+      const wdup = await postWebChatMessage({ token: s1.token, text: 'Hvad er status på min sag?', clientMessageId: `${tag}-w1`.replace(/[^A-Za-z0-9_-]/g, '') }, { env, store, capability: cap })
+      add('web-chat gentaget besked → duplicate, ingen ny række', wdup.ok && wdup.duplicate && ((await admin.from('web_chat_messages').select('id', { count: 'exact', head: true }).eq('session_id', sess.id)).count === 2))
+      const w3 = await postWebChatMessage({ token: s1.token, text: 'Der kommer røg fra eltavlen!' }, { env, store, capability: cap })
+      add('web-chat NØD → godkendt nød-tekst, henvendelsen hævet til emergency/handoff', w3.ok && !w3.duplicate && w3.reply === emergencyReply() && (await conv(cw!)).urgency === 'emergency' && (await conv(cw!)).status === 'handoff')
+      const s2 = await startWebChat({ visitor: {}, topic: 'quote' }, { env, store, capability: cap })
+      if (s2.ok) {
+        const sess2 = (await admin.from('web_chat_sessions').select('id').eq('token_hash', (await import('../../src/lib/reception/webchat/store')).hashChatToken(s2.token)).single()).data as { id: string }
+        created.sessions.push(sess2.id)
+        const q = await postWebChatMessage({ token: s2.token, text: 'Hvad koster 10 kW solceller?' }, { env, store, capability: cap })
+        add('web-chat tilbud fra ukendt → ingen pris, beder om kontakt, ny henvendelse', q.ok && !q.duplicate && /kan ikke give en pris/.test(q.reply ?? '') && /telefonnummer eller din e-mail/.test(q.reply ?? ''))
+      }
+      add('web-chat flag FRA → disabled', (await postWebChatMessage({ token: s1.token, text: 'x' }, { env: {}, store, capability: cap })).ok === false)
+
+      // 4. Visning gennem RLS (rigtig medarbejder-klient) håndteres af reception-00250-probe; her: ingen afsendelse
+      const after = await countOutbound()
+      add('ingen udgående SMS/mail-rækker under kørslen', JSON.stringify(before) === JSON.stringify(after), `${JSON.stringify(before)} → ${JSON.stringify(after)}`)
+      const actions = (await admin.from('conversation_actions').select('state, actor').in('conversation_id', [c1, c3, c4, c5, cp1, cw].filter(Boolean) as string[])).data as Array<{ state: string; actor: string }>
+      add('alle AI-handlinger fra baggrundsindtag er FORSLAG (ingen udført/godkendt)', actions.length > 0 && actions.every((a) => a.actor === 'ai_receptionist' && ['proposed', 'blocked'].includes(a.state)), JSON.stringify([...new Set(actions.map((a) => a.state))]))
+      const ret = await admin.rpc('reception_retention', { p_policy: {}, p_apply: false })
+      add('retention dry-run på staging (kun antal, intet ændret)', !ret.error && (ret.data as { applied?: boolean })?.applied === false, JSON.stringify(ret.data ?? ret.error?.code))
+    } finally {
+      // Oprydning (staging-testdata)
+      const convIds = new Set<string>()
+      for (const [t, ids] of [['incoming_emails', created.emails], ['portal_messages', created.portal]] as const) {
+        if (!ids.length) continue
+        const r = await admin.from('conversation_items').select('conversation_id').eq('source_table', t).in('source_id', ids)
+        for (const x of (r.data ?? []) as Array<{ conversation_id: string }>) convIds.add(x.conversation_id)
+      }
+      if (created.sessions.length) {
+        const ms = await admin.from('web_chat_messages').select('id').in('session_id', created.sessions)
+        const ids = ((ms.data ?? []) as Array<{ id: string }>).map((m) => m.id)
+        if (ids.length) { const r = await admin.from('conversation_items').select('conversation_id').eq('source_table', 'web_chat_messages').in('source_id', ids); for (const x of (r.data ?? []) as Array<{ conversation_id: string }>) convIds.add(x.conversation_id) }
+      }
+      if (convIds.size) await admin.from('conversations').delete().in('id', [...convIds])
+      if (created.sessions.length) await admin.from('web_chat_sessions').delete().in('id', created.sessions)
+      if (created.portal.length) await admin.from('portal_messages').delete().in('id', created.portal)
+      if (created.emails.length) await admin.from('incoming_emails').delete().in('id', created.emails)
+      if (created.cases.length) await admin.from('service_cases').delete().in('id', created.cases)
+      if (created.offers.length) await admin.from('offers').delete().in('id', created.offers)
+      if (created.customers.length) await admin.from('customers').delete().in('id', created.customers)
+    }
+    for (const c of checks) log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.id}${!c.ok && c.note ? ` (${c.note})` : ''}`)
+    const failed = checks.filter((c) => !c.ok).length
+    log(failed ? `❌ ${failed} af ${checks.length}` : `✅ ${checks.length} tjek — testdata ryddet`)
+    process.exitCode = failed ? 2 : 0
+    return
+  }
+  if (SUB === 'reception-backfill-analyzer') {
+    // STAGING read-only: samme SQL som scripts/reception-backfill-analyzer.ts (prod). Kun antal.
+    const { BACKFILL_ANALYZER_SQL } = await import('../reception-backfill-analyzer')
+    log(JSON.stringify((await stagingSql(`BEGIN READ ONLY; ${BACKFILL_ANALYZER_SQL}; `))[0]?.r ?? null))
+    return
+  }
+  if (SUB === 'reception-00250-state') {
+    const P = await import('./reception-00250-probe')
+    log(JSON.stringify((await stagingSql(P.STATE_00250_SQL))[0].f))
+    return
+  }
+  if (SUB === 'reception-00250-rollback-sql') {
+    // Skriver den genererede rollback-SQL til docs/runbooks/sql/00250_rollback.sql (til review; køres aldrig herfra)
+    const P = await import('./reception-00250-probe')
+    const { writeFileSync, mkdirSync } = await import('fs')
+    mkdirSync('docs/runbooks/sql', { recursive: true })
+    writeFileSync('docs/runbooks/sql/00250_rollback.sql', P.rollback00250Sql(true))
+    log('skrevet: docs/runbooks/sql/00250_rollback.sql')
+    return
+  }
+  if (SUB === 'reception-00250-rollback-staging') {
+    // STAGING: kør 00250-rollback permanent (kun testdata går tabt). Kræver --confirm.
+    if (!process.argv.includes('--confirm')) { log('kræver --confirm'); process.exitCode = 2; return }
+    const P = await import('./reception-00250-probe')
+    const st0 = (await stagingSql(P.STATE_00250_SQL))[0].f
+    if (!st0.applied_250) { log('00250 er ikke anvendt på staging'); return }
+    await stagingSql(P.rollback00250Sql(true))
+    const st1 = (await stagingSql(P.STATE_00250_SQL))[0].f
+    log(`00250 fjernet fra staging: ${JSON.stringify({ applied_250: st1.applied_250, catalog: st1.catalog, defaults: st1.defaults })}`)
+    return
+  }
+  if (SUB === 'reception-00250-probe' || SUB === 'reception-00250-rollback-proof') {
+    // STAGING ROLLBACK-ONLY (forudsætter 00249 anvendt og 00250 IKKE anvendt): én forespørgsel → RAISE EXCEPTION
+    const P = await import('./reception-00250-probe')
+    const st0 = (await stagingSql(P.STATE_00250_SQL))[0].f
+    if (!st0.applied_249 || st0.applied_250) { log(`kræver 00249 anvendt og 00250 IKKE anvendt (${JSON.stringify({ a249: st0.applied_249, a250: st0.applied_250 })})`); process.exitCode = 2; return }
+    const sql = SUB === 'reception-00250-probe' ? P.probe00250Sql() : P.rollbackProof00250Sql()
+    const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+      method: 'POST', headers: { Authorization: `Bearer ${boot.accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: sql }),
+    })
+    const text = await r.text()
+    const tag = SUB === 'reception-00250-probe' ? 'P250RESULT:' : 'P250ROLLBACK:'
+    let msg = text
+    try { const j = JSON.parse(text) as { message?: string }; if (typeof j.message === 'string') msg = j.message } catch { /* rå tekst */ }
+    const i = msg.indexOf(tag)
+    if (i < 0) { log(`uventet svar (${r.status}): ${msg.slice(0, 600)}`); process.exitCode = 2; return }
+    const rest = msg.slice(i + tag.length)
+    let depth = 0, end = -1
+    for (let k = 0; k < rest.length; k++) { if (rest[k] === '{') depth++; else if (rest[k] === '}') { depth--; if (depth === 0) { end = k; break } } }
+    const json = JSON.parse(rest.slice(0, end + 1))
+    const st1 = (await stagingSql(P.STATE_00250_SQL))[0].f
+    const untouched = JSON.stringify(st0) === JSON.stringify(st1)
+    if (SUB === 'reception-00250-probe') {
+      const checks = [...P.evaluateProbe250(json), { id: 'staging uændret efter prøven (tilstand før = efter)', ok: untouched, note: '' }]
+      for (const c of checks) log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.id}${!c.ok && c.note ? ` (${c.note})` : ''}`)
+      const failed = checks.filter((c) => !c.ok).length
+      log(failed ? `❌ ${failed} af ${checks.length}` : `✅ ${checks.length} tjek — rullet tilbage`)
+      process.exitCode = failed ? 2 : 0
+    } else {
+      const structSame = json.md5_struct === st0.md5_struct
+      const ok = json.tables_left === 0 && json.functions_left === 0 && json.catalog === st0.catalog && json.defaults === st0.defaults && structSame && untouched
+      const diff = Object.keys(st0.parts ?? {}).filter((k) => JSON.stringify(st0.parts[k]) !== JSON.stringify(json.parts?.[k]))
+      const fnDiff = diff.includes('fn') ? Object.keys(st0.parts.fn ?? {}).filter((k) => st0.parts.fn[k] !== json.parts?.fn?.[k]) : []
+      log(`rollback efter krop: ${JSON.stringify({ tables_left: json.tables_left, functions_left: json.functions_left, catalog: json.catalog, defaults: json.defaults })} · struktur = før: ${structSame} · afvigende dele: ${diff.join(',') || 'ingen'}${fnDiff.length ? ` (funktioner: ${fnDiff.join(', ')})` : ''} · staging uændret: ${untouched}`)
+      log(ok ? '✅ 00250-rollback genskaber præcis 00249-tilstanden' : '❌ 00250-rollback efterlader noget')
+      process.exitCode = ok ? 0 : 2
+    }
+    return
+  }
   if (SUB === 'mp-00248-state') {
     // STAGING read-only: case_materials/work_order_profit-skema, funktioner, politikker, grants, md5 af rækkerne (før/efter)
     const { STATE_00248_SQL } = await import('./mp-00248-probe')

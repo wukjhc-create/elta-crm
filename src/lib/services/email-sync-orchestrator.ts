@@ -443,6 +443,13 @@ async function linkAndAnalyze(
   } catch (linkErr) {
     console.warn('LINK FAILED:', redactSubject(email.subject), linkErr instanceof Error ? linkErr.message : '')
   }
+  // Fase 3A — Henvendelser (RECEPTION_EMAIL_INGEST_ENABLED, standard FRA): EFTER kobling/analyse, så kildens kobling er
+  // den endelige. Kun forslag, intet sendes. Må aldrig vælte mail-sync (udfaldet returneres, intet kastes).
+  try {
+    const { ingestEmailSource } = await import('@/lib/reception/channel-intake')
+    const r = await ingestEmailSource(email.id)
+    if (r.outcome !== 'disabled') console.log('HENVENDELSE:', r.outcome, r.reason ?? '')
+  } catch { /* aldrig fatalt */ }
 }
 
 // =====================================================

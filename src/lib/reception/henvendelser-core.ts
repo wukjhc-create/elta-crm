@@ -61,6 +61,8 @@ export function enginePortsFor(supabase: Db, preset?: { confirmedCustomerId?: st
 export interface RpcAction { id: string | null; type: string; state: string; idempotency_key: string }
 export type IngestResult =
   | { outcome: 'created'; conversationId: string; itemId: string; actions: RpcAction[] }
+  /** 00250: kilden er føjet til en ÅBEN henvendelse i samme tråd (kun forslag) */
+  | { outcome: 'appended'; conversationId: string; itemId: string; actions: RpcAction[] }
   | { outcome: 'duplicate'; conversationId: string | null }
   | { outcome: 'error'; error: IngestError }
 export type IngestError = 'unavailable' | 'permission_denied' | 'source_mismatch' | 'invalid_input' | 'not_supported' | 'insert_failed'
@@ -125,7 +127,7 @@ export async function callReceptionIngest(rpc: (fn: 'reception_ingest', args: { 
   if (error) return { outcome: 'error', error: mapIngestError(error) }
   const d = (data ?? {}) as { outcome?: string; conversation_id?: string | null; item_id?: string; actions?: RpcAction[] }
   if (d.outcome === 'duplicate') return { outcome: 'duplicate', conversationId: d.conversation_id ?? null }
-  if (d.outcome === 'created' && d.conversation_id && d.item_id) return { outcome: 'created', conversationId: d.conversation_id, itemId: d.item_id, actions: Array.isArray(d.actions) ? d.actions : [] }
+  if ((d.outcome === 'created' || d.outcome === 'appended') && d.conversation_id && d.item_id) return { outcome: d.outcome, conversationId: d.conversation_id, itemId: d.item_id, actions: Array.isArray(d.actions) ? d.actions : [] }
   return { outcome: 'error', error: 'insert_failed' }
 }
 

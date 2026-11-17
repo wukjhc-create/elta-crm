@@ -1163,6 +1163,13 @@ export async function sendPortalMessage(
       return { success: false, error: 'Kunne ikke sende besked' }
     }
 
+    // Fase 3A — Henvendelser (RECEPTION_PORTAL_INGEST_ENABLED, standard FRA): samme backbone som mail; kun forslag, intet
+    // sendes til kunden. Må aldrig få kundens afsendelse til at fejle.
+    try {
+      const { ingestPortalMessageSource } = await import('@/lib/reception/channel-intake')
+      await ingestPortalMessageSource((message as { id: string }).id)
+    } catch { /* aldrig fatalt */ }
+
     // Send email notification to CRM mailbox (non-critical) — højst hver 10. min. pr. kunde
     if (notifyStaff) try {
       const crmMailbox = process.env.GRAPH_MAILBOX || 'kontakt@eltasolar.dk'

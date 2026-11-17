@@ -14,7 +14,7 @@ export const DIRECTIONS = ['inbound', 'outbound', 'internal'] as const
 export type Direction = (typeof DIRECTIONS)[number]
 
 /** Kanoniske kilder et normaliseret item kan pege tilbage på (ingen kopi af kildens indhold) */
-export const SOURCE_TABLES = ['incoming_emails', 'portal_messages', 'telephony_calls', 'sms_messages', 'customer_documents', 'simulator', 'manual'] as const
+export const SOURCE_TABLES = ['incoming_emails', 'portal_messages', 'telephony_calls', 'sms_messages', 'customer_documents', 'web_chat_messages', 'simulator', 'manual'] as const
 export type SourceTable = (typeof SOURCE_TABLES)[number]
 
 export const IDENTITY_STATES = ['unique_match', 'ambiguous', 'no_match', 'insufficient_information', 'read_error'] as const
@@ -28,7 +28,8 @@ export type CaseMatchState = (typeof CASE_MATCH_STATES)[number]
 export const URGENCIES = ['low', 'normal', 'high', 'emergency'] as const
 export type Urgency = (typeof URGENCIES)[number]
 
-export const PROCESSING_STATES = ['new', 'open', 'awaiting_customer', 'handoff', 'handled', 'spam'] as const
+/** 00250: 'awaiting_elta' = venter på ELTA (intern opfølgning), modsat 'awaiting_customer' */
+export const PROCESSING_STATES = ['new', 'open', 'awaiting_customer', 'awaiting_elta', 'handoff', 'handled', 'spam'] as const
 export type ProcessingState = (typeof PROCESSING_STATES)[number]
 
 export const TEAMS = ['kontor', 'service', 'salg', 'bogholderi', 'montor'] as const
