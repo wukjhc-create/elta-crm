@@ -5,7 +5,8 @@
  *  - de 14 direkte kolonner kan læses; skjulte kolonner, SELECT *, hel-række, filter, sortering og join afvises (42501)
  *  - hændelser/koblinger og funktioner afvises; anon har intet; effektive calls.*-rettigheder pr. rolle
  *  - 0 telefoni-rækker og ingen telefoni-audit; ingen opgaver/tilbageringninger/påmindelser eller udgående rækker siden --since
- *  - webhooken er inaktiv (POST uden hemmelighed → 404 = RELATEL_ENABLED er ikke tændt; alle øvrige flag kræver master-flaget)
+ *  - webhooken afviser usigneret POST: 401 = godkendt observationstilstand (RELATEL_ENABLED=true, HMAC; RELATEL_FINAL_REVIEW §14b,
+ *    fra 2026-11-15) eller 404 = master-flaget FRA. Aldrig 2xx/5xx uden signatur. Lagring/opkald/SMS-flag tjekkes via 0 rækker.
  *  - oprydnings-ruten kræver cron-token og står ikke i vercel.json
  * Ingen personværdier ud — kun antal og tjek-resultater.
  */
@@ -87,7 +88,8 @@ withProdReadOnlyRoleProbe('prod-smoke-00247', async (probe, run) => {
   res.push([`ingen rækker i ${tables.length} SMS-/Telegram-/udbakke-/webhook-/mail-/portal-/besked-tabeller siden --since`, fresh.length === 0, fresh.join(', ')])
 
   const post = await fetch(`${PROD_URL}/api/integrations/relatel/webhook`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
-  res.push(['webhook inaktiv: POST uden hemmelighed → 404 (RELATEL_ENABLED ikke tændt; lagring, match, opkald og SMS kræver alle master-flaget)', post.status === 404, `${post.status}`])
+  res.push(['webhook afviser usigneret POST: 401 (godkendt observationstilstand, §14b) eller 404 (master-flag FRA) — intet modtages uden signatur',
+    post.status === 401 || post.status === 404, `${post.status}${post.status === 401 ? ' = observationstilstand' : post.status === 404 ? ' = master FRA' : ''}`])
   const cron = await fetch(`${PROD_URL}/api/cron/telephony-retention`)
   res.push(['oprydnings-ruten kører ikke uden cron-token (401)', cron.status === 401, `${cron.status}`])
   const vercel = readFileSync(resolve(process.cwd(), 'vercel.json'), 'utf8')
