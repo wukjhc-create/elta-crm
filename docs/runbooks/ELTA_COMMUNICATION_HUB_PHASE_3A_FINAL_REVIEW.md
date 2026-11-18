@@ -188,7 +188,27 @@ retention (kun rydning, aldrig skrivning af tekst; markører kan ikke fjernes). 
 
 ## 13. Tests på den endelige tree
 
-Se rapporten (tabel med alle suiter og antal). Ingen sprunget test er rapporteret som bestået.
+Kørt på review-HEAD `00a545ac` (00250 endelig version anvendt på staging):
+
+| Suite | Resultat |
+|---|---|
+| Hub-suite (`scripts/reception-hub-test.ts`) | 143/143 (før review 75) |
+| Fase 2 reception-suite (`scripts/reception-test.ts`) | 173/173 |
+| 00250-prøve (staging, rollback-only) | 98/98 (før review 75) |
+| 00250 rollback-bevis | struktur = før, ingen afvigende dele, staging uændret |
+| Real-kode mod staging (`reception-hub-staging`) | 33/33 (før review 24) |
+| Baggrundsaktør (`reception-bg-staging`) | 9/9 |
+| tsc · check:rbac · check:rls-matrix | 0 · 0 · 0 |
+| Medarbejder-integritet · effektive rettigheder | 59/59 · ok |
+| Finans 1 (+review) · Finans 2 (+review) | ok (185) · ok (56) |
+| Relatel · Relatel-review · telefoni-lagring | ok · ok · ok |
+| Mail (customer-email, modtager, sync-friskhed, gratis-domæner, skabelon-escape, afsenderdomæne, autolink) | alle ok |
+| Portal (svar-værn, link-strip, signatur) | alle ok |
+| Opgaver/tilbageringning (write-read, sletteregel, actions-touch, callback-reply) | alle ok |
+| Kunde-matching (reception-test identitet + hub-matcher-tests) | ok |
+| Materialer/avance (ukendt kost 156, prisplan, profit-engine) · test:time · test:profit · test:decode | alle ok |
+| Prod (read-only/rollback-only) | pre 12/12 · dry-run 27/27 + 1/1 · prod identisk bagefter |
+| UI U267 · U268 · U263 · U233 · U255 · U11 | alle PASS på `00a545ac` (U268 inkl. 1400 px lukket + åbent panel); første kørsel fangede resumé 176 px → rettet |
 Kendt, ikke-relateret: `scripts/work-order-employee-check-test.ts` fejler 8/13 også på prod-main `56decaaf`
 (`work-orders.ts` ændret i `9a0bac90`, testen ikke opdateret) — uden for scope, ikke rørt.
 
