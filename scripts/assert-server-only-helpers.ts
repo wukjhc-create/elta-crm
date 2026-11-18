@@ -38,6 +38,7 @@ const SERVER_ONLY_MODULES = [
   'src/lib/reception/retention.ts',
   'src/lib/reception/webchat/store.ts',
   'src/lib/reception/webchat/service.ts',
+  'src/lib/reception/webchat/abuse.ts',
   'src/lib/reception/llm-classify.ts',
 ]
 

@@ -13,8 +13,8 @@ import { STRUCT_MD5 } from './reception-00249-probe'
 const FILE = resolve(process.cwd(), 'supabase', 'migrations', '00250_henvendelser_hub_phase_3a.sql')
 const FILE_249 = resolve(process.cwd(), 'supabase', 'migrations', '00249_henvendelser_backbone.sql')
 
-export const NEW_TABLES_250 = `('web_chat_sessions','web_chat_messages')`
-export const NEW_FUNCS_250 = `('conversation_items_update_guard','reception_retention')`
+export const NEW_TABLES_250 = `('web_chat_sessions','web_chat_messages','web_chat_rate_limits')`
+export const NEW_FUNCS_250 = `('conversation_items_update_guard','reception_retention','reception_detach_item','reception_reconcile_source','incoming_emails_reception_reconcile','web_chat_rate_check')`
 
 export function migration00250Body(): string {
   const sql = readFileSync(FILE, 'utf8').replace(/\r\n/g, '\n')
@@ -57,7 +57,12 @@ SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
 UPDATE public.conversations SET status = 'open' WHERE status = 'awaiting_elta';
 SELECT set_config('request.jwt.claim.role', '', true);
 SELECT set_config('request.jwt.claims', '', true);
-DROP TABLE IF EXISTS public.web_chat_messages, public.web_chat_sessions;
+DROP TRIGGER IF EXISTS trg_incoming_emails_reception_reconcile ON public.incoming_emails;
+DROP FUNCTION IF EXISTS public.incoming_emails_reception_reconcile();
+DROP FUNCTION IF EXISTS public.reception_reconcile_source(text, uuid);
+DROP FUNCTION IF EXISTS public.reception_detach_item(uuid);
+DROP FUNCTION IF EXISTS public.web_chat_rate_check(text, text, integer, integer, integer);
+DROP TABLE IF EXISTS public.web_chat_messages, public.web_chat_sessions, public.web_chat_rate_limits;
 DROP FUNCTION IF EXISTS public.reception_retention(jsonb, boolean);
 DROP TRIGGER IF EXISTS trg_conversation_items_update_guard ON public.conversation_items;
 DROP FUNCTION IF EXISTS public.conversation_items_update_guard();
@@ -151,7 +156,9 @@ DECLARE
   u_admin uuid; u_sl uuid; u_salg uuid; u_bog uuid; u_mont uuid;
   v_a uuid; v_b uuid; v_case_a uuid; v_offer uuid; v_offer2 uuid; v_case_offer uuid;
   m1 uuid; m2 uuid; m3 uuid; m4 uuid; m5 uuid; m6 uuid; m7 uuid; m8 uuid;
-  p1 uuid; p2 uuid; p3 uuid;
+  m9 uuid; m10 uuid; m11 uuid; m12 uuid; m13 uuid; m14 uuid; m15 uuid; m16 uuid; m17 uuid; m18 uuid;
+  c_m9 uuid; c_m10 uuid; c_m11 uuid; c_m13 uuid; c_m15 uuid; c_m17 uuid; c_p4 uuid;
+  p1 uuid; p2 uuid; p3 uuid; p4 uuid; p5 uuid;
   s1 uuid; s2 uuid; w1 uuid; w2 uuid; w3 uuid; w4 uuid;
   c_m1 uuid; c_m3 uuid; c_m4 uuid; c_m6 uuid; c_p1 uuid; c_p3 uuid; c_w1 uuid; c_m8 uuid;
   r text; j jsonb; v_md5_mail text; v_md5_portal text; v_md5_chat text;
@@ -246,6 +253,88 @@ BEGIN
   r := pg_temp.p250j(format(rpc, jsonb_build_object('source_table', 'incoming_emails', 'source_id', m7)), NULL, 'service_role');
   res := res || jsonb_build_object('mail_after_handled', pg_temp.oc(r) || '/' || (pg_temp.cid(r) IS DISTINCT FROM c_m6)::text);
 
+  -- FINAL REVIEW §5 — adversarielle tråd-regler
+  -- kandidat-konflikt: tråd T3 startet af mail auto-koblet til A; svar i SAMME tråd auto-koblet til B → ny henvendelse
+  INSERT INTO public.incoming_emails (subject, sender_email, received_at, conversation_id, customer_id, linked_by, link_status) VALUES ('P250 T3', 'p250-t3a@elta-crm.local', now() - interval '50 minutes', thr || '-3', v_a, 'auto', 'linked') RETURNING id INTO m13;
+  INSERT INTO public.incoming_emails (subject, sender_email, received_at, conversation_id, customer_id, linked_by, link_status) VALUES ('Re: P250 T3', 'p250-t3b@elta-crm.local', now() - interval '40 minutes', thr || '-3', v_b, 'auto', 'linked') RETURNING id INTO m14;
+  c_m13 := pg_temp.cid(pg_temp.p250j(format(rpc, jsonb_build_object('source_table', 'incoming_emails', 'source_id', m13)), NULL, 'service_role'));
+  r := pg_temp.p250j(format(rpc, jsonb_build_object('source_table', 'incoming_emails', 'source_id', m14)), NULL, 'service_role');
+  res := res || jsonb_build_object('thread_candidate_conflict', pg_temp.oc(r) || '/' || (pg_temp.cid(r) IS DISTINCT FROM c_m13)::text);
+  -- bekræftet SAGS-konflikt: tråd T4 manuelt A + sag A; svar manuelt A + ANDEN sag (tilbuddets) → ny henvendelse
+  INSERT INTO public.incoming_emails (subject, sender_email, received_at, conversation_id, customer_id, linked_by, link_status, service_case_id) VALUES ('P250 T4', 'p250-t4@elta-crm.local', now() - interval '50 minutes', thr || '-4', v_a, 'manual', 'linked', v_case_a) RETURNING id INTO m15;
+  INSERT INTO public.incoming_emails (subject, sender_email, received_at, conversation_id, customer_id, linked_by, link_status, service_case_id) VALUES ('Re: P250 T4', 'p250-t4@elta-crm.local', now() - interval '40 minutes', thr || '-4', v_a, 'manual', 'linked', v_case_offer) RETURNING id INTO m16;
+  c_m15 := pg_temp.cid(pg_temp.p250j(format(rpc, jsonb_build_object('source_table', 'incoming_emails', 'source_id', m15)), NULL, 'service_role'));
+  r := pg_temp.p250j(format(rpc, jsonb_build_object('source_table', 'incoming_emails', 'source_id', m16)), NULL, 'service_role');
+  res := res || jsonb_build_object('thread_case_conflict', pg_temp.oc(r) || '/' || (pg_temp.cid(r) IS DISTINCT FROM c_m15)::text);
+  -- sag gives til henvendelse UDEN sag: T5 manuelt A uden sag; svar manuelt A med sag A → appended + sag sat (bekræftet)
+  INSERT INTO public.incoming_emails (subject, sender_email, received_at, conversation_id, customer_id, linked_by, link_status) VALUES ('P250 T5', 'p250-t5@elta-crm.local', now() - interval '50 minutes', thr || '-5', v_a, 'manual', 'linked') RETURNING id INTO m17;
+  INSERT INTO public.incoming_emails (subject, sender_email, received_at, conversation_id, customer_id, linked_by, link_status, service_case_id) VALUES ('Re: P250 T5', 'p250-t5@elta-crm.local', now() - interval '40 minutes', thr || '-5', v_a, 'manual', 'linked', v_case_a) RETURNING id INTO m18;
+  c_m17 := pg_temp.cid(pg_temp.p250j(format(rpc, jsonb_build_object('source_table', 'incoming_emails', 'source_id', m17)), NULL, 'service_role'));
+  r := pg_temp.p250j(format(rpc, jsonb_build_object('source_table', 'incoming_emails', 'source_id', m18)), NULL, 'service_role');
+  res := res || jsonb_build_object('thread_case_adopted', pg_temp.oc(r) || '/' || (pg_temp.cid(r) = c_m17)::text || '/'
+      || (SELECT (service_case_id = v_case_a)::text || '/' || case_match_state FROM public.conversations WHERE id = c_m17));
+
+  -- FINAL REVIEW §4 — manuel kobling på kilden afstemmer henvendelsen (trigger; medarbejder via egen klient/RLS)
+  -- (a) ukoblet mail → henvendelse → medarbejder kobler kunde A → SAMME henvendelse bekræftet A, ingen ny henvendelse
+  INSERT INTO public.incoming_emails (subject, sender_email, received_at) VALUES ('P250 R1', 'p250-r1@elta-crm.local', now() - interval '20 minutes') RETURNING id INTO m9;
+  c_m9 := pg_temp.cid(pg_temp.p250j(format(rpc, jsonb_build_object('source_table', 'incoming_emails', 'source_id', m9, 'customer_match_state', 'no_match')), NULL, 'service_role'));
+  j := jsonb_build_object('n', (SELECT count(*) FROM public.conversations));
+  res := res || jsonb_build_object('relink_user_update', pg_temp.p250(format($q$UPDATE public.incoming_emails SET customer_id = %L, linked_by = 'manual', link_status = 'linked' WHERE id = %L$q$, v_a, m9), u_admin, 'authenticated'));
+  res := res || jsonb_build_object('relink_unmatched', (SELECT (customer_id = v_a)::text || '/' || customer_match_state || '/' || coalesce(customer_candidate_id::text, 'null') FROM public.conversations WHERE id = c_m9)
+      || '/' || ((SELECT count(*) FROM public.conversations) = (j->>'n')::int)::text
+      || '/' || (SELECT count(*) FROM public.audit_logs WHERE entity_id = c_m9 AND action = 'conversation_source_reconciled' AND user_id = u_admin));
+  -- (b) kandidat A (auto) → medarbejder bekræfter B → kandidat A fjernet, kunde B bekræftet
+  INSERT INTO public.incoming_emails (subject, sender_email, received_at, customer_id, linked_by, link_status) VALUES ('P250 R2', 'p250-r2@elta-crm.local', now() - interval '20 minutes', v_a, 'auto', 'linked') RETURNING id INTO m10;
+  c_m10 := pg_temp.cid(pg_temp.p250j(format(rpc, jsonb_build_object('source_table', 'incoming_emails', 'source_id', m10)), NULL, 'service_role'));
+  res := res || jsonb_build_object('relink_candidate_before', (SELECT customer_match_state || '/' || (customer_candidate_id = v_a)::text FROM public.conversations WHERE id = c_m10));
+  PERFORM pg_temp.p250(format($q$UPDATE public.incoming_emails SET customer_id = %L, linked_by = 'manual' WHERE id = %L$q$, v_b, m10), u_admin, 'authenticated');
+  res := res || jsonb_build_object('relink_candidate_replaced', (SELECT (customer_id = v_b)::text || '/' || customer_match_state || '/' || coalesce(customer_candidate_id::text, 'null') FROM public.conversations WHERE id = c_m10));
+  -- (c) automatikken kan ALDRIG overskrive en bekræftet relation: mailen omkobles automatisk (linked_by=auto) → uændret
+  PERFORM pg_temp.p250(format($q$UPDATE public.incoming_emails SET customer_id = %L, linked_by = 'auto' WHERE id = %L$q$, v_a, m10), NULL, 'service_role');
+  res := res || jsonb_build_object('relink_auto_cannot_override', (SELECT (customer_id = v_b)::text || '/' || customer_match_state FROM public.conversations WHERE id = c_m10));
+  -- (d) tråd-item koblet til en anden kunde → flyttet til egen henvendelse (ingen dublet; kilde-reference bevaret)
+  INSERT INTO public.incoming_emails (subject, sender_email, received_at, conversation_id) VALUES ('P250 R3', 'p250-r3@elta-crm.local', now() - interval '20 minutes', thr || '-r3') RETURNING id INTO m11;
+  INSERT INTO public.incoming_emails (subject, sender_email, received_at, conversation_id) VALUES ('Re: P250 R3', 'p250-r3x@elta-crm.local', now() - interval '10 minutes', thr || '-r3') RETURNING id INTO m12;
+  c_m11 := pg_temp.cid(pg_temp.p250j(format(rpc, jsonb_build_object('source_table', 'incoming_emails', 'source_id', m11)), NULL, 'service_role'));
+  r := pg_temp.p250j(format(rpc, jsonb_build_object('source_table', 'incoming_emails', 'source_id', m12, 'title', 'P250 R3 svar')), NULL, 'service_role');
+  res := res || jsonb_build_object('relink_thread_setup', pg_temp.oc(r) || '/' || (pg_temp.cid(r) = c_m11)::text);
+  PERFORM pg_temp.p250(format($q$UPDATE public.incoming_emails SET customer_id = %L, linked_by = 'manual', link_status = 'linked' WHERE id = %L$q$, v_a, m12), u_admin, 'authenticated');
+  res := res || jsonb_build_object('relink_thread_detached',
+      (SELECT count(*) FROM public.conversation_items WHERE conversation_id = c_m11)
+      || '/' || (SELECT count(*) FROM public.conversation_items WHERE source_table = 'incoming_emails' AND source_id = m12)
+      || '/' || (SELECT (cv.customer_id = v_a)::text || '/' || cv.customer_match_state || '/' || (cv.id <> c_m11)::text || '/' || coalesce(i.title, 'null')
+                   FROM public.conversation_items i JOIN public.conversations cv ON cv.id = i.conversation_id WHERE i.source_table = 'incoming_emails' AND i.source_id = m12)
+      || '/' || (SELECT count(*) FROM public.audit_logs WHERE entity_id = c_m11 AND action = 'conversation_item_detached'));
+  -- intern afstemning/udflytning kan ikke kaldes af brugere
+  res := res || jsonb_build_object('reconcile_user_42501', pg_temp.p250j(format($q$SELECT public.reception_reconcile_source('incoming_emails', %L)$q$, m9), u_admin, 'authenticated'));
+  res := res || jsonb_build_object('detach_user_42501', pg_temp.p250j(format($q$SELECT to_jsonb(public.reception_detach_item(%L))$q$, gen_random_uuid()), u_admin, 'authenticated'));
+  res := res || jsonb_build_object('detach_service_no_marker_42501', pg_temp.p250j(format($q$SELECT to_jsonb(public.reception_detach_item(%L))$q$, gen_random_uuid()), NULL, 'service_role'));
+  res := res || jsonb_build_object('reconcile_service', pg_temp.oc(pg_temp.p250j(format($q$SELECT public.reception_reconcile_source('incoming_emails', %L)$q$, m9), NULL, 'service_role')));
+
+  -- FINAL REVIEW §5 — portal uden stærk nøgle: to urelaterede beskeder fra SAMME kunde SAMME dag → TO henvendelser
+  INSERT INTO public.portal_messages (customer_id, sender_type, sender_name, message, created_at) VALUES (v_a, 'customer', 'P250', 'P250 ladeboks', now() - interval '15 minutes') RETURNING id INTO p4;
+  INSERT INTO public.portal_messages (customer_id, sender_type, sender_name, message, created_at) VALUES (v_a, 'customer', 'P250', 'P250 faktura', now() - interval '5 minutes') RETURNING id INTO p5;
+  r := pg_temp.p250j(format(rpc, jsonb_build_object('source_table', 'portal_messages', 'source_id', p4)), NULL, 'service_role');
+  c_p4 := pg_temp.cid(r);
+  r := pg_temp.p250j(format(rpc, jsonb_build_object('source_table', 'portal_messages', 'source_id', p5)), NULL, 'service_role');
+  res := res || jsonb_build_object('portal_no_offer_separate', pg_temp.oc(r) || '/' || (pg_temp.cid(r) IS DISTINCT FROM c_p4)::text || '/'
+      || coalesce((SELECT thread_key FROM public.conversations WHERE id = c_p4), 'null'));
+
+  -- FINAL REVIEW §3 — web-chat misbrugsværn: kun serveren; burst-loft håndhæves; ingen IP gemt (kun 64-hex nøgle)
+  r := md5(random()::text) || md5(random()::text);
+  res := res || jsonb_build_object('rate_seq',
+      (pg_temp.p250j(format($q$SELECT public.web_chat_rate_check(%L, 'start', 2, 10, 1000)$q$, r), NULL, 'service_role')::jsonb->>'allowed') || ','
+      || (pg_temp.p250j(format($q$SELECT public.web_chat_rate_check(%L, 'start', 2, 10, 1000)$q$, r), NULL, 'service_role')::jsonb->>'allowed') || ','
+      || (pg_temp.p250j(format($q$SELECT public.web_chat_rate_check(%L, 'start', 2, 10, 1000)$q$, r), NULL, 'service_role')::jsonb->>'allowed') || ','
+      || (pg_temp.p250j(format($q$SELECT public.web_chat_rate_check(%L, 'start', 2, 10, 1000)$q$, r), NULL, 'service_role')::jsonb->>'reason'));
+  res := res || jsonb_build_object('rate_hour', (pg_temp.p250j(format($q$SELECT public.web_chat_rate_check(%L, 'message', 100, 1, 1000)$q$, md5(r) || md5(r)), NULL, 'service_role')::jsonb->>'allowed')
+      || ',' || (pg_temp.p250j(format($q$SELECT public.web_chat_rate_check(%L, 'message', 100, 1, 1000)$q$, md5(r) || md5(r)), NULL, 'service_role')::jsonb->>'reason'));
+  res := res || jsonb_build_object('rate_bad_key_22023', pg_temp.p250j($q$SELECT public.web_chat_rate_check('10.0.0.1', 'start', 2, 10, 1000)$q$, NULL, 'service_role'));
+  res := res || jsonb_build_object('rate_user_42501', pg_temp.p250j(format($q$SELECT public.web_chat_rate_check(%L, 'start', 2, 10, 1000)$q$, r), u_admin, 'authenticated'));
+  res := res || jsonb_build_object('rate_anon_42501', pg_temp.p250j(format($q$SELECT public.web_chat_rate_check(%L, 'start', 2, 10, 1000)$q$, r), NULL, 'anon'));
+  res := res || jsonb_build_object('rate_table_user_42501', pg_temp.p250($q$SELECT count(*) FROM public.web_chat_rate_limits$q$, u_admin, 'authenticated'));
+  res := res || jsonb_build_object('rate_keys_hashed', (SELECT bool_and(key_hash ~ '^[0-9a-f]{64}$' OR key_hash = 'global') FROM public.web_chat_rate_limits));
+
   -- PORTAL: bekræftet kunde, eksplicit sag fra tilbuddet, vedhæftnings-reference; svar i samme tilbud → samme tråd
   r := pg_temp.p250j(format(rpc, jsonb_build_object('source_table', 'portal_messages', 'source_id', p1)), NULL, 'service_role');
   res := res || jsonb_build_object('portal_created', pg_temp.oc(r)); c_p1 := pg_temp.cid(r);
@@ -327,7 +416,8 @@ BEGIN
   r := pg_temp.p250j($q$SELECT public.reception_retention('{"handled_text_days": 90, "handled_summary_days": 90}'::jsonb, true)$q$, NULL, 'service_role');
   res := res || jsonb_build_object('retention_apply', CASE WHEN left(r, 1) = '{' THEN r::jsonb->>'applied' ELSE r END);
   res := res || jsonb_build_object('retention_handled_purged', (SELECT count(*) FROM public.conversation_items WHERE conversation_id = c_m6 AND text_purged_at IS NOT NULL AND body_preview IS NULL AND sender_label IS NULL AND title IS NULL AND attachment_refs = '[]'::jsonb)
-      || '/' || (SELECT (text_purged_at IS NOT NULL AND ai_summary IS NULL AND title = 'Henvendelse (email)')::text FROM public.conversations WHERE id = c_m6));
+      || '/' || (SELECT (text_purged_at IS NOT NULL AND ai_summary IS NULL AND title = 'Henvendelse (Mail)')::text FROM public.conversations WHERE id = c_m6));
+  res := res || jsonb_build_object('retention_no_source_conflicts', CASE WHEN left(r, 1) = '{' THEN coalesce(r::jsonb->>'source_link_conflicts', 'missing') ELSE r END);
   res := res || jsonb_build_object('retention_customer_deleted_purged', (SELECT (text_purged_at IS NOT NULL)::text FROM public.conversations WHERE id = c_m4));
   res := res || jsonb_build_object('retention_orphan', (SELECT (source_missing_at IS NOT NULL AND text_purged_at IS NOT NULL)::text FROM public.conversation_items WHERE source_table = 'incoming_emails' AND source_id = m2));
   res := res || jsonb_build_object('retention_open_kept', (SELECT (text_purged_at IS NULL AND ai_summary IS NOT DISTINCT FROM ai_summary)::text FROM public.conversations WHERE id = c_p1)
@@ -415,5 +505,22 @@ export function evaluateProbe250(res: Record<string, unknown>): P250Check[] {
   add('retention: metadata (status/tider/kilde-reference) bevaret', s('retention_metadata_kept') === 'true/1', s('retention_metadata_kept'))
   add('retention auditeret', s('retention_audit') === '1', s('retention_audit'))
   add('kanoniske kilder uændret af indtag + retention (mail findes, portal/chat md5 =)', s('sources_unchanged') === 'true/true/true/5', s('sources_unchanged'))
+  // Final review
+  add('tråd: kandidat-konflikt (anden kunde svarer i tråden) → ny henvendelse', s('thread_candidate_conflict') === 'created/true', s('thread_candidate_conflict'))
+  add('tråd: bekræftet sags-konflikt → ny henvendelse', s('thread_case_conflict') === 'created/true', s('thread_case_conflict'))
+  add('tråd: kildens bekræftede sag gives til henvendelse uden sag', s('thread_case_adopted') === 'appended/true/true/confirmed', s('thread_case_adopted'))
+  add('afstemning: medarbejderens kobling på mailen lykkes (egen klient)', s('relink_user_update') === 'ok', s('relink_user_update'))
+  add('afstemning: ukoblet → menneske kobler A → SAMME henvendelse bekræftet A, ingen ny, auditeret som medarbejderen', s('relink_unmatched') === 'true/confirmed/null/true/1', s('relink_unmatched'))
+  add('afstemning: kandidat A før', s('relink_candidate_before') === 'unique_match/true', s('relink_candidate_before'))
+  add('afstemning: menneske bekræfter B → kandidat A fjernet, B bekræftet', s('relink_candidate_replaced') === 'true/confirmed/null', s('relink_candidate_replaced'))
+  add('afstemning: automatik kan ikke overskrive bekræftet relation', s('relink_auto_cannot_override') === 'true/confirmed', s('relink_auto_cannot_override'))
+  add('afstemning: tråd-opsætning (svar appended)', s('relink_thread_setup') === 'appended/true', s('relink_thread_setup'))
+  add('afstemning: tråd-item koblet til anden kunde → flyttet til egen henvendelse (1 item tilbage, ingen dublet, tekst bevaret, auditeret)', s('relink_thread_detached') === '1/1/true/confirmed/true/P250 R3 svar/1', s('relink_thread_detached'))
+  add('afstemning (service_role) idempotent → unchanged', s('reconcile_service') === 'unchanged', s('reconcile_service'))
+  add('portal uden tilbud: to urelaterede beskeder samme kunde samme dag → to henvendelser, ingen trådnøgle', s('portal_no_offer_separate') === 'created/true/null', s('portal_no_offer_separate'))
+  add('web-chat værn: burst 2 → tilladt, tilladt, afvist (burst)', s('rate_seq') === 'true,true,false,burst', s('rate_seq'))
+  add('web-chat værn: rullende time-loft', s('rate_hour') === 'true,hour', s('rate_hour'))
+  add('web-chat værn: kun hash-nøgler gemt (ingen IP)', s('rate_keys_hashed') === 'true', s('rate_keys_hashed'))
+  add('retention: ingen kilde/henvendelse-konflikter efter afstemning', s('retention_no_source_conflicts') === '0', s('retention_no_source_conflicts'))
   return out
 }

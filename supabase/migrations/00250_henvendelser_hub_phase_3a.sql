@@ -5,10 +5,17 @@
 -- telephony_calls, customers, service_cases): de LÆSES kun. Ingen nye rettighedsnøgler (katalog uændret).
 --
 --   1. Tråde (docs/runbooks/ELTA_COMMUNICATION_HUB_PHASE_3A.md §3): kildens TRÅDNØGLE afledes i databasen af kilderækken
---      (mail: Graph conversationId · portal: kunde + tilbud · web-chat: sessionen · opkald/webformular: ingen tråd).
---      reception_ingest føjer en ny kilde til en ÅBEN henvendelse med samme trådnøgle inden for kanalens vindue — aldrig
---      på tværs af kanaler, aldrig blot fordi telefon/mail matcher, aldrig til en afsluttet henvendelse, og aldrig hvis
---      kildens bekræftede kunde er en anden end henvendelsens.
+--      (mail: Graph conversationId · portal: KUN kunde + tilbud (uden tilbud ingen tråd) · web-chat: sessionen ·
+--      opkald/webformular: ingen tråd). reception_ingest føjer en ny kilde til en ÅBEN henvendelse med samme trådnøgle
+--      inden for kanalens vindue — aldrig på tværs af kanaler, aldrig blot fordi telefon/mail matcher, aldrig til en
+--      afsluttet henvendelse, aldrig hvis kildens bekræftede kunde, bekræftede sag eller kunde-kandidat er en anden end
+--      henvendelsens (final review §5).
+--   6. Kilde → henvendelse-afstemning (final review §4): ændrer en medarbejder kunde/sag på mailen (kanonisk kilde),
+--      afstemmes henvendelsen i samme transaktion (trigger på incoming_emails → reception_reconcile_source). Kildens
+--      menneskelige kobling vinder over en automatisk kandidat; tråd-items der ikke længere hører til flyttes til deres egen
+--      henvendelse; alt auditeres. Fejl her vælter ALDRIG koblingen (auditeret som conversation_reconcile_failed).
+--   7. Web-chat misbrugsværn (final review §3): web_chat_rate_limits + web_chat_rate_check (kun service_role). Nøglen er
+--      en HMAC af IP'en (ingen IP gemmes); burst pr. minut, rullende time pr. nøgle og globalt loft.
 --   2. Status 'awaiting_elta' (venter på ELTA) ved siden af 'awaiting_customer'.
 --   3. Vedhæftnings-REFERENCER (navn/type/størrelse — aldrig URL/indhold) afledt af kilden.
 --   4. ELTAs egen web-chat (STAGING; flag RECEPTION_WEBCHAT_ENABLED, standard FRA): web_chat_sessions/web_chat_messages er
@@ -132,7 +139,9 @@ BEGIN
     RETURN jsonb_build_object('ok', true, 'key', 'portal:portal_messages:' || m.id::text, 'channel', 'portal', 'provider', 'portal',
       'event_id', NULL, 'occurred_at', m.created_at, 'direction', 'inbound',
       'confirmed_customer', m.customer_id, 'confirmed_case', v_case, 'candidate', NULL,
-      'thread_key', 'portal:' || m.customer_id::text || ':' || coalesce(m.offer_id::text, 'general'),
+      -- Final review: KUN en stærk nøgle (tilbuddet) giver en tråd. Uden tilbud er hver portalbesked sin egen henvendelse —
+      -- samme kunde/samme dag er IKKE et fortsættelsessignal (solceller, ladeboks, faktura og fejl må ikke blandes)
+      'thread_key', CASE WHEN m.offer_id IS NOT NULL THEN 'portal:' || m.customer_id::text || ':offer:' || m.offer_id::text END,
       'attachments', v_refs);
   ELSIF p_table = 'telephony_calls' THEN
     SELECT c.id, c.provider, c.provider_call_id, c.direction, c.started_at, c.customer_id, c.service_case_id, c.suggested_customer_id
@@ -412,6 +421,9 @@ BEGIN
     IF NOT v_bg AND (v_sid IS NULL OR NOT public.reception_source_visible(v_table, v_sid)) THEN
       RAISE EXCEPTION 'reception_ingest: kilden findes ikke eller er skjult for dig' USING ERRCODE = 'insufficient_privilege';
     END IF;
+    -- Final review §4: samme lås som kilde-afstemningen (trigger på kilden) — kildens kobling læses EFTER låsen, så et
+    -- samtidigt manuelt link enten ses her eller afstemmes bagefter (aldrig en blivende uenighed)
+    PERFORM pg_advisory_xact_lock(hashtextextended('reception_src:' || v_table || ':' || coalesce(v_sid::text, ''), 250));
     v_src := public.reception_source_identity(v_table, v_sid);
     IF NOT (v_src->>'ok')::boolean THEN
       RAISE EXCEPTION 'reception_ingest: kilden afvist (%)', v_src->>'reason' USING ERRCODE = 'invalid_parameter_value';
@@ -497,13 +509,26 @@ BEGIN
       FROM public.conversations cv
      WHERE cv.thread_key = v_thread AND cv.status NOT IN ('handled','spam') AND cv.channel = v_channel
        AND cv.last_at > now() - v_window
+       -- bekræftet kunde-konflikt → ny henvendelse
        AND (v_confirmed IS NULL OR cv.customer_id IS NOT DISTINCT FROM v_confirmed)
+       -- bekræftet sags-konflikt → ny henvendelse (en henvendelse uden sag kan få kildens bekræftede sag, se nedenfor)
+       AND (v_case IS NULL OR cv.service_case_id IS NULL OR cv.service_case_id = v_case)
+       -- kandidat-konflikt (fx en anden kunde svarer i tråden) → ny henvendelse
+       AND (v_candidate IS NULL OR coalesce(cv.customer_id, cv.customer_candidate_id) IS NULL
+            OR coalesce(cv.customer_id, cv.customer_candidate_id) = v_candidate)
      ORDER BY cv.last_at DESC LIMIT 1;
     IF FOUND THEN
       IF NOT v_bg AND NOT public.conversation_visible(v_th.channel, v_th.customer_id, v_th.customer_candidate_id) THEN
         RAISE EXCEPTION 'reception_ingest: kilden findes ikke eller er skjult for dig' USING ERRCODE = 'insufficient_privilege';
       END IF;
       v_append := true; v_conv := v_th.id;
+      -- Kildens BEKRÆFTEDE sag (manuelt koblet, samme kunde — sikret af betingelserne ovenfor) gives til en henvendelse
+      -- uden sag. En eksisterende sag overskrives aldrig (konflikt giver ny henvendelse ovenfor).
+      IF v_case IS NOT NULL AND v_th.service_case_id IS NULL AND v_th.customer_id IS NOT NULL THEN
+        UPDATE public.conversations SET service_case_id = v_case, case_candidate_id = NULL, case_match_state = 'confirmed',
+          match_version = match_version + 1 WHERE id = v_conv;
+        v_th.service_case_id := v_case;
+      END IF;
       v_confirmed := v_th.customer_id; v_candidate := v_th.customer_candidate_id;
       v_case := v_th.service_case_id; v_case_cand := v_th.case_candidate_id;
     ELSIF v_dir = 'outbound' THEN
@@ -618,7 +643,7 @@ END $f$;
 -- 9. RETENTION (kun service_role; standard DRY-RUN). Rydder KUN kopieret tekst i henvendelser — aldrig kanoniske kilder.
 --    Politik (jsonb, alle valgfrie; klemt til sikre grænser):
 --      handled_text_days      afsluttede henvendelser: items' uddrag/afsender/emne/vedhæftningsnavne      (standard 90, 7..3650)
---      handled_summary_days   afsluttede henvendelser: AI-resumé + titel (titel → "Henvendelse (kanal)")   (standard 90, 7..3650)
+--      handled_summary_days   afsluttede henvendelser: AI-resumé + titel (titel → "Henvendelse (Mail)")    (standard 180, 7..3650)
 --      customer_deleted_days  kunden slettet: al kopieret tekst                                           (standard 0, 0..365)
 --      orphan_source_days     kilden slettet: itemets kopierede tekst                                     (standard 0, 0..365)
 --      transcripts            transskriptions-referencer efter transcript_purge_after                     (altid)
@@ -628,11 +653,11 @@ CREATE FUNCTION public.reception_retention(p_policy jsonb DEFAULT '{}'::jsonb, p
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $f$
 DECLARE
   v_text int := greatest(7, least(3650, coalesce((p_policy->>'handled_text_days')::int, 90)));
-  v_sum int := greatest(7, least(3650, coalesce((p_policy->>'handled_summary_days')::int, 90)));
+  v_sum int := greatest(7, least(3650, coalesce((p_policy->>'handled_summary_days')::int, 180)));
   v_cust int := greatest(0, least(365, coalesce((p_policy->>'customer_deleted_days')::int, 0)));
   v_orph int := greatest(0, least(365, coalesce((p_policy->>'orphan_source_days')::int, 0)));
   n_orphan_mark int; n_items_handled int; n_conv_handled int; n_cust_conv int; n_cust_items int; n_orphan_items int; n_transcripts int;
-  n_open int; n_case_deleted int;
+  n_open int; n_case_deleted int; n_conflicts int;
 BEGIN
   IF coalesce(auth.role(), '') <> 'service_role' AND session_user NOT IN ('postgres', 'supabase_admin') THEN
     RAISE EXCEPTION 'reception_retention: kun serveren' USING ERRCODE = 'insufficient_privilege';
@@ -659,6 +684,11 @@ BEGIN
    WHERE i.transcript_purge_after IS NOT NULL AND i.transcript_purge_after < now() AND i.transcript_status <> 'purged';
   SELECT count(*) INTO n_open FROM public.conversations c WHERE c.status NOT IN ('handled','spam');
   SELECT count(*) INTO n_case_deleted FROM public.conversations c WHERE c.case_deleted_at IS NOT NULL;
+  -- Overvågning (final review §4): items hvis kilde er manuelt koblet til en ANDEN kunde end henvendelsens (skal være 0;
+  -- afstemningen retter det i kildens transaktion — > 0 betyder en fejlet afstemning, se audit conversation_reconcile_failed)
+  SELECT count(*) INTO n_conflicts FROM public.conversation_items i JOIN public.conversations c ON c.id = i.conversation_id
+    JOIN public.incoming_emails e ON i.source_table = 'incoming_emails' AND e.id = i.source_id
+   WHERE e.linked_by = 'manual' AND e.customer_id IS NOT NULL AND e.link_status::text <> 'ignored' AND c.customer_id IS DISTINCT FROM e.customer_id;
 
   IF p_apply THEN
     PERFORM set_config('reception.retention', 'on', true);
@@ -677,7 +707,9 @@ BEGIN
        OR (i.source_missing_at IS NOT NULL AND i.source_missing_at <= now() - make_interval(days => v_orph)));
     UPDATE public.conversation_items i SET transcript_ref = NULL, transcript_status = 'purged'
      WHERE i.transcript_purge_after IS NOT NULL AND i.transcript_purge_after < now() AND i.transcript_status <> 'purged';
-    UPDATE public.conversations c SET ai_summary = NULL, title = 'Henvendelse (' || c.channel || ')', text_purged_at = now()
+    UPDATE public.conversations c SET ai_summary = NULL, text_purged_at = now(),
+      title = 'Henvendelse (' || CASE c.channel WHEN 'email' THEN 'Mail' WHEN 'portal' THEN 'Portal' WHEN 'web_chat' THEN 'Web-chat'
+                                   WHEN 'phone' THEN 'Telefon' WHEN 'sms' THEN 'SMS' WHEN 'upload_link' THEN 'Upload' ELSE 'Andet' END || ')'
      WHERE c.text_purged_at IS NULL AND (
        (c.status = 'handled' AND c.handled_at < now() - make_interval(days => v_sum))
        OR (c.customer_deleted_at IS NOT NULL AND c.customer_deleted_at <= now() - make_interval(days => v_cust)));
@@ -693,10 +725,223 @@ BEGIN
     'items_handled', n_items_handled, 'conversations_handled', n_conv_handled,
     'customer_deleted_conversations', n_cust_conv, 'customer_deleted_items', n_cust_items,
     'orphan_sources_unmarked', n_orphan_mark, 'orphan_items', n_orphan_items, 'transcripts', n_transcripts,
-    'open_never_purged', n_open, 'case_deleted_marked', n_case_deleted);
+    'open_never_purged', n_open, 'case_deleted_marked', n_case_deleted, 'source_link_conflicts', n_conflicts);
+END $f$;
+
+-- 9b. KILDE → HENVENDELSE-AFSTEMNING (final review §4). Kun intern (trigger-markør) eller service_role.
+--     Flytter et TRÅD-item (aldrig det primære) til sin egen henvendelse, når kildens menneskelige kobling ikke længere
+--     passer til henvendelsen: ind i en åben henvendelse i samme tråd for kildens kunde, ellers en ny henvendelse.
+CREATE FUNCTION public.reception_detach_item(p_item uuid) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $f$
+DECLARE
+  i record; c record; v_src jsonb; v_conf uuid; v_case uuid; v_thread text; v_target uuid; v_window interval;
+  v_uid uuid := auth.uid(); v_new boolean := false;
+BEGIN
+  IF current_setting('reception.reconcile', true) IS DISTINCT FROM 'on' THEN
+    RAISE EXCEPTION 'reception_detach_item: kun afstemningen' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  SELECT * INTO i FROM public.conversation_items WHERE id = p_item;
+  IF NOT FOUND THEN RETURN NULL; END IF;
+  SELECT * INTO c FROM public.conversations WHERE id = i.conversation_id;
+  IF i.dedupe_key = c.dedupe_key THEN
+    RAISE EXCEPTION 'reception_detach_item: det primære item flyttes ikke' USING ERRCODE = 'check_violation';
+  END IF;
+  v_src := public.reception_source_identity(i.source_table, i.source_id);
+  IF NOT coalesce((v_src->>'ok')::boolean, false) OR (v_src->>'confirmed_customer') IS NULL THEN RETURN NULL; END IF;
+  v_conf := (v_src->>'confirmed_customer')::uuid; v_case := (v_src->>'confirmed_case')::uuid; v_thread := v_src->>'thread_key';
+  v_window := CASE i.channel WHEN 'email' THEN interval '30 days' WHEN 'portal' THEN interval '14 days' ELSE interval '1 day' END;
+  DELETE FROM public.conversation_items WHERE id = i.id;
+  PERFORM set_config('reception.ingest', 'on', true);
+  IF v_thread IS NOT NULL THEN
+    SELECT cv.id INTO v_target FROM public.conversations cv
+     WHERE cv.thread_key = v_thread AND cv.channel = i.channel AND cv.id <> c.id AND cv.status NOT IN ('handled','spam')
+       AND cv.last_at > now() - v_window AND cv.customer_id = v_conf
+       AND (v_case IS NULL OR cv.service_case_id IS NULL OR cv.service_case_id = v_case)
+     ORDER BY cv.last_at DESC LIMIT 1;
+  END IF;
+  IF v_target IS NULL THEN
+    INSERT INTO public.conversations (channel, status, title, urgency, customer_id, customer_match_state, candidate_count, service_case_id,
+      case_match_state, handoff_reasons, dedupe_key, thread_key, intake_actor, first_at, last_at, created_by)
+    VALUES (i.channel, 'new', left(coalesce(nullif(btrim(i.title), ''), 'Henvendelse'), 200), c.urgency, v_conf, 'confirmed', 1, v_case,
+      CASE WHEN v_case IS NOT NULL THEN 'confirmed' ELSE 'not_applicable' END, ARRAY['source_relinked'],
+      i.dedupe_key, v_thread, CASE WHEN v_uid IS NULL THEN 'ai_receptionist' ELSE 'user' END, i.occurred_at, i.occurred_at, v_uid)
+    RETURNING id INTO v_target;
+    v_new := true;
+  ELSE
+    UPDATE public.conversations SET last_at = greatest(last_at, i.occurred_at),
+      status = CASE WHEN status = 'awaiting_customer' AND i.direction = 'inbound' THEN 'open' ELSE status END
+     WHERE id = v_target;
+  END IF;
+  INSERT INTO public.conversation_items (conversation_id, channel, direction, provider, provider_event_id, source_table, source_id, occurred_at,
+    title, body_preview, sender_label, transcript_status, dedupe_key, created_by)
+  VALUES (v_target, i.channel, i.direction, i.provider, i.provider_event_id, i.source_table, i.source_id, i.occurred_at,
+    i.title, i.body_preview, i.sender_label, i.transcript_status, i.dedupe_key, i.created_by);
+  PERFORM set_config('reception.ingest', 'off', true);
+  INSERT INTO public.audit_logs (user_id, entity_type, entity_id, action, action_description, metadata)
+  VALUES (v_uid, 'conversation', c.id, 'conversation_item_detached', 'Besked flyttet til egen henvendelse (kilden koblet til anden kunde/sag)',
+          jsonb_build_object('source_table', i.source_table, 'source_id', i.source_id, 'to_conversation', v_target, 'new_conversation', v_new)),
+         (v_uid, 'conversation', v_target, CASE WHEN v_new THEN 'conversation_created_by_relink' ELSE 'conversation_item_appended' END,
+          'Besked flyttet hertil efter manuel kobling af kilden',
+          jsonb_build_object('source_table', i.source_table, 'source_id', i.source_id, 'from_conversation', c.id, 'customer', v_conf, 'case', v_case));
+  RETURN v_target;
+END $f$;
+
+CREATE FUNCTION public.reception_reconcile_source(p_table text, p_id uuid) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $f$
+DECLARE
+  i record; c record; x record; v_src jsonb; v_s2 jsonb; v_conf uuid; v_case uuid; v_cand uuid; v_newcase uuid;
+  v_uid uuid := auth.uid(); v_outer text := current_setting('reception.reconcile', true); v_detached int := 0; v_out text := 'unchanged';
+BEGIN
+  IF coalesce(auth.role(), '') <> 'service_role' AND v_outer IS DISTINCT FROM 'on' AND session_user NOT IN ('postgres', 'supabase_admin') THEN
+    RAISE EXCEPTION 'reception_reconcile_source: kun serveren' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  IF p_table NOT IN ('incoming_emails','portal_messages','telephony_calls','web_chat_messages') OR p_id IS NULL THEN
+    RETURN jsonb_build_object('outcome', 'unsupported');
+  END IF;
+  -- Samme lås som reception_ingest: et samtidigt indtag af samme kilde afsluttes først (eller venter på os)
+  PERFORM pg_advisory_xact_lock(hashtextextended('reception_src:' || p_table || ':' || p_id::text, 250));
+  SELECT ci.id, ci.conversation_id, ci.dedupe_key INTO i FROM public.conversation_items ci WHERE ci.source_table = p_table AND ci.source_id = p_id;
+  IF NOT FOUND THEN RETURN jsonb_build_object('outcome', 'not_ingested'); END IF;
+  v_src := public.reception_source_identity(p_table, p_id);
+  IF NOT coalesce((v_src->>'ok')::boolean, false) THEN RETURN jsonb_build_object('outcome', 'source_rejected', 'reason', v_src->>'reason'); END IF;
+  SELECT * INTO c FROM public.conversations WHERE id = i.conversation_id FOR UPDATE;
+  v_conf := (v_src->>'confirmed_customer')::uuid; v_case := (v_src->>'confirmed_case')::uuid; v_cand := (v_src->>'candidate')::uuid;
+  PERFORM set_config('reception.reconcile', 'on', true);
+
+  IF i.dedupe_key = c.dedupe_key THEN
+    IF v_conf IS NULL THEN
+      -- Ingen menneskelig kobling på kilden: kun en UBEKRÆFTET henvendelse følger kildens (automatiske) kandidat
+      IF c.customer_id IS NULL AND v_cand IS NOT NULL AND c.customer_candidate_id IS DISTINCT FROM v_cand THEN
+        UPDATE public.conversations SET customer_candidate_id = v_cand, customer_match_state = 'unique_match', candidate_count = 1,
+          case_candidate_id = CASE WHEN EXISTS (SELECT 1 FROM public.service_cases s WHERE s.id = c.case_candidate_id AND s.customer_id = v_cand) THEN c.case_candidate_id END,
+          match_version = match_version + 1
+         WHERE id = c.id;
+        v_out := 'candidate_refreshed';
+      END IF;
+    ELSIF c.customer_id IS DISTINCT FROM v_conf OR (v_case IS NOT NULL AND c.service_case_id IS DISTINCT FROM v_case) THEN
+      -- Kildens menneskelige kobling vinder; en sag gættes aldrig (kildens bekræftede sag, ellers den nuværende hvis den
+      -- tilhører samme kunde, ellers ingen)
+      v_newcase := coalesce(v_case, CASE WHEN c.customer_id = v_conf THEN c.service_case_id END);
+      UPDATE public.conversations SET customer_id = v_conf, customer_candidate_id = NULL, customer_match_state = 'confirmed', candidate_count = 1,
+        contact_id = CASE WHEN c.customer_id = v_conf THEN contact_id END,
+        service_case_id = v_newcase,
+        case_candidate_id = CASE WHEN v_newcase IS NULL AND EXISTS (SELECT 1 FROM public.service_cases s WHERE s.id = c.case_candidate_id AND s.customer_id = v_conf) THEN c.case_candidate_id END,
+        case_match_state = CASE WHEN v_newcase IS NOT NULL THEN 'confirmed' WHEN c.customer_id = v_conf THEN c.case_match_state ELSE 'not_applicable' END,
+        match_version = match_version + 1
+       WHERE id = c.id;
+      v_out := 'relinked';
+    END IF;
+    -- Tråd-items hvis kilde er manuelt koblet til en anden kunde (eller anden sag) end henvendelsens, kan ikke blive
+    IF v_conf IS NOT NULL THEN
+      FOR x IN SELECT ci.id, ci.source_table, ci.source_id FROM public.conversation_items ci
+                WHERE ci.conversation_id = c.id AND ci.id <> i.id AND ci.source_id IS NOT NULL
+                  AND ci.source_table IN ('incoming_emails','portal_messages','telephony_calls','web_chat_messages') LOOP
+        v_s2 := public.reception_source_identity(x.source_table, x.source_id);
+        IF coalesce((v_s2->>'ok')::boolean, false) AND (v_s2->>'confirmed_customer') IS NOT NULL
+           AND ((v_s2->>'confirmed_customer')::uuid <> v_conf
+                OR ((v_s2->>'confirmed_case') IS NOT NULL AND v_newcase IS NOT NULL AND (v_s2->>'confirmed_case')::uuid <> v_newcase)) THEN
+          PERFORM public.reception_detach_item(x.id); v_detached := v_detached + 1;
+        END IF;
+      END LOOP;
+    END IF;
+  ELSIF v_conf IS NOT NULL THEN
+    IF c.customer_id IS DISTINCT FROM v_conf OR (v_case IS NOT NULL AND c.service_case_id IS NOT NULL AND c.service_case_id <> v_case) THEN
+      PERFORM public.reception_detach_item(i.id); v_detached := 1; v_out := 'detached';
+    ELSIF v_case IS NOT NULL AND c.service_case_id IS NULL THEN
+      UPDATE public.conversations SET service_case_id = v_case, case_candidate_id = NULL, case_match_state = 'confirmed', match_version = match_version + 1
+       WHERE id = c.id;
+      v_out := 'case_confirmed';
+    END IF;
+  END IF;
+
+  IF v_out <> 'unchanged' OR v_detached > 0 THEN
+    INSERT INTO public.audit_logs (user_id, entity_type, entity_id, action, action_description, metadata)
+    VALUES (v_uid, 'conversation', c.id, 'conversation_source_reconciled', 'Henvendelsen afstemt med kildens kobling (menneskelig beslutning på kilden)',
+      jsonb_build_object('source_table', p_table, 'source_id', p_id, 'outcome', v_out, 'detached', v_detached,
+        'previous_customer', c.customer_id, 'previous_candidate', c.customer_candidate_id, 'previous_case', c.service_case_id,
+        'customer', v_conf, 'case', coalesce(v_newcase, v_case)));
+  END IF;
+  PERFORM set_config('reception.reconcile', coalesce(v_outer, 'off'), true);
+  RETURN jsonb_build_object('outcome', v_out, 'conversation_id', c.id, 'detached', v_detached);
+END $f$;
+
+-- Trigger på den kanoniske mail: ændring af kunde/sag/koblingstype afstemmes i SAMME transaktion. Ingen henvendelse → no-op.
+-- Fejl vælter aldrig koblingen i indbakken (subtransaktion; auditeret uden personværdier).
+CREATE FUNCTION public.incoming_emails_reception_reconcile() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $f$
+BEGIN
+  -- Ikke indtaget OG intet indtag i gang (låsen er fri → vi holder den til transaktionens slutning, så et senere indtag
+  -- læser den nye kobling) → intet at afstemme. Er låsen optaget af et igangværende indtag, venter afstemningen på det.
+  IF NOT EXISTS (SELECT 1 FROM public.conversation_items WHERE source_table = 'incoming_emails' AND source_id = NEW.id)
+     AND pg_try_advisory_xact_lock(hashtextextended('reception_src:incoming_emails:' || NEW.id::text, 250)) THEN
+    RETURN NULL;
+  END IF;
+  BEGIN
+    PERFORM set_config('reception.reconcile', 'on', true);
+    PERFORM public.reception_reconcile_source('incoming_emails', NEW.id);
+    PERFORM set_config('reception.reconcile', 'off', true);
+  EXCEPTION WHEN OTHERS THEN
+    INSERT INTO public.audit_logs (user_id, entity_type, entity_id, action, action_description, metadata)
+    VALUES (auth.uid(), 'incoming_email', NEW.id, 'conversation_reconcile_failed', 'Henvendelsen kunne ikke afstemmes med mailens kobling',
+            jsonb_build_object('sqlstate', SQLSTATE));
+  END;
+  RETURN NULL;
+END $f$;
+CREATE TRIGGER trg_incoming_emails_reception_reconcile AFTER UPDATE OF customer_id, service_case_id, linked_by ON public.incoming_emails
+  FOR EACH ROW WHEN (OLD.customer_id IS DISTINCT FROM NEW.customer_id OR OLD.service_case_id IS DISTINCT FROM NEW.service_case_id
+                     OR OLD.linked_by IS DISTINCT FROM NEW.linked_by)
+  EXECUTE FUNCTION public.incoming_emails_reception_reconcile();
+
+-- 9c. WEB-CHAT MISBRUGSVÆRN (final review §3). Holdbart (fælles på tværs af serverless-instanser), kun service_role.
+--     key_hash = HMAC-SHA256(serverhemmelighed, IP) i hex — IP'en gemmes ALDRIG; 'global' = samlet loft pr. scope.
+--     Spande pr. minut; rullende time = summen af de sidste 60 minutter. Rækker ældre end 2 timer slettes løbende.
+CREATE TABLE public.web_chat_rate_limits (
+  key_hash text NOT NULL CHECK (key_hash ~ '^[0-9a-f]{64}$' OR key_hash = 'global'),
+  scope    text NOT NULL CHECK (scope IN ('start','message')),
+  bucket   timestamptz NOT NULL,
+  hits     integer NOT NULL DEFAULT 0 CHECK (hits >= 0),
+  PRIMARY KEY (key_hash, scope, bucket)
+);
+CREATE INDEX web_chat_rate_limits_bucket ON public.web_chat_rate_limits (bucket);
+ALTER TABLE public.web_chat_rate_limits ENABLE ROW LEVEL SECURITY;
+-- Ingen API-rolle (heller ikke service_role) rører tabellen direkte — kun web_chat_rate_check (SECURITY DEFINER)
+REVOKE ALL ON public.web_chat_rate_limits FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE FUNCTION public.web_chat_rate_check(p_key text, p_scope text, p_burst integer, p_hour integer, p_global_hour integer) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $f$
+DECLARE
+  v_min timestamptz := date_trunc('minute', now());
+  v_burst int; v_hour int; v_glob int;
+  b int := greatest(1, least(100, coalesce(p_burst, 1)));
+  h int := greatest(1, least(1000, coalesce(p_hour, 1)));
+  g int := greatest(1, least(100000, coalesce(p_global_hour, 1)));
+BEGIN
+  IF coalesce(auth.role(), '') <> 'service_role' AND session_user NOT IN ('postgres', 'supabase_admin') THEN
+    RAISE EXCEPTION 'web_chat_rate_check: kun serveren' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  IF coalesce(p_key, '') !~ '^[0-9a-f]{64}$' OR coalesce(p_scope, '') NOT IN ('start','message') THEN
+    RAISE EXCEPTION 'web_chat_rate_check: ugyldig nøgle/scope' USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+  -- Hvert forsøg tæller (også afviste) — at hamre forlænger blokeringen
+  INSERT INTO public.web_chat_rate_limits AS r (key_hash, scope, bucket, hits) VALUES (p_key, p_scope, v_min, 1)
+    ON CONFLICT (key_hash, scope, bucket) DO UPDATE SET hits = least(r.hits + 1, 1000000) RETURNING hits INTO v_burst;
+  INSERT INTO public.web_chat_rate_limits AS r (key_hash, scope, bucket, hits) VALUES ('global', p_scope, v_min, 1)
+    ON CONFLICT (key_hash, scope, bucket) DO UPDATE SET hits = least(r.hits + 1, 1000000);
+  SELECT coalesce(sum(hits), 0) INTO v_hour FROM public.web_chat_rate_limits WHERE key_hash = p_key AND scope = p_scope AND bucket > now() - interval '60 minutes';
+  SELECT coalesce(sum(hits), 0) INTO v_glob FROM public.web_chat_rate_limits WHERE key_hash = 'global' AND scope = p_scope AND bucket > now() - interval '60 minutes';
+  DELETE FROM public.web_chat_rate_limits WHERE ctid = ANY (ARRAY(SELECT ctid FROM public.web_chat_rate_limits WHERE bucket < now() - interval '2 hours' LIMIT 200));
+  RETURN jsonb_build_object('allowed', v_burst <= b AND v_hour <= h AND v_glob <= g,
+    'reason', CASE WHEN v_burst > b THEN 'burst' WHEN v_hour > h THEN 'hour' WHEN v_glob > g THEN 'global' END);
 END $f$;
 
 -- 10. Funktions-ACL
+-- udflytning kaldes KUN af reception_reconcile_source (definer) — ingen API-rolle, heller ikke service_role
+REVOKE ALL ON FUNCTION public.reception_detach_item(uuid) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.reception_reconcile_source(text, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.reception_reconcile_source(text, uuid) TO service_role;
+REVOKE ALL ON FUNCTION public.incoming_emails_reception_reconcile() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.web_chat_rate_check(text, text, integer, integer, integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.web_chat_rate_check(text, text, integer, integer, integer) TO service_role;
 REVOKE ALL ON FUNCTION public.conversation_items_update_guard() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.reception_retention(jsonb, boolean) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.reception_retention(jsonb, boolean) TO service_role;

@@ -11,11 +11,11 @@ import { resolve } from 'path'
 
 const FILE = resolve(process.cwd(), 'supabase', 'migrations', '00249_henvendelser_backbone.sql')
 
-const NEW_TABLES = `('conversations','conversation_items','conversation_actions','upload_requests')`
-const NEW_FUNCS = `('conversations_guard','conversation_items_guard','conversation_actions_guard','upload_requests_guard','conversation_visible','reception_source_identity','reception_source_visible','reception_ingest','conversation_actions_insert_guard')`
+export const NEW_TABLES = `('conversations','conversation_items','conversation_actions','upload_requests')`
+export const NEW_FUNCS = `('conversations_guard','conversation_items_guard','conversation_actions_guard','upload_requests_guard','conversation_visible','reception_source_identity','reception_source_visible','reception_ingest','conversation_actions_insert_guard')`
 
 /** Struktur-fingeraftryk af HELE public-skemaet (tabeller/kolonner, constraints, indeks, triggere, funktioner, politikker, grants) */
-const STRUCT_MD5 = `md5(concat_ws('#',
+export const STRUCT_MD5 = `md5(concat_ws('#',
     (SELECT string_agg(table_name || '.' || column_name || ':' || data_type || ':' || is_nullable || ':' || coalesce(column_default, ''), '|' ORDER BY table_name, column_name) FROM information_schema.columns WHERE table_schema = 'public'),
     (SELECT string_agg(conrelid::regclass::text || ':' || conname || ':' || pg_get_constraintdef(oid), '|' ORDER BY conrelid::regclass::text, conname) FROM pg_constraint WHERE connamespace = 'public'::regnamespace),
     (SELECT string_agg(indexname || ':' || indexdef, '|' ORDER BY indexname) FROM pg_indexes WHERE schemaname = 'public'),

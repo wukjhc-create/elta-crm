@@ -32,6 +32,12 @@ const ACTION_LABEL: Record<string, string> = {
   create_task: 'Opret opgave', create_callback: 'Ring tilbage', create_planning_request: 'Planlægning', request_documents: 'Bed om billeder/dokumenter',
   create_customer_proposal: 'Ny kunde (forslag)', create_case_proposal: 'Ny sag (forslag)', mark_handled: 'Afslut henvendelse',
 }
+const HANDOFF_REASON: Record<string, string> = {
+  safety_emergency: 'nød', urgent_outage: 'udfald', customer_dispute: 'tvist', unhappy_customer: 'utilfreds kunde', human_requested: 'ønsker medarbejder',
+  low_confidence: 'usikker tolkning', ambiguous_identity: 'flere mulige kunder', identity_read_error: 'kundeopslag fejlede', commercial_negotiation: 'pris/forhandling',
+  invoice_change: 'faktura', cancellation: 'annullering', warranty: 'garanti', compliance: 'lov/regler', verification_failed: 'bekræftelse fejlede',
+  transcript_unavailable: 'indhold mangler', source_relinked: 'flyttet efter manuel kobling af kilden',
+}
 const ASTATE: Record<string, string> = { proposed: 'Afventer godkendelse', approved: 'Godkendt', executed: 'Udført', rejected: 'Afvist', failed: 'Fejlede', blocked: 'Blokeret' }
 const VIEWS: HenvendelseView[] = ['new', 'mine', 'unassigned', 'urgent', 'awaiting_customer', 'awaiting_elta', 'handled', 'all']
 const fmt = (iso: string) => new Date(iso).toLocaleString('da-DK', { timeZone: 'Europe/Copenhagen', dateStyle: 'short', timeStyle: 'short' })
@@ -83,7 +89,7 @@ const ACTION_GROUPS: Array<{ key: string; title: string; states: string[]; cls: 
 
 const href = (view: HenvendelseView, channel: HenvendelseChannel | null) => `/dashboard/henvendelser?filter=${view}${channel ? `&channel=${channel}` : ''}`
 
-export function HenvendelserClient(props: { filter: HenvendelseView; channel: HenvendelseChannel | null; rows: HenvendelseRow[]; error: string | null; canManage: boolean; canSimulate: boolean; uploadLinks: boolean }) {
+export function HenvendelserClient(props: { filter: HenvendelseView; channel: HenvendelseChannel | null; rows: HenvendelseRow[]; error: string | null; canManage: boolean; canSimulate: boolean; uploadLinks: boolean; backfill: boolean }) {
   const router = useRouter()
   const [openId, setOpenId] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
@@ -105,7 +111,7 @@ export function HenvendelserClient(props: { filter: HenvendelseView; channel: He
           <h1 className="text-xl font-semibold text-gray-900">Henvendelser</h1>
           <p className="text-sm text-gray-600">Mail, portal, web-chat, telefon og SMS ét sted. Kunde og sag er forslag, indtil de er bekræftet. Der sendes intet herfra.</p>
         </div>
-        {props.canManage && (
+        {props.canManage && props.backfill && (
           <button onClick={sync} disabled={busy} className="rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50" data-testid="henvendelser-sync">
             Hent nye fra mail/portal
           </button>
@@ -130,10 +136,12 @@ export function HenvendelserClient(props: { filter: HenvendelseView; channel: He
       {props.error && <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert" data-testid="henvendelser-error">{props.error}</p>}
       {props.canSimulate && <Simulator onSaved={() => router.refresh()} />}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+      {/* Detaljepanelet reserverer KUN plads når en henvendelse er åben — ellers får resuméet hele bredden (final review §10) */}
+      {!open && props.rows.length > 0 && <p className="text-xs text-gray-500" data-testid="henvendelser-hint">Vælg en henvendelse for at se hele tråden.</p>}
+      <div className={`grid gap-4 ${open ? 'xl:grid-cols-[minmax(0,1fr)_340px]' : ''}`}>
         <div className="rounded-lg border bg-white">
           <table className="w-full table-fixed text-sm" data-testid="henvendelser-table">
-            <colgroup><col className="w-24" /><col className="w-24" /><col className="w-40" /><col /><col className="w-24" /></colgroup>
+            <colgroup><col className="w-28" /><col className="w-20" /><col className="w-36" /><col /><col className="w-24" /></colgroup>
             <thead className="bg-gray-50 text-left text-gray-600">
               <tr>
                 <th className="px-2 py-2">Haster</th><th className="px-2 py-2">Kanal</th><th className="px-2 py-2">Kunde · sag</th>
@@ -160,8 +168,12 @@ export function HenvendelserClient(props: { filter: HenvendelseView; channel: He
                     <CaseMatch row={r} />
                   </td>
                   <td className="px-3 py-2 min-w-0">
-                    <div className="truncate" title={r.aiSummary ?? r.title}>{r.textPurged ? <span className="text-gray-400">(tekst ryddet efter retention)</span> : (r.aiSummary ?? r.title)}</div>
-                    <div className="truncate text-xs text-gray-600" title={r.nextAction ?? ''} data-testid="row-next-action">→ {r.nextAction ?? (r.status === 'handled' ? 'Intet' : 'Læs og vælg næste skridt')}</div>
+                    {/* Resumé på op til 2 linjer (læsbart ved 1400 px uden vandret rul) */}
+                    <div className="line-clamp-2 break-words" title={r.aiSummary ?? r.title} data-testid="row-summary">{r.textPurged ? <span className="text-gray-400">(tekst ryddet efter retention)</span> : (r.aiSummary ?? r.title)}</div>
+                    {/* Næste skridt er et FORSLAG (AI/politik) — intet er udført, før en medarbejder gør det */}
+                    <div className="truncate text-xs text-gray-600" title={r.nextAction ?? ''} data-testid="row-next-action">
+                      {r.status === 'handled' ? '✓ Håndteret' : <><span className="font-medium text-gray-500">Forslag:</span> {r.nextAction ?? 'Læs og vælg næste skridt'}</>}
+                    </div>
                   </td>
                   <td className="px-3 py-2 text-xs truncate" data-testid="row-owner">{r.assignedName ?? (r.assignedTeam ? `Team ${TEAM[r.assignedTeam]}` : <span className="font-semibold text-red-700">Ikke tildelt</span>)}</td>
                 </tr>
@@ -169,8 +181,7 @@ export function HenvendelserClient(props: { filter: HenvendelseView; channel: He
             </tbody>
           </table>
         </div>
-        {open ? <DetailPanel key={open.id} row={open} canManage={props.canManage} uploadLinks={props.uploadLinks} onChanged={() => router.refresh()} />
-          : <div className="hidden xl:block rounded-lg border border-dashed p-6 text-sm text-gray-500">Vælg en henvendelse for at se hele tråden.</div>}
+        {open && <DetailPanel key={open.id} row={open} canManage={props.canManage} uploadLinks={props.uploadLinks} onChanged={() => router.refresh()} />}
       </div>
     </div>
   )
@@ -226,7 +237,7 @@ function DetailPanel({ row, canManage, uploadLinks, onChanged }: { row: Henvende
         <h2 className="mt-1 font-semibold text-gray-900">{row.title}</h2>
         {row.aiSummary && <p className="mt-1 rounded bg-gray-50 p-2 text-gray-700" data-testid="detail-ai-summary"><span className="text-xs font-semibold text-gray-500">AI-resumé: </span>{row.aiSummary}</p>}
         {row.nextAction && <p className="mt-1 text-gray-700">→ Næste skridt: {row.nextAction}</p>}
-        {row.handoffReasons.length > 0 && <p className="mt-2 rounded bg-amber-50 p-2 text-amber-900" data-testid="handoff-reasons">Kræver medarbejder: {row.handoffReasons.join(', ')}</p>}
+        {row.handoffReasons.length > 0 && <p className="mt-2 rounded bg-amber-50 p-2 text-amber-900" data-testid="handoff-reasons">Kræver medarbejder: {row.handoffReasons.map((x) => HANDOFF_REASON[x] ?? x).join(', ')}</p>}
       </div>
       {msg && <p className="rounded border border-blue-200 bg-blue-50 p-2 text-blue-900" role="status">{msg}</p>}
       {err && <p className="rounded border border-red-200 bg-red-50 p-2 text-red-800" role="alert">{err}</p>}

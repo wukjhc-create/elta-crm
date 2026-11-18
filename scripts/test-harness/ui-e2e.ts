@@ -324,6 +324,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     // 00250 (staging only): ELTA web-chat-testsiden (U268). Mail-/portal-indtag tændes IKKE i serveren (U268 kalder adapteren
     // med flag i selve kaldet), så andre tests' portalbeskeder ikke bliver til henvendelser
     RECEPTION_WEBCHAT_ENABLED: process.env.UI_RECEPTION_WEBCHAT_ENABLED ?? 'true',
+    // staging-harness: misbrugsværnets HMAC-nøgle genereres pr. kørsel (ingen hemmelighed i repo); uden den er chatten FRA
+    RECEPTION_WEBCHAT_RATE_SECRET: `harness-${randomBytes(24).toString('hex')}`,
     // `next dev` genstarter ved 80 % af heap-grænsen, og efter en genstart fejler resten af kørslen (O1).
     // Mere heap KUN til testserveren (ændrer ikke next.config for andre).
     NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --max-old-space-size=3584`.trim() }
@@ -6563,18 +6565,59 @@ ${m.text()}`) })
           const { backgroundCapability } = await import('../../src/lib/reception/background-actor')
           const { ingestEmailSource, ingestPortalMessageSource } = await import('../../src/lib/reception/channel-intake')
           const cap = backgroundCapability(c.admin)
-          const flags = { RECEPTION_EMAIL_INGEST_ENABLED: 'true', RECEPTION_PORTAL_INGEST_ENABLED: 'true' }
+          const flags = { RECEPTION_EMAIL_INGEST_ENABLED: 'true', RECEPTION_EMAIL_INGEST_SINCE: new Date(Date.now() - 3_600_000).toISOString(), RECEPTION_PORTAL_INGEST_ENABLED: 'true' }
           for (const [i, over] of [[0, { subject: `${tag} batteri`, body_preview: `Mit batteri går offline. ${tag}` }], [1, { subject: `Re: ${tag} batteri`, body_preview: 'Det sker stadig hver dag.', attachment_urls: [{ filename: 'fejl.jpg', contentType: 'image/jpeg', size: 1200, url: '' }], has_attachments: true }]] as const) {
             const e = await c.admin.from('incoming_emails').insert([{ sender_email: mailAddr, sender_name: 'R', received_at: new Date(Date.now() - (2 - i) * 60_000).toISOString(), graph_message_id: `${tag}-${i}`, conversation_id: `${tag}-thread`, ...over }]).select('id')
             const id = (e.data?.[0] as { id: string } | undefined)?.id
             if (id) { emailIds.push(id); const res = await ingestEmailSource(id, { env: flags, capability: cap }); diag += ` mail${i}:${res.outcome}` }
           }
+          // Ukendt afsender (ukoblet) — til visuel skelnen ukoblet/kandidat/bekræftet
+          const eu = await c.admin.from('incoming_emails').insert([{ sender_email: `u268-ukendt-${stamp}@harness-u268-x.dk`, sender_name: 'Ukendt', subject: `${tag} ukendt afsender`, body_preview: `Hej, kan I hjælpe? ${tag}`, received_at: new Date().toISOString(), graph_message_id: `${tag}-u`, conversation_id: `${tag}-thread-u` }]).select('id')
+          const euId = (eu.data?.[0] as { id: string } | undefined)?.id
+          if (euId) { emailIds.push(euId); diag += ` mailU:${(await ingestEmailSource(euId, { env: flags, capability: cap })).outcome}` }
           const pm = custId ? await c.admin.from('portal_messages').insert([{ customer_id: custId, offer_id: offerId, sender_type: 'customer', sender_name: 'R', message: `Hvornår kommer montøren? ${tag}`, attachments: [{ name: 'tavle.jpg', url: 'https://x/sign?token=HEMMELIG', size: 10, type: 'image/jpeg' }] }]).select('id') : null
           const pid = (pm?.data?.[0] as { id: string } | undefined)?.id
           if (pid) { portalIds.push(pid); diag += ` portal:${(await ingestPortalMessageSource(pid, { env: flags, capability: cap })).outcome}` }
-          r.indtag = /mail0:created/.test(diag) && /mail1:appended/.test(diag) && /portal:created/.test(diag)
+          r.indtag = /mail0:created/.test(diag) && /mail1:appended/.test(diag) && /portal:created/.test(diag) && /mailU:created/.test(diag)
 
           const s = await login(await mkUser('admin'))
+          // Final review §10: almindelig 1400 px desktop-bredde
+          await s.page.setViewportSize({ width: 1400, height: 900 })
+          await gotoSafe(s.page, `${base}/dashboard/henvendelser?filter=all`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const lay = await s.page.evaluate((t) => {
+            const rows = [...document.querySelectorAll('[data-testid="henvendelse-row"]')].filter((x) => (x.textContent ?? '').includes(t)) as HTMLElement[]
+            const states = rows.map((x) => x.querySelector('[data-testid="match-customer"]')?.getAttribute('data-state') ?? '')
+            const sum = rows.map((x) => x.querySelector('[data-testid="row-summary"]') as HTMLElement | null).filter(Boolean) as HTMLElement[]
+            return {
+              hscroll: document.documentElement.scrollWidth > window.innerWidth + 1,
+              rows: rows.length,
+              states: [...new Set(states)].sort().join(','),
+              summaryMinWidth: Math.min(...sum.map((x) => x.clientWidth)),
+              summaryLines: Math.max(...sum.map((x) => getComputedStyle(x).webkitLineClamp === '2' ? 2 : 1)),
+              status: rows.every((x) => !!x.querySelector('[data-testid="status-badge"]')?.textContent?.trim()),
+              urgency: rows.every((x) => !!x.querySelector('[data-testid="urgency-badge"]')?.textContent?.trim()),
+              owner: rows.every((x) => !!x.querySelector('[data-testid="row-owner"]')?.textContent?.trim()),
+              channel: rows.every((x) => /Mail|Portal|Web|Telefon|SMS/.test(x.children[1]?.textContent ?? '')),
+              proposal: rows.every((x) => /Forslag:|Håndteret/.test(x.querySelector('[data-testid="row-next-action"]')?.textContent ?? '')),
+            }
+          }, tag)
+          r.layout_1400_ingen_vandret_rul = !lay.hscroll
+          r.layout_1400_resume_laesbart = lay.summaryMinWidth >= 220 && lay.summaryLines === 2
+          r.layout_ukoblet_kandidat_bekraeftet_adskilt = /candidate/.test(lay.states) && /confirmed/.test(lay.states) && /(no_match|insufficient_information)/.test(lay.states)
+          r.layout_status_haster_ansvarlig_kanal = lay.status && lay.urgency && lay.owner && lay.channel
+          r.layout_forslag_markeret = lay.proposal
+          if (!r.layout_1400_ingen_vandret_rul || !r.layout_1400_resume_laesbart || !r.layout_ukoblet_kandidat_bekraeftet_adskilt) diag += ` layout:${JSON.stringify(lay)}`
+          await s.page.screenshot({ caret: 'initial', path: join(shots, 'henvendelser-3a-final-1400.png'), fullPage: false })
+          // Også med detaljepanelet ÅBENT ved 1400 px: resuméet skal stadig være læsbart og uden vandret rul
+          await s.page.getByTestId('henvendelse-row').filter({ hasText: `${tag} batteri` }).first().click()
+          await s.page.getByTestId('henvendelse-detail').waitFor({ timeout: 30_000 })
+          const layOpen = await s.page.evaluate((t) => {
+            const sum = [...document.querySelectorAll('[data-testid="henvendelse-row"]')].filter((x) => (x.textContent ?? '').includes(t)).map((x) => x.querySelector('[data-testid="row-summary"]') as HTMLElement | null).filter(Boolean) as HTMLElement[]
+            return { hscroll: document.documentElement.scrollWidth > window.innerWidth + 1, summaryMinWidth: Math.min(...sum.map((x) => x.clientWidth)) }
+          }, tag)
+          r.layout_1400_panel_aaben_laesbart = !layOpen.hscroll && layOpen.summaryMinWidth >= 220
+          if (!r.layout_1400_panel_aaben_laesbart) diag += ` layoutOpen:${JSON.stringify(layOpen)}`
+          await s.page.screenshot({ caret: 'initial', path: join(shots, 'henvendelser-3a-final-1400-detalje.png'), fullPage: false })
           await gotoSafe(s.page, `${base}/dashboard/henvendelser?filter=new`, { waitUntil: 'networkidle', timeout: 180_000 })
           r.visninger = (await Promise.all(['new', 'mine', 'unassigned', 'urgent', 'awaiting_customer', 'awaiting_elta', 'handled'].map((v) => s.page.getByTestId(`filter-${v}`).count()))).every((n) => n === 1)
             && (await Promise.all(['email', 'portal', 'web_chat', 'phone', 'sms'].map((ch) => s.page.getByTestId(`channel-${ch}`).count()))).every((n) => n === 1)

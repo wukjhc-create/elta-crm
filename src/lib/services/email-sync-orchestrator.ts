@@ -311,15 +311,19 @@ async function syncOneMailbox(
   // kørsel ramte DUPLICATE SKIP. Sendte mails får processed_at ved insert og rammes ikke.
   if (budget.remaining > 0) {
     const since = new Date(Date.now() - BACKFILL_DAYS * 86_400_000).toISOString()
-    const { data: pending } = await supabase
+    // Fase 3A final review §2: postkassen findes ved to_email (sættes altid = postkassen ved insert; mailbox_source findes
+    // ikke i prod/staging-skemaet, så filteret fejlede tavst og genforsøget kørte aldrig), og vinduet regnes fra hvornår
+    // mailen blev OPDAGET (created_at) — en mail fundet efter et Microsoft-udfald skal stadig behandles.
+    const { data: pending, error: pendingErr } = await supabase
       .from('incoming_emails')
       .select('id, subject, sender_email, sender_name, body_text, body_html, body_preview')
-      .eq('mailbox_source', mailbox)
+      .eq('to_email', mailbox)
       .eq('link_status', 'pending')
       .is('processed_at', null)
-      .gte('received_at', since)
-      .order('received_at', { ascending: true })
+      .gte('created_at', since)
+      .order('created_at', { ascending: true })
       .limit(budget.remaining)
+    if (pendingErr) result.errors.push(`${mailbox}: pending retry failed: ${pendingErr.message}`)
     for (const row of pending ?? []) {
       if (budget.remaining <= 0) break
       budget.remaining--

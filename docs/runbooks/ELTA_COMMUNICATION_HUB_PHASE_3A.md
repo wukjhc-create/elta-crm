@@ -69,7 +69,7 @@ Prøver (staging, rollback-only): `cli.ts reception-00250-probe` **75/75**, `cli
 1. En kilde føjes KUN til en eksisterende henvendelse, hvis kildens **afledte trådnøgle** er identisk, henvendelsen er
    **åben** (ikke håndteret/spam), samme **kanal**, inden for kanalens **vindue** efter seneste aktivitet, og kildens
    **bekræftede kunde** (hvis nogen) er henvendelsens.
-2. Trådnøgler: mail = Graph `conversationId` (md5) · portal = kunde + tilbud (`general` uden tilbud) · web-chat = sessionen ·
+2. Trådnøgler: mail = Graph `conversationId` (md5) · portal = kunde + tilbud (uden tilbud: ingen tråd — final review §5) · web-chat = sessionen ·
    opkald og webformularer (FormSubmit) = **ingen tråd** (hver er sin egen henvendelse).
 3. Vinduer: mail 30 dage · portal 14 dage · web-chat 1 dag.
 4. Aldrig på tværs af kanaler. Aldrig fordi telefon/mail matcher (to urelaterede mails fra samme kunde = to henvendelser).
@@ -82,7 +82,7 @@ Prøver (staging, rollback-only): `cli.ts reception-00250-probe` **75/75**, `cli
 
 - Hook: sidst i `linkAndAnalyze` (kun indgående, efter kobling/AI-analyse, så kildens kobling er endelig). Flag
   `RECEPTION_EMAIL_INGEST_ENABLED` (FRA). Fejl vælter aldrig mail-sync (udfald returneres, intet kastes).
-- Kun **nye** mails: modtaget ≤ 48 t (også mail-sync'ens genforsøg af ubehandlede) — ingen stille historik-import.
+- Kun **nye** mails: OPDAGET efter `RECEPTION_EMAIL_INGEST_SINCE` og inden for 14 dage (final review §2 — erstatter 48 t-reglen, som ville tabe mails efter et udfald).
 - Egne postkasser/`@eltasolar.dk` springes over; `link_status = ignored` (spam/nyhedsbrev) afvises.
 - Kunde fra kilden: manuelt koblet = **bekræftet** (kan ikke overskrives — DB-værn); automatisk koblet = **kandidat**;
   ukoblet forbliver ukoblet (motorens deterministiske afsender-match kan give en kandidat — aldrig en kobling);
@@ -177,7 +177,7 @@ koden deployet (dormant).
 |---|---|---|---|
 | A Mail-indtag | `RECEPTION_EMAIL_INGEST_ENABLED=true` | sæt `false`/fjern → næste mail-sync stopper indtag; eksisterende henvendelser bliver (forslag) | 24 t: antal nye henvendelser ≈ nye indgående mails; 0 udførte AI-handlinger; 0 sendt |
 | B Portal-indtag | `RECEPTION_PORTAL_INGEST_ENABLED=true` | samme | portalbeskeder → bekræftet kunde; ingen kundemail ud |
-| C Afgrænset historik | intet flag: "Hent nye fra mail/portal" (≤ 14 dage, ≤ 50 pr. kanal, kun forslag, egen RLS) — én gang, af admin | henvendelser kan markeres håndteret; kilder urørte | backfill-analysator før/efter |
+| C Afgrænset historik | `RECEPTION_BACKFILL_ENABLED` (final review): "Hent nye fra mail/portal" (≤ 14 dage, ≤ 50 pr. kanal, kun forslag, egen RLS) — én gang, af admin | henvendelser kan markeres håndteret; kilder urørte | backfill-analysator før/efter |
 | D Web-chat pilot | `RECEPTION_WEBCHAT_ENABLED=true` + `RECEPTION_WEBCHAT_TEST_KEY=<hemmelig>` (ikke-offentlig) | fjern flaget → `/api/webchat` + `/webchat-test` = 404 | kun interne testere; nød-tekst, ingen kundedata uden bekræftelse |
 | E Offentlig web-chat | widget på eltasolar.dk + `RECEPTION_WEBCHAT_PUBLIC` (ikke bygget i 3A) | fjern widget/flag | kræver vidensbase (§9), rate-limit pr. IP, misbrugsovervågning |
 
@@ -286,3 +286,5 @@ sendt.
 - R1 Ryddet titel bruger kanal-koden ("Henvendelse (email)") — kosmetisk.
 - A1 Historikken i detaljen viser kun egne handlinger for ikke-admins (audit_logs-RLS, uændret).
 - D1 00249's rollback i prod kræver nu, at 00250's rollback køres først (`docs/runbooks/sql/00250_rollback.sql`).
+
+> **Final review 2026-11-18:** W1, B1, T1, M1, M2 og R1 er rettet; T2 er besluttet (bevar begge). Se `ELTA_COMMUNICATION_HUB_PHASE_3A_FINAL_REVIEW.md`.

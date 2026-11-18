@@ -1868,6 +1868,16 @@ async function main() {
     log(`${rows.length} definition(er) → ${out}`)
     return
   }
+  if (SUB === 'staging-columns') {
+    // Read-only: kolonner (navn:type:nullable:default) for de angivne tabeller på staging — CLAUDE.md "tjek schema før kode".
+    const tables = process.argv.slice(3)
+    const rows = (await stagingSql(`SELECT table_name, column_name, data_type, is_nullable, coalesce(column_default, '') d FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = ANY(ARRAY[${tables.map((t) => `'${t.replace(/'/g, "''")}'`).join(',')}]::text[]) ORDER BY 1, ordinal_position`)) as Array<Record<string, string>>
+    for (const r of rows) log(`${r.table_name}.${r.column_name}:${r.data_type}:${r.is_nullable}:${r.d.slice(0, 40)}`)
+    const idx = (await stagingSql(`SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND tablename = ANY(ARRAY[${tables.map((t) => `'${t.replace(/'/g, "''")}'`).join(',')}]::text[]) ORDER BY 1`)) as Array<{ indexdef: string }>
+    for (const r of idx) log(`  ${r.indexdef}`)
+    return
+  }
   if (SUB === 'select-policies') {
     // Read-only: SELECT-politikker (navn, roller, USING) for de angivne tabeller på staging — grundlag for lockdowns.
     const tables = process.argv.slice(3)
@@ -2873,7 +2883,10 @@ Total inkl. moms 11.718,75
     const { startWebChat, postWebChatMessage } = await import('../../src/lib/reception/webchat/service')
     const { webChatStore } = await import('../../src/lib/reception/webchat/store')
     const { emergencyReply } = await import('../../src/lib/reception/emergency-policy')
-    const env = { RECEPTION_EMAIL_INGEST_ENABLED: 'true', RECEPTION_PORTAL_INGEST_ENABLED: 'true', RECEPTION_WEBCHAT_ENABLED: 'true' }
+    const { abuseKey } = await import('../../src/lib/reception/webchat/abuse')
+    const activation = new Date(Date.now() - 3_600_000).toISOString()
+    const env = { RECEPTION_EMAIL_INGEST_ENABLED: 'true', RECEPTION_EMAIL_INGEST_SINCE: activation, RECEPTION_PORTAL_INGEST_ENABLED: 'true', RECEPTION_WEBCHAT_ENABLED: 'true', RECEPTION_WEBCHAT_RATE_SECRET: `p250hub-${Math.random().toString(36).slice(2)}-${'x'.repeat(32)}` }
+    const key = abuseKey(`p250hub-${Date.now()}`, env)
     const cap = backgroundCapability(admin)
     const store = webChatStore(admin)
     const checks: Array<{ id: string; ok: boolean; note?: string }> = []
@@ -2929,9 +2942,21 @@ Total inkl. moms 11.718,75
       const c5 = await convOf('incoming_emails', m5)
       const row5 = c5 ? await conv(c5) : {}
       add('ukoblet ukendt afsender forbliver ukoblet (ingen kunde/kandidat)', row5.customer_id === null && row5.customer_candidate_id === null && ['no_match', 'insufficient_information'].includes(String(row5.customer_match_state)), JSON.stringify(row5))
-      const mOld = await mail({ received_at: new Date(Date.now() - 5 * 86_400_000).toISOString(), conversation_id: `${tag}-T5` })
-      add('gammel mail indtages ikke automatisk (ingen stille historik-import)', (await ingestEmailSource(mOld, { env, capability: cap })).reason === 'not_new' && !(await convOf('incoming_emails', mOld)))
+      // Final review §2: udfald — modtaget for 7 dage siden, OPDAGET nu (created_at = nu) → indtaget
+      const mOut = await mail({ received_at: new Date(Date.now() - 7 * 86_400_000).toISOString(), conversation_id: `${tag}-T5`, sender_email: `${tag}-udfald@example.org` })
+      const rOut = await ingestEmailSource(mOut, { env, capability: cap })
+      add('udfald 7 dage: mail opdaget nu (modtaget for 7 dage siden) → indtaget (forsvinder ikke)', rOut.outcome === 'created' && !!(await convOf('incoming_emails', mOut)), JSON.stringify(rOut))
+      const mHist = await mail({ received_at: new Date(Date.now() - 20 * 86_400_000).toISOString(), created_at: new Date(Date.now() - 20 * 86_400_000).toISOString(), conversation_id: `${tag}-T6` })
+      const rHist = await ingestEmailSource(mHist, { env, capability: cap })
+      add('mail opdaget FØR aktiveringen (genforsøg) → ikke indtaget (ingen stille historik-import)', rHist.reason === 'discovered_before_activation' && !(await convOf('incoming_emails', mHist)), JSON.stringify(rHist))
       add('mail flag FRA → intet indtag', (await ingestEmailSource(m5, { env: {}, capability: cap })).outcome === 'disabled')
+      // Final review §4: medarbejderen kobler den ukoblede mail til kunden → SAMME henvendelse bekræftet (trigger), ingen ny
+      const nConvBefore = (await admin.from('conversations').select('id', { count: 'exact', head: true })).count
+      await admin.from('incoming_emails').update({ customer_id: cA.id, linked_by: 'manual', link_status: 'linked' }).eq('id', m5)
+      const row5b = c5 ? await conv(c5) : {}
+      const nConvAfter = (await admin.from('conversations').select('id', { count: 'exact', head: true })).count
+      add('manuel kobling på mailen → samme henvendelse bekræftet, ingen ny henvendelse', row5b.customer_id === cA.id && row5b.customer_match_state === 'confirmed' && row5b.customer_candidate_id === null && nConvBefore === nConvAfter, JSON.stringify(row5b))
+      add('manuel kobling auditeret (conversation_source_reconciled)', ((await admin.from('audit_logs').select('id', { count: 'exact', head: true }).eq('entity_id', c5!).eq('action', 'conversation_source_reconciled')).count ?? 0) === 1)
 
       // 2. Portal: samme kunde, eksplicit sag via tilbud, vedhæftnings-reference, svar → samme tråd
       const p1 = (await admin.from('portal_messages').insert({ customer_id: cA.id, sender_type: 'customer', sender_name: 'P250', message: 'Hvornår kommer montøren?', offer_id: offer.id, attachments: [{ name: 'tavle.jpg', url: 'https://x/sign?token=HEMMELIG', size: 10, type: 'image/jpeg' }] }).select('id').single()).data as { id: string }
@@ -2947,31 +2972,57 @@ Total inkl. moms 11.718,75
       const p2 = (await admin.from('portal_messages').insert({ customer_id: cA.id, sender_type: 'customer', sender_name: 'P250', message: 'Og husk lige billedet', offer_id: offer.id }).select('id').single()).data as { id: string }
       created.portal.push(p2.id)
       add('portal svar på samme tilbud → appended', (await ingestPortalMessageSource(p2.id, { env, capability: cap })).outcome === 'appended' && (await convOf('portal_messages', p2.id)) === cp1)
+      // Final review §5: to urelaterede portalbeskeder UDEN tilbud, samme kunde, samme dag → to henvendelser
+      const p3 = (await admin.from('portal_messages').insert({ customer_id: cA.id, sender_type: 'customer', sender_name: 'P250', message: 'Min ladeboks lader ikke' }).select('id').single()).data as { id: string }
+      const p4 = (await admin.from('portal_messages').insert({ customer_id: cA.id, sender_type: 'customer', sender_name: 'P250', message: 'Jeg har et spørgsmål til fakturaen' }).select('id').single()).data as { id: string }
+      created.portal.push(p3.id, p4.id)
+      const rp3 = await ingestPortalMessageSource(p3.id, { env, capability: cap })
+      const rp4 = await ingestPortalMessageSource(p4.id, { env, capability: cap })
+      add('portal uden tilbud: to urelaterede beskeder samme dag → to separate henvendelser', rp3.outcome === 'created' && rp4.outcome === 'created' && (await convOf('portal_messages', p3.id)) !== (await convOf('portal_messages', p4.id)), `${rp3.outcome}/${rp4.outcome}`)
 
       // 3. Web-chat: samme matcher (kundens e-mail → kandidat), politik, tråd, nød, gentagelse
-      const s1 = await startWebChat({ visitor: { name: 'P250', email: `${tag}-a@p250hub-test.dk` }, topic: 'existing_case' }, { env, store, capability: cap })
+      const s1 = await startWebChat({ abuseKey: key, visitor: { name: 'P250', email: `${tag}-a@p250hub-test.dk` }, topic: 'existing_case' }, { env, store, capability: cap })
       if (!s1.ok) throw new Error('webchat start')
       const sess = (await admin.from('web_chat_sessions').select('id').eq('token_hash', (await import('../../src/lib/reception/webchat/store')).hashChatToken(s1.token)).single()).data as { id: string }
       created.sessions.push(sess.id)
-      const w1 = await postWebChatMessage({ token: s1.token, text: 'Hvad er status på min sag?', clientMessageId: `${tag}-w1`.replace(/[^A-Za-z0-9_-]/g, '') }, { env, store, capability: cap })
+      const w1 = await postWebChatMessage({ abuseKey: key, token: s1.token, text: 'Hvad er status på min sag?', clientMessageId: `${tag}-w1`.replace(/[^A-Za-z0-9_-]/g, '') }, { env, store, capability: cap })
       const msgs = (await admin.from('web_chat_messages').select('id, direction').eq('session_id', sess.id).order('created_at')).data as Array<{ id: string; direction: string }>
       const cw = await convOf('web_chat_messages', msgs[0].id)
       const roww = cw ? await conv(cw) : {}
       add('web-chat kendt kunde → kandidat (samme matcher), aldrig bekræftet', roww.customer_candidate_id === cA.id && roww.customer_id === null && roww.channel === 'web_chat', JSON.stringify(roww))
       add('web-chat: uden bekræftelse intet kundespecifikt i svaret', w1.ok && !w1.duplicate && !/status:/i.test(w1.reply ?? '') && /postnummer og vejnavn/.test(w1.reply ?? ''), (w1 as { reply?: string }).reply)
       add('web-chat: svar gemt (ud) og i samme tråd', msgs.length === 2 && msgs[1].direction === 'outbound' && (await convOf('web_chat_messages', msgs[1].id)) === cw)
-      const wdup = await postWebChatMessage({ token: s1.token, text: 'Hvad er status på min sag?', clientMessageId: `${tag}-w1`.replace(/[^A-Za-z0-9_-]/g, '') }, { env, store, capability: cap })
+      const wdup = await postWebChatMessage({ abuseKey: key, token: s1.token, text: 'Hvad er status på min sag?', clientMessageId: `${tag}-w1`.replace(/[^A-Za-z0-9_-]/g, '') }, { env, store, capability: cap })
       add('web-chat gentaget besked → duplicate, ingen ny række', wdup.ok && wdup.duplicate && ((await admin.from('web_chat_messages').select('id', { count: 'exact', head: true }).eq('session_id', sess.id)).count === 2))
-      const w3 = await postWebChatMessage({ token: s1.token, text: 'Der kommer røg fra eltavlen!' }, { env, store, capability: cap })
+      const w3 = await postWebChatMessage({ abuseKey: key, token: s1.token, text: 'Der kommer røg fra eltavlen!' }, { env, store, capability: cap })
       add('web-chat NØD → godkendt nød-tekst, henvendelsen hævet til emergency/handoff', w3.ok && !w3.duplicate && w3.reply === emergencyReply() && (await conv(cw!)).urgency === 'emergency' && (await conv(cw!)).status === 'handoff')
-      const s2 = await startWebChat({ visitor: {}, topic: 'quote' }, { env, store, capability: cap })
+      const s2 = await startWebChat({ abuseKey: key, visitor: {}, topic: 'quote' }, { env, store, capability: cap })
       if (s2.ok) {
         const sess2 = (await admin.from('web_chat_sessions').select('id').eq('token_hash', (await import('../../src/lib/reception/webchat/store')).hashChatToken(s2.token)).single()).data as { id: string }
         created.sessions.push(sess2.id)
-        const q = await postWebChatMessage({ token: s2.token, text: 'Hvad koster 10 kW solceller?' }, { env, store, capability: cap })
+        const q = await postWebChatMessage({ abuseKey: key, token: s2.token, text: 'Hvad koster 10 kW solceller?' }, { env, store, capability: cap })
         add('web-chat tilbud fra ukendt → ingen pris, beder om kontakt, ny henvendelse', q.ok && !q.duplicate && /kan ikke give en pris/.test(q.reply ?? '') && /telefonnummer eller din e-mail/.test(q.reply ?? ''))
       }
-      add('web-chat flag FRA → disabled', (await postWebChatMessage({ token: s1.token, text: 'x' }, { env: {}, store, capability: cap })).ok === false)
+      add('web-chat flag FRA → disabled', (await postWebChatMessage({ abuseKey: key, token: s1.token, text: 'x' }, { env: {}, store, capability: cap })).ok === false)
+      add('web-chat uden misbrugsværn (ingen hemmelighed) → disabled', (await startWebChat({ abuseKey: key, visitor: {} }, { env: { RECEPTION_WEBCHAT_ENABLED: 'true' }, store, capability: cap })).ok === false)
+      // Final review §3: samme tekst igen med NY klient-id → gentagelse (ingen ny række, intet nyt svar)
+      const nMsg = (await admin.from('web_chat_messages').select('id', { count: 'exact', head: true }).eq('session_id', sess.id)).count
+      const rep = await postWebChatMessage({ abuseKey: key, token: s1.token, text: 'Der kommer røg fra eltavlen!', clientMessageId: `${tag}rep`.replace(/[^A-Za-z0-9_-]/g, '') }, { env, store, capability: cap })
+      add('web-chat samme tekst igen (ny klient-id) → gentagelse, ingen ny række', rep.ok && rep.duplicate && (await admin.from('web_chat_messages').select('id', { count: 'exact', head: true }).eq('session_id', sess.id)).count === nMsg)
+      // holdbart burst-loft i databasen: 3 starter/min pr. nøgle → 4. afvises
+      const kB = abuseKey(`p250hub-burst-${Date.now()}`, env)
+      const outs: string[] = []
+      for (let i = 0; i < 4; i++) {
+        const s = await startWebChat({ abuseKey: kB, visitor: {} }, { env, store, capability: cap })
+        outs.push(s.ok ? 'ok' : s.error)
+        if (s.ok) { const sx = (await admin.from('web_chat_sessions').select('id').eq('token_hash', (await import('../../src/lib/reception/webchat/store')).hashChatToken(s.token)).single()).data as { id: string }; created.sessions.push(sx.id) }
+      }
+      add('web-chat burst-loft (DB, på tværs af instanser): 3 starter ok, 4. afvist', outs.join(',') === 'ok,ok,ok,limit', outs.join(','))
+      // Tabellen er utilgængelig for alle API-roller (kun via web_chat_rate_check) — læses her som postgres (mgmt, read-only)
+      const stored = (await stagingSql(`SELECT count(*) FILTER (WHERE key_hash = '${kB}') AS mine, count(*) FILTER (WHERE key_hash !~ '^[0-9a-f]{64}$' AND key_hash <> 'global') AS bad FROM public.web_chat_rate_limits`))[0] as { mine: number; bad: number }
+      add('web-chat værn gemmer kun HMAC-nøgler (ingen IP)', Number(stored.mine) >= 1 && Number(stored.bad) === 0, JSON.stringify(stored))
+      const apiRead = await admin.from('web_chat_rate_limits').select('key_hash').limit(1)
+      add('web-chat værn-tabellen kan ikke læses direkte via API (heller ikke service_role)', !!apiRead.error, apiRead.error?.code ?? 'læsbar')
 
       // 4. Visning gennem RLS (rigtig medarbejder-klient) håndteres af reception-00250-probe; her: ingen afsendelse
       const after = await countOutbound()

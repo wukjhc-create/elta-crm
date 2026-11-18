@@ -36,12 +36,19 @@ export const BACKGROUND_RPC = 'reception_ingest' as const
  * vilkårlige kolonner). Bruges af kanal-adapterne (mail/portal/web-chat) efter at kilden er gemt af den eksisterende kode.
  */
 export const BACKGROUND_SOURCE_COLUMNS = {
-  incoming_emails: 'id, subject, sender_email, sender_name, body_preview, body_text, body_html, received_at, customer_id, customer_contact_id, linked_by, link_status, has_attachments, attachment_urls, service_case_id',
+  // created_at = hvornår mail-sync'en FØRST så mailen (opdaget) — grundlaget for "ny" (final review §2)
+  incoming_emails: 'id, subject, sender_email, sender_name, body_preview, received_at, created_at, customer_id, customer_contact_id, linked_by, link_status, has_attachments, attachment_urls, service_case_id',
   portal_messages: 'id, customer_id, sender_type, sender_name, message, attachments, created_at, offer_id',
   web_chat_messages: 'id, session_id, direction, author, body, created_at',
   web_chat_sessions: 'id, visitor_name, visitor_phone, visitor_email, visitor_postal_code, topic',
 } as const
 export type BackgroundSourceTable = keyof typeof BACKGROUND_SOURCE_COLUMNS
+/**
+ * Brødtekst læses KUN hvor den skal bruges (review M2): webformularer (FormSubmit) har kundens felter i brødteksten.
+ * Fast kolonneliste, samme én-række-regel som readSource.
+ */
+export const BACKGROUND_SOURCE_BODY_COLUMNS = { incoming_emails: 'id, body_text, body_html' } as const
+export type BackgroundBodyTable = keyof typeof BACKGROUND_SOURCE_BODY_COLUMNS
 export type SourceRead = { ok: true; row: Record<string, unknown> } | { ok: false; error: 'not_found' | 'read_error' }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -53,6 +60,8 @@ export interface BackgroundCapability {
   ingest: (payload: Record<string, unknown>) => Promise<IngestResult>
   /** Læs ÉN kilderække med faste kolonner. Læsefejl ≠ ikke fundet ≠ ukoblet (aldrig sammenblandet). */
   readSource: (table: BackgroundSourceTable, id: string) => Promise<SourceRead>
+  /** Læs brødteksten af ÉN kilderække (kun BACKGROUND_SOURCE_BODY_COLUMNS) */
+  readSourceBody: (table: BackgroundBodyTable, id: string) => Promise<SourceRead>
 }
 
 export class BackgroundCapabilityError extends Error {}
@@ -77,17 +86,21 @@ export function backgroundCapability(admin: Db): BackgroundCapability {
       if (fn !== BACKGROUND_RPC) throw new BackgroundCapabilityError(`baggrundsaktøren må ikke kalde ${String(fn)}`)
       return admin.rpc(BACKGROUND_RPC, args)
     }, payload),
-    readSource: async (table, id) => {
-      const cols = (BACKGROUND_SOURCE_COLUMNS as Record<string, string>)[table]
-      if (!cols) throw new BackgroundCapabilityError(`baggrundsaktøren må ikke læse kilden ${String(table)}`)
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return { ok: false, error: 'not_found' }
-      try {
-        const { data, error } = await admin.from(table).select(cols).eq('id', id).maybeSingle()
-        if (error) return { ok: false, error: 'read_error' }
-        return data ? { ok: true, row: data as Record<string, unknown> } : { ok: false, error: 'not_found' }
-      } catch { return { ok: false, error: 'read_error' } }
-    },
+    readSource: (table, id) => readOne(admin, BACKGROUND_SOURCE_COLUMNS, table, id),
+    readSourceBody: (table, id) => readOne(admin, BACKGROUND_SOURCE_BODY_COLUMNS, table, id),
   }
+}
+
+/** Én række efter id med en FAST kolonneliste fra den givne allowlist (aldrig en kolonneliste udefra) */
+async function readOne(admin: Db, allow: Readonly<Record<string, string>>, table: string, id: string): Promise<SourceRead> {
+  const cols = Object.prototype.hasOwnProperty.call(allow, table) ? allow[table] : undefined
+  if (!cols) throw new BackgroundCapabilityError(`baggrundsaktøren må ikke læse kilden ${String(table)}`)
+  if (typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return { ok: false, error: 'not_found' }
+  try {
+    const { data, error } = await admin.from(table).select(cols).eq('id', id).maybeSingle()
+    if (error) return { ok: false, error: 'read_error' }
+    return data ? { ok: true, row: data as Record<string, unknown> } : { ok: false, error: 'not_found' }
+  } catch { return { ok: false, error: 'read_error' } }
 }
 
 export type BackgroundOutcome =

@@ -73,7 +73,15 @@ export function scanWriteSites(root = join(process.cwd(), 'src'), tables?: strin
     if (ts.isPropertyAccessExpression(e) && ts.isIdentifier(e.expression) === false) return classifyExpr(e.expression, sf)
     // AI-receptionistens læse-port (BackgroundCapability.readPort) bygges KUN af backgroundCapability(createAdminClient())
     // i lib/reception/background-actor.ts: service_role, kun select på en allowlist — ikke en anon-/bruger-klient.
-    if (ts.isPropertyAccessExpression(e) && e.name.text === 'readPort') return { kind: 'admin', text: `${text} (backgroundCapability)` }
+    // Final review §8: genkendes KUN når typecheckeren viser, at egenskaben ER BackgroundCapability.readPort (deklareret i
+    // background-actor.ts) — et vilkårligt objekt med en egenskab der hedder "readPort" klassificeres IKKE som admin.
+    if (ts.isPropertyAccessExpression(e) && e.name.text === 'readPort') {
+      const s = checker.getSymbolAtLocation(e.name)
+      const d = s?.valueDeclaration ?? s?.declarations?.[0]
+      const isCap = !!d && ts.isPropertySignature(d) && ts.isInterfaceDeclaration(d.parent) && d.parent.name.text === 'BackgroundCapability'
+        && d.getSourceFile().fileName.replace(/\\/g, '/').endsWith('src/lib/reception/background-actor.ts')
+      if (isCap) return { kind: 'admin', text: `${text} (backgroundCapability)` }
+    }
     const ident = ts.isIdentifier(e) ? e : ts.isPropertyAccessExpression(e) ? e.name : null
     if (!ident) return { kind: 'unknown', text }
     const sym = checker.getSymbolAtLocation(ident)

@@ -430,6 +430,9 @@ export async function decideHenvendelseAction(actionId: string, decision: 'appro
 /** Indtag nye mails og portalbeskeder (seneste 14 dage, højst 50 af hver) som henvendelser. Kun FORSLAG — ingen auto-udførelse. */
 export async function syncHenvendelserFromSources(): Promise<R<{ created: number; duplicates: number; failed: number; skipped: number }>> {
   const m = await requireManageCtx(); if ('error' in m) return { success: false, error: m.error! }
+  // Trin C er en EKSPLICIT, godkendt historisk indlæsning — teknisk spærret uden RECEPTION_BACKFILL_ENABLED (final review B1)
+  const { backfillEnabled } = await import('@/lib/reception/flags')
+  if (!backfillEnabled()) return { success: false, error: 'Historisk indlæsning er slået fra. Nye mails og portalbeskeder kommer automatisk, når kanalen er aktiveret.' }
   const { ctx } = m
   const since = new Date(Date.now() - 14 * 86_400_000).toISOString()
   const actorCtx = { supabase: ctx.supabase, userId: ctx.userId, hasPermission: ctx.hasPermission }

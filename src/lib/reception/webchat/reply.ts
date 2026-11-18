@@ -3,6 +3,8 @@
  *   1. NØD → PRÆCIS den godkendte nød-tekst (emergency-policy.ts). Aldrig model.
  *   2. Motorens svar ved handoff, bekræftelsesspørgsmål eller afviste tilsagn (pris/dato/garanti/compliance) — fast.
  *   3. Vidensspørgsmål (knowledge.ts): kendt fakta ordret; ukendt ⇒ "en medarbejder vender tilbage". Aldrig gæt.
+ *      KUN for generelle firmafakta (se knowledgeAllowed): aldrig ved nød, menneske, identitet/bekræftelse, kunde-/
+ *      sagsoplysninger, pris, dato, garanti, compliance, faktura, annullering eller klage/tvist.
  *   4. Ellers motorens faste kvittering.
  *   Valgfrit (RECEPTION_WEBCHAT_AI_REPLY_ENABLED, kun staging): den fælles AI-klient må OMFORMULERE trin 3/4 — med KUN
  *   det deterministiske svar + kendte fakta som input. Resultatet efterkontrolleres (ingen tal/URL'er der ikke stod i
@@ -30,6 +32,26 @@ export interface ComposeInput {
 
 const ASK_CONTACT = 'Skriv gerne dit navn og telefonnummer eller din e-mail, så en medarbejder kan vende tilbage til dig.'
 
+/** Kun generelle henvendelser kan få et vidensbase-svar */
+const GENERAL_INTENTS = new Set<string>(['general_question', 'other'])
+/**
+ * Følsomme emner, hvor vidensundtagelsen ALDRIG gælder — uanset motorens klassifikation: pris, dato/tidspunkt, garanti,
+ * lov/regler/godkendelse, faktura/betaling, annullering, klage/tvist, kunde-/sagsoplysninger, identitet og nød.
+ * Unicode-ordgrænser (JavaScripts \b kender ikke æ/ø/å).
+ */
+export const SENSITIVE_TOPIC = new RegExp('(?<![\\p{L}\\p{N}])(' + [
+  'pris\\p{L}*', 'kost\\p{L}*', 'beløb\\p{L}*', 'kr\\.?', 'kroner', 'rabat\\p{L}*',
+  'hvornår kan', 'dato\\p{L}*', 'tidspunkt\\p{L}*', 'i morgen', 'næste uge', 'komme ud', 'deadline',
+  'garanti\\p{L}*', 'reklamation\\p{L}*',
+  'lov', 'lovlig\\p{L}*', 'lovgivning\\p{L}*', 'regler', 'reglerne', 'godkend\\p{L}*', 'tilladelse\\p{L}*', 'forsikring\\p{L}*',
+  'faktura\\p{L}*', 'regning\\p{L}*', 'betal\\p{L}*', 'rykker\\p{L}*', 'kreditnota\\p{L}*',
+  'annuller\\p{L}*', 'aflys\\p{L}*', 'opsig\\p{L}*', 'fortryd\\p{L}*', 'afbestil\\p{L}*',
+  'klage\\p{L}*', 'utilfreds\\p{L}*', 'erstatning\\p{L}*', 'skuffet', 'advokat\\p{L}*', 'tvist\\p{L}*', 'uenig\\p{L}*',
+  'min sag', 'sagsnummer\\p{L}*', 'ordre\\p{L}*', 'kundenummer\\p{L}*', 'min adresse', 'mine oplysninger', 'status', 'mit anlæg',
+  'cpr\\p{L}*', 'personnummer', 'adgangskode\\p{L}*',
+  'brand\\p{L}*', 'røg', 'gnist\\p{L}*', 'stød', '112',
+].join('|') + ')(?![\\p{L}\\p{N}])', 'iu')
+
 /** Efterkontrol af et AI-formuleret svar */
 export function aiReplyViolations(candidate: string, base: string, facts: Record<string, string>): string[] {
   const out: string[] = []
@@ -47,10 +69,19 @@ export async function composeWebChatReply(input: ComposeInput): Promise<WebChatR
   const k = input.knowledge ?? RECEPTION_KNOWLEDGE
   if (input.turn.handoff?.reasons.includes('safety_emergency')) return { text: emergencyReply(), source: 'emergency' }
   const q = knowledgeQuestion(input.text)
-  // Et vidensspørgsmål har lav INTENT-sikkerhed, men svaret er deterministisk (vidensbasen). Kun når lav sikkerhed er
-  // den ENESTE grund til handoff; nød, menneske, afviste tilsagn og bekræftelse går altid forud. Internt handoff består.
+  // Final review §7 — vidensundtagelsen er SNÆVER: et vidensspørgsmål har lav INTENT-sikkerhed, men svaret er
+  // deterministisk (vidensbasen). Den må KUN bruges når ALT dette gælder:
+  //   - lav sikkerhed er den ENESTE handoff-grund (nød, menneske, tvist, faktura, annullering, garanti, compliance,
+  //     identitet osv. går altid forud),
+  //   - motoren har ikke afvist tilsagn (pris/dato/garanti/compliance) og kræver ikke bekræftelse,
+  //   - intent er generel (general_question/other) — aldrig sag/faktura/tilbud/aftale/service/nød,
+  //   - teksten nævner ikke et følsomt emne (SENSITIVE_TOPIC) — også selvom motoren ikke fangede det.
+  // Internt handoff består (en medarbejder ser henvendelsen).
   const onlyLowConfidence = !!input.turn.handoff && input.turn.handoff.reasons.every((r) => r === 'low_confidence')
-  if ((input.turn.handoff && !(q && onlyLowConfidence)) || input.turn.needsVerification || input.turn.commitmentsRefused.length) {
+  const knowledgeAllowed = !!q && (!input.turn.handoff || onlyLowConfidence) && !input.turn.needsVerification
+    && !input.turn.commitmentsRefused.length && GENERAL_INTENTS.has(input.turn.intent) && !SENSITIVE_TOPIC.test(input.text)
+  if ((input.turn.handoff && !knowledgeAllowed) || input.turn.needsVerification || input.turn.commitmentsRefused.length
+      || (q && !knowledgeAllowed)) {
     const base = input.turn.reply
     return { text: input.hasContact || input.turn.needsVerification ? base : `${base} ${ASK_CONTACT}`, source: 'policy' }
   }

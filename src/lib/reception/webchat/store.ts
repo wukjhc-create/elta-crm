@@ -1,7 +1,8 @@
 /**
  * Fase 3A — web-chattens lager (00250 web_chat_sessions/web_chat_messages = kanonisk kilde). Server-only: bevidst IKKE
- * 'use server' og aldrig i klientkode. Snævret kapabilitet over admin-klienten: KUN de to chat-tabeller, kun
- * oprette session / finde session via token-HASH / opdatere besøgsoplysninger / tilføje besked. Receptionist-motoren
+ * 'use server' og aldrig i klientkode. Snævret kapabilitet over admin-klienten: KUN de to chat-tabeller + rpc
+ * web_chat_rate_check, kun oprette session / finde session via token-HASH / opdatere besøgsoplysninger / tilføje besked /
+ * læse seneste besøgende-besked / misbrugsværn. Receptionist-motoren
  * får aldrig denne kapabilitet (den får kun backgroundCapability: læse-porte + reception_ingest).
  */
 import { createHash, randomBytes } from 'crypto'
@@ -15,7 +16,7 @@ export const WEBCHAT_TOPICS = ['general', 'service', 'quote', 'existing_case', '
 export type WebChatTopic = (typeof WEBCHAT_TOPICS)[number]
 
 export interface VisitorInfo { name?: string | null; phone?: string | null; email?: string | null; postalCode?: string | null; address?: string | null }
-export interface WebChatSession { id: string; visitor_name: string | null; visitor_phone: string | null; visitor_email: string | null; visitor_postal_code: string | null; visitor_address: string | null; topic: string; message_count: number; closed_at: string | null }
+export interface WebChatSession { id: string; visitor_name: string | null; visitor_phone: string | null; visitor_email: string | null; visitor_postal_code: string | null; visitor_address: string | null; topic: string; message_count: number; closed_at: string | null; created_at: string }
 export interface WebChatMessage { id: string; session_id: string; direction: 'inbound' | 'outbound'; author: 'visitor' | 'assistant'; body: string; created_at: string }
 
 export const hashChatToken = (token: string) => createHash('sha256').update(token, 'utf8').digest('hex')
@@ -38,7 +39,7 @@ export function cleanVisitor(v: VisitorInfo | null | undefined): Record<string, 
   }
 }
 
-const SESSION_COLS = 'id, visitor_name, visitor_phone, visitor_email, visitor_postal_code, visitor_address, topic, message_count, closed_at'
+const SESSION_COLS = 'id, visitor_name, visitor_phone, visitor_email, visitor_postal_code, visitor_address, topic, message_count, closed_at, created_at'
 
 export interface WebChatStore {
   createSession(visitor: VisitorInfo, topic: WebChatTopic): Promise<{ ok: true; session: WebChatSession; token: string } | { ok: false; error: string }>
@@ -46,6 +47,10 @@ export interface WebChatStore {
   updateVisitor(sessionId: string, visitor: VisitorInfo): Promise<boolean>
   /** Idempotent på clientMessageId (samme klient-besked → samme række, duplicate=true) */
   addMessage(sessionId: string, m: { direction: 'inbound' | 'outbound'; body: string; clientMessageId?: string | null }): Promise<{ ok: true; message: WebChatMessage; duplicate: boolean } | { ok: false; error: string }>
+  /** Seneste besked fra den besøgende i sessionen (gentagelses-værn) */
+  lastInbound(sessionId: string): Promise<{ ok: true; message: WebChatMessage | null } | { ok: false; error: string }>
+  /** Misbrugsværn (00250 web_chat_rate_check). Fejl ⇒ { ok: false } ⇒ kalderen afviser (fail closed). */
+  rateCheck(key: string, scope: 'start' | 'message', limits: { burst: number; hour: number; globalHour: number }): Promise<{ ok: true; allowed: boolean } | { ok: false }>
 }
 
 export function webChatStore(admin: Db): WebChatStore {
@@ -83,6 +88,19 @@ export function webChatStore(admin: Db): WebChatStore {
       const n = Number((cur.data as { message_count?: number } | null)?.message_count ?? 0)
       await admin.from('web_chat_sessions').update({ message_count: Math.min(200, n + 1), last_at: new Date().toISOString() }).eq('id', sessionId)
       return { ok: true, message: ins.data as WebChatMessage, duplicate: false }
+    },
+    async lastInbound(sessionId) {
+      const { data, error } = await admin.from('web_chat_messages').select('id, session_id, direction, author, body, created_at').eq('session_id', sessionId).eq('direction', 'inbound')
+        .order('created_at', { ascending: false }).limit(1).maybeSingle()
+      if (error) return { ok: false, error: 'read_error' }
+      return { ok: true, message: (data as WebChatMessage | null) ?? null }
+    },
+    async rateCheck(key, scope, limits) {
+      try {
+        const { data, error } = await admin.rpc('web_chat_rate_check', { p_key: key, p_scope: scope, p_burst: limits.burst, p_hour: limits.hour, p_global_hour: limits.globalHour })
+        if (error || !data || typeof (data as { allowed?: unknown }).allowed !== 'boolean') return { ok: false }
+        return { ok: true, allowed: (data as { allowed: boolean }).allowed }
+      } catch { return { ok: false } }
     },
   }
 }

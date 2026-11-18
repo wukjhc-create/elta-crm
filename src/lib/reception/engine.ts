@@ -88,7 +88,9 @@ export const INTENT_LABEL: Record<Intent, string> = {
   emergency_safety: 'NØD/sikkerhed', other: 'Andet',
 }
 
-const IDENTITY_REASONS = new Set<HandoffReason>(['ambiguous_identity', 'identity_read_error'])
+// Final review §3 (intet kunde-orakel): også en FEJLET bekræftelse styrer kun det interne handoff — ellers kunne en
+// besøgende se forskel på "telefonnummeret tilhører en kunde (forkert postnummer)" og "ukendt nummer"
+const IDENTITY_REASONS = new Set<HandoffReason>(['ambiguous_identity', 'identity_read_error', 'verification_failed'])
 
 export const HANDOFF_NEXT: Record<HandoffReason, string> = {
   safety_emergency: 'Ring kunden op NU — vurder fare og evt. vagt',

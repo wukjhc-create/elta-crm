@@ -3,7 +3,7 @@ import { getPageRoleContext } from '@/lib/auth/page-guard'
 import { NoAccess } from '@/components/auth/no-access'
 import { listHenvendelser } from '@/lib/actions/henvendelser'
 import { parseHenvendelseQuery } from '@/lib/reception/henvendelser-views'
-import { uploadLinksEnabled } from '@/lib/reception/flags'
+import { backfillEnabled, uploadLinksEnabled } from '@/lib/reception/flags'
 import { HenvendelserClient } from './henvendelser-client'
 
 export const metadata: Metadata = { title: 'Henvendelser' }
@@ -29,6 +29,7 @@ export default async function HenvendelserPage({ searchParams }: { searchParams:
       canManage={res.success ? res.data.canManage : false}
       canSimulate={perms.has('conversations.manage') && perms.has('conversations.view_unmatched')}
       uploadLinks={uploadLinksEnabled()}
+      backfill={backfillEnabled()}
     />
   )
 }
