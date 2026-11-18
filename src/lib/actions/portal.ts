@@ -48,7 +48,8 @@ import {
   type OfferRejectionInput,
 } from '@/types/offers.types'
 import { escapeHtml, escapeHtmlWithLineBreaks } from '@/lib/utils/html-escape'
-import { isBookedCustomerBesigtigelse, isPortalBesigtigelseRequest } from '@/lib/tasks/besigtigelse-task'
+import { isPortalVisibleBesigtigelse, isPortalConfirmableBesigtigelse } from '@/lib/tasks/besigtigelse-task'
+import { PORTAL_OFFER_COLUMNS, PORTAL_LINE_ITEM_COLUMNS, PORTAL_TASK_COLUMNS, toPortalTask } from '@/lib/portal/projections'
 import { isFuldmagtDocument } from '@/lib/documents/is-fuldmagt'
 
 // =====================================================
@@ -259,10 +260,9 @@ export async function validatePortalToken(
 }
 
 // Get offers for customer (portal view)
-/** Kunde-sikre tilbudslinjefelter (= PortalOfferLineItem). ALDRIG select('*') mod kunden: linjerne har
- *  kostpris, leverandørkost, margin og interne noter, som ellers sendes med til kundens browser. */
-// O-4 (review 2026-10-16): + line_type — sektionsoverskrifter blev vist som produktlinjer med 0 stk/0 kr
-const PORTAL_LINE_ITEM_COLUMNS = 'id, offer_id, position, line_type, description, quantity, unit, unit_price, discount_percentage, total'
+// Kunde-sikre kolonnelister: lib/portal/projections (PORTAL_OFFER_COLUMNS / PORTAL_LINE_ITEM_COLUMNS). ALDRIG select('*')
+// mod kunden: linjerne har kostpris, leverandørkost, margin og interne noter; tilbuddet har interne noter, kilde-mail og
+// afvisnings-IP. Portal-sikkerhedsreview 2026-11-18: også tilbudsrækken vælges eksplicit (før '*' i serverens hukommelse).
 
 export async function getPortalOffers(
   token: string
@@ -284,15 +284,17 @@ export async function getPortalOffers(
 
     let offersQuery = supabase
       .from('offers')
-      .select('*')
+      .select(PORTAL_OFFER_COLUMNS)
       .eq('customer_id', customerId)
       .in('status', ['sent', 'viewed', 'accepted', 'rejected'])
     // 00203 (staging): kun den gældende revision vises — afløste revisioner skjules
     const { offerRevisionsEnabled } = await import('@/lib/offers/revisions')
     if (offerRevisionsEnabled()) offersQuery = offersQuery.is('superseded_by', null)
-    const { data: offers, error } = await offersQuery
+    const { data: offerRows, error } = await offersQuery
       .order('created_at', { ascending: false })
       .limit(100)
+    // kolonnelisten er en konstant → ingen statisk typeudledning
+    const offers = offerRows as unknown as Array<Record<string, any>> | null
 
     if (error) {
       logger.error('Error fetching portal offers', { error: error })
@@ -393,15 +395,17 @@ export async function getPortalOffer(
     const admin = createAdminClient()
     const customerId = sessionResult.data.customer_id
 
-    const { data: offer, error } = await admin
+    const { data: offerRow, error } = await admin
       .from('offers')
-      .select('*')
+      .select(PORTAL_OFFER_COLUMNS)
       .eq('id', offerId)
       .eq('customer_id', customerId)
       // Q10: som tilbudslisten — kladder (ikke sendt) kunne ellers åbnes via UUID
       .in('status', ['sent', 'viewed', 'accepted', 'rejected'])
       .maybeSingle()
 
+    // kolonnelisten er en konstant → ingen statisk typeudledning
+    const offer = offerRow as unknown as Record<string, any> | null
     // 00203 (staging): en afløst revision vises ikke — kunden henvises til den gældende version
     if (offer) {
       const { supersededBy } = await import('@/lib/offers/revisions')
@@ -2026,15 +2030,9 @@ export async function getPortalDocuments(
 // Portal Besigtigelse Booking
 // =====================================================
 
-export interface PortalBesigtigelse {
-  id: string
-  customer_id: string
-  title: string
-  description: string | null
-  due_date: string
-  status: string
-  created_at: string
-}
+// Portal-sikkerhedsreview 2026-11-18: præcis de felter portalen viser (lib/portal/projections toPortalTask) — ingen
+// customer_id/auto_rule/kundesynlighedsflag til klienten
+export type PortalBesigtigelse = import('@/lib/portal/projections').PortalTaskView
 
 /**
  * Book a besigtigelse from the customer portal (no auth required — uses token).
@@ -2118,6 +2116,8 @@ export async function portalBookBesigtigelse(
         due_date: (await import('@/lib/utils/copenhagen-time')).copenhagenLocalToIso(date, (await import('@/lib/utils/ics')).extractStartTimeFromSlot(timeSlot)),
         // N31: created_by refererer auth.users — kunden er ikke en bruger (før: customer_id → FK-fejl, booking fejlede altid)
         created_by: null,
+        // 00252: kundens egen anmodning er kundevendt (service_role; værnet afviser kun authenticated)
+        customer_visible: true,
       })
       .select('id')
       .single()
@@ -2226,8 +2226,9 @@ export async function portalBookBesigtigelse(
  * auto_rule) kan bekræftes/ombookes — før matchede alt med "besigtigelse" i titel/beskrivelse, også den interne
  * opstartsopgave "Planlæg besigtigelse eller montage" (lib/tasks/besigtigelse-task.ts).
  */
-function isBesigtigelseTask(t: { title?: string | null; auto_rule?: string | null }): boolean {
-  return isBookedCustomerBesigtigelse(t)
+function isBesigtigelseTask(t: { title?: string | null; auto_rule?: string | null; customer_visible?: boolean | null }): boolean {
+  // 00252: kun en eksplicit kundevendt (customer_visible) booket besigtigelse — aldrig udledt af titlen alene
+  return isPortalConfirmableBesigtigelse(t)
 }
 
 export async function getPortalBesigtigelser(
@@ -2248,8 +2249,10 @@ export async function getPortalBesigtigelser(
     // Query ALL tasks for this customer (no status filter — confirmed tasks should still show)
     const { data: allTasks, error: taskErr } = await supabase
       .from('customer_tasks')
-      .select('id, customer_id, title, description, due_date, status, created_at, auto_rule')
+      .select(PORTAL_TASK_COLUMNS)
       .eq('customer_id', customerId)
+      // 00252 (portal-sikkerhedsreview 2026-11-18): kun opgaver serveren eksplicit har gjort kundevendte
+      .eq('customer_visible', true)
       // Planlægnings-review 2026-10-09 (#8): filtrér til besigtigelser FØR grænsen — kunder med mange opgaver
       // (auto-oprettede mailkunder) så ellers ikke deres nyeste booking. Endelig klassifikation sker nedenfor.
       .ilike('title', '%esigtigelse%')
@@ -2261,22 +2264,19 @@ export async function getPortalBesigtigelser(
       return { success: false, error: 'Kunne ikke hente besigtigelser' }
     }
 
-    const tasks = allTasks || []
-    // Debug: log task count for portal
+    const tasks = (allTasks || []) as unknown as Array<import('@/lib/portal/projections').PortalTaskRow>
 
-    // Prioritize tasks with "besigtigelse" in title/description
-    // X4: bookede besigtigelser + kundens egne portal-anmodninger — aldrig interne opgaver med ordet i titlen
-    const besigTasks = tasks.filter((t) => isBookedCustomerBesigtigelse(t) || isPortalBesigtigelseRequest(t))
+    // X4: bookede besigtigelser + kundens egne portal-anmodninger — aldrig interne opgaver med ordet i titlen.
+    // 00252: og KUN når customer_visible er sat (dobbelt: filteret ovenfor + klassifikationen her)
+    const besigTasks = tasks.filter((t) => isPortalVisibleBesigtigelse(t))
 
     // D40 (S2): før faldt funktionen tilbage til ALLE kundens opgaver (interne titler/beskrivelser i kundeportalen —
     // prod 2026-10-03: 1 portalkunde, 2 interne opgaver). Nu kun besigtigelsesopgaver, og til klienten kun det
     // portalen viser: dato, status og tidspunkt-linjen (ingen interne titler/beskrivelser i payloaden).
     return {
       success: true,
-      data: besigTasks.map((t) => {
-        const time = t.description?.match(/Tidspunkt:\s*(.+)/i)?.[1] ?? t.description?.match(/kl\.\s*(\S+)/)?.[1] ?? null
-        return { ...t, title: 'Besigtigelse', description: time ? `Tidspunkt: ${time.trim()}` : null } as PortalBesigtigelse
-      }),
+      // eksplicit projektion (toPortalTask) — ingen spredning af rækken (auto_rule/customer_id/flag når ikke klienten)
+      data: besigTasks.map((t) => toPortalTask(t)),
     }
   } catch (error) {
     logger.error('Error in getPortalBesigtigelser', { error })
@@ -2308,13 +2308,13 @@ export async function portalConfirmBesigtigelse(
     // Verify task belongs to this customer and fetch full details
     const { data: task, error: fetchErr } = await supabase
       .from('customer_tasks')
-      .select('id, customer_id, status, title, description, due_date, auto_rule')
+      .select('id, customer_id, status, title, description, due_date, auto_rule, customer_visible')
       .eq('id', taskId)
       .eq('customer_id', session.customer_id)
       .single()
 
     // D40: kun besigtigelsesopgaver kan bekræftes fra portalen (ikke vilkårlige interne opgaver)
-    if (fetchErr || !task || !isBesigtigelseTask(task as { title?: string | null; auto_rule?: string | null })) {
+    if (fetchErr || !task || !isBesigtigelseTask(task as { title?: string | null; auto_rule?: string | null; customer_visible?: boolean | null })) {
       return { success: false, error: 'Besigtigelse ikke fundet' }
     }
     // X4: allerede bekræftet/afsluttet → ingen ny statusændring, alarm eller mail (før genåbnet + mail ved hvert klik)
@@ -2483,12 +2483,14 @@ export async function portalRequestReschedule(
     // Verify task belongs to this customer
     const { data: task, error: fetchErr } = await supabase
       .from('customer_tasks')
-      .select('id, customer_id, due_date, title, description, assigned_to, status')
+      // 00252: + auto_rule/customer_visible — før manglede auto_rule, så en assistent-aftale med titlen "Besigtigelse hos …"
+      // kunne ombookes fra portalen
+      .select('id, customer_id, due_date, title, description, assigned_to, status, auto_rule, customer_visible')
       .eq('id', taskId)
       .eq('customer_id', session.customer_id)
       .single()
 
-    if (fetchErr || !task || !isBesigtigelseTask(task as { title?: string | null; auto_rule?: string | null })) {
+    if (fetchErr || !task || !isBesigtigelseTask(task as { title?: string | null; auto_rule?: string | null; customer_visible?: boolean | null })) {
       return { success: false, error: 'Besigtigelse ikke fundet' }
     }
     // PT-13: en udført/annulleret besigtigelse kan ikke flyttes

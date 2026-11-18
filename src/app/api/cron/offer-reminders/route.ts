@@ -323,10 +323,12 @@ async function handleCron(request: Request): Promise<Response> {
     // ─── 3. BESIGTIGELSE CONFIRMATION REMINDERS ───
     if (!followUpPaused) try {
       // O-9: side for side (sorteret) — som fuldmagterne
-      type BesigtigelseRow = { id: string; customer_id: string; title: string; description: string | null; created_at: string; due_date: string | null; status: string; auto_rule: string | null; customer: unknown }
+      type BesigtigelseRow = { id: string; customer_id: string; title: string; description: string | null; created_at: string; due_date: string | null; status: string; auto_rule: string | null; customer_visible: boolean | null; customer: unknown }
       const pendingTasks = await fetchAllRows<BesigtigelseRow>((from, to) => supabase
         .from('customer_tasks')
-        .select('id, customer_id, title, description, created_at, due_date, status, auto_rule, customer:customers(company_name, contact_person, email, is_active)')
+        .select('id, customer_id, title, description, created_at, due_date, status, auto_rule, customer_visible, customer:customers(company_name, contact_person, email, is_active)')
+        // 00252 (portal-sikkerhedsreview): kun kundevendte opgaver kan give en kundemail
+        .eq('customer_visible', true)
         .ilike('title', '%esigtigelse%')
         .eq('status', 'pending')
         .lt('created_at', cutoffDate.toISOString())

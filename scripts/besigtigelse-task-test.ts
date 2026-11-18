@@ -14,11 +14,13 @@ ok(!isBookedCustomerBesigtigelse({ title: 'PORTAL: Besigtigelse anmodet — Hans
 ok(!isBookedCustomerBesigtigelse({ title: 'Besigtigelse: Hansen', auto_rule: 'assistant_appointment' }), 'assistent-aftale (ingen kundemail) er ikke kundevendt')
 ok(!isBookedCustomerBesigtigelse({ title: 'Besigtigelse hos Hansen', auto_rule: 'x' }), 'auto-opgave med samme titel udelukkes')
 ok(isPortalBesigtigelseRequest({ title: 'PORTAL: Besigtigelse anmodet — Hansen' }), 'portal-anmodning genkendes')
-ok(shouldRemindBesigtigelse({ title: 'Besigtigelse hos Hansen', auto_rule: null, status: 'pending', due_date: '2026-10-10' }, NOW), 'fremtidig booket, ubekræftet → rykkes')
-ok(!shouldRemindBesigtigelse({ title: 'Besigtigelse hos Hansen', auto_rule: null, status: 'pending', due_date: '2026-10-01' }, NOW), 'tid passeret → ingen rykker')
-ok(!shouldRemindBesigtigelse({ title: 'Besigtigelse hos Hansen', auto_rule: null, status: 'in_progress', due_date: '2026-10-10' }, NOW), 'allerede bekræftet → ingen rykker')
+ok(shouldRemindBesigtigelse({ title: 'Besigtigelse hos Hansen', auto_rule: null, status: 'pending', due_date: '2026-10-10', customer_visible: true }, NOW), 'fremtidig booket, kundevendt, ubekræftet → rykkes')
+ok(!shouldRemindBesigtigelse({ title: 'Besigtigelse hos Hansen', auto_rule: null, status: 'pending', due_date: '2026-10-10' }, NOW), '00252: booket-titel uden customer_visible (intern) → ingen rykker')
+ok(!shouldRemindBesigtigelse({ title: 'Besigtigelse hos Hansen', auto_rule: null, status: 'pending', due_date: '2026-10-10', customer_visible: false }, NOW), '00252: customer_visible=false → ingen rykker')
+ok(!shouldRemindBesigtigelse({ title: 'Besigtigelse hos Hansen', auto_rule: null, status: 'pending', due_date: '2026-10-01', customer_visible: true }, NOW), 'tid passeret → ingen rykker')
+ok(!shouldRemindBesigtigelse({ title: 'Besigtigelse hos Hansen', auto_rule: null, status: 'in_progress', due_date: '2026-10-10', customer_visible: true }, NOW), 'allerede bekræftet → ingen rykker')
 ok(!shouldRemindBesigtigelse({ title: 'Planlæg besigtigelse eller montage', auto_rule: 'offer_conversion_startup', status: 'pending', due_date: null }, NOW), 'intern opgave → aldrig rykker')
-ok(!shouldRemindBesigtigelse({ title: 'Besigtigelse hos Hansen', auto_rule: null, status: 'pending', due_date: null }, NOW), 'uden dato → ingen rykker')
+ok(!shouldRemindBesigtigelse({ title: 'Besigtigelse hos Hansen', auto_rule: null, status: 'pending', due_date: null, customer_visible: true }, NOW), 'uden dato → ingen rykker')
 
 console.log(bad ? `\n❌ ${bad} fejl` : '\n✅ alle besigtigelses-opgave-tests bestået')
 process.exitCode = bad ? 1 : 0

@@ -189,6 +189,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   montor: ['U265', 'U255', 'U233', 'U232', 'U231', 'U226', 'U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U266', 'U264', 'U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   reception: ['U267', 'U268'],
+  'portal-security': ['U269', 'U10', 'U180', 'U256'], // portal-sikkerhedsreview 2026-11-18 (00252 på staging)
   'pilot-sim': ['U240', 'U241', 'U242', 'U243', 'U244', 'U245', 'U246', 'U247', 'U248', 'U249', 'U250', 'U251', 'U252', 'U253', 'U254'],
   'portal-mail': ['U215', 'U211', 'U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
 }
@@ -6533,6 +6534,64 @@ ${m.text()}`) })
         }
         const ok = Object.values(r).every(Boolean)
         out.push({ id: 'U267 AI-receptionist fase 2: Henvendelser, simulator, kandidat→bekræft, auto-opgave, upload-link, tidslinje, roller, intet sendt', ok, note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + ` |${diag}` })
+      }
+
+      // U269 PORTAL-SIKKERHED (portal-sikkerhedsreview 2026-11-18, 00252 på staging): ALT hvad kundens browser modtager
+      // (HTML, RSC-payload og server-action-svar, inkl. besigtigelseslisten der hentes efter render) for oversigten og
+      // tilbudssiden — ingen kostpris/margin/interne noter (sentinel-værdier), ingen intern opgave (heller ikke én med
+      // titlen "Besigtigelse hos …" uden kundesynlighed), men kundens salgspris og den kundevendte besigtigelse er der.
+      if (want('U269')) {
+        const r: Record<string, boolean> = {}
+        const tok = randomBytes(32).toString('hex')
+        const SENT_COST = '9876.54'
+        const SENT_NOTE = `U269-INTERN-${stamp}`
+        const created: { offer?: string; tok?: string; tasks: string[] } = { tasks: [] }
+        const kctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } })
+        try {
+          const off = profitCustomerId ? await c.admin.from('offers').insert([{ offer_number: `UI-E2E-PSEC-${stamp}`, title: '[HARNESS] portal-sikkerhed',
+            created_by: adminUser.id, customer_id: profitCustomerId, status: 'viewed', sent_at: new Date().toISOString(), viewed_at: new Date().toISOString(),
+            total_amount: 1000, tax_percentage: 25, tax_amount: 250, final_amount: 1250, notes: SENT_NOTE,
+            valid_until: new Date(Date.now() + 14 * 86400_000).toISOString().slice(0, 10) }]).select('id') : null
+          created.offer = (off?.data?.[0] as { id?: string } | undefined)?.id
+          if (created.offer) {
+            await c.admin.from('offer_line_items').insert([{ offer_id: created.offer, position: 1, line_type: 'manual', description: `Ladestander U269 ${stamp}`, quantity: 2, unit: 'stk',
+              unit_price: 500, discount_percentage: 0, total: 1000, cost_price: Number(SENT_COST), supplier_cost_price_at_creation: Number(SENT_COST), margin_percentage: 37, notes: SENT_NOTE }])
+          }
+          const due = new Date(Date.now() + 6 * 86400_000).toISOString()
+          const mk = async (title: string, vis: boolean) => {
+            const t = await c.admin.from('customer_tasks').insert({ customer_id: profitCustomerId, title, description: `Besigtigelse planlagt d. 1. januar kl. 11:00\n${SENT_NOTE}`, status: 'pending', priority: 'normal', due_date: due, customer_visible: vis }).select('id').single()
+            const id = (t.data as { id?: string } | null)?.id; if (id) created.tasks.push(id); return id ?? ''
+          }
+          const tVis = await mk(`Besigtigelse hos U269 ${stamp}`, true)
+          const tInt = await mk(`Besigtigelse hos U269 ${stamp} (intern)`, false)
+          const pt = await c.admin.from('portal_access_tokens').insert([{ customer_id: profitCustomerId, token: tok, email: `ui-psec-${stamp}@harness.test`,
+            created_by: adminUser.id, is_active: true, expires_at: new Date(Date.now() + 30 * 86400_000).toISOString() }]).select('id')
+          created.tok = (pt?.data?.[0] as { id?: string } | undefined)?.id
+          r.seed = !!created.offer && !!tVis && !!tInt && !!created.tok
+          const kp = await kctx.newPage()
+          const bodies: string[] = []
+          kp.on('response', async (res) => { try { if (res.url().startsWith(base)) bodies.push(await res.text()) } catch { /* binære/afbrudte svar */ } })
+          await gotoSafe(kp, `${base}/portal/${tok}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          await kp.waitForTimeout(3000) // besigtigelseslisten hentes via server action efter render
+          await gotoSafe(kp, `${base}/portal/${tok}/offers/${created.offer}`, { waitUntil: 'networkidle', timeout: 180_000 })
+          const offerText = await kp.locator('body').innerText().catch(() => '')
+          const all = bodies.join('\n')
+          r.svar_opsamlet = bodies.length >= 3
+          r.ingen_kostpris = !all.includes(SENT_COST) && !all.includes('9.876,54') && !all.includes('9876,54')
+          r.ingen_interne_noter = !all.includes(SENT_NOTE)
+          r.ingen_kostfelter = !/"(cost_price|supplier_cost_price_at_creation|margin_percentage|supplier_margin_applied)"/.test(all)
+          r.ingen_intern_opgave = !!tInt && !all.includes(tInt)
+          r.kundevendt_besigtigelse_sendt = !!tVis && all.includes(tVis)
+          r.salgspris_vist = /500,00/.test(offerText) && /1\.250,00/.test(offerText) && offerText.includes(`Ladestander U269 ${stamp}`)
+          const foreign = await kctx.request.get(`${base}/api/portal/offers/pdf?token=${tok}&offerId=00000000-0000-0000-0000-000000000000`)
+          r.fremmed_pdf_404 = foreign.status() === 404
+        } finally {
+          await kctx.close().catch(() => {})
+          if (created.tasks.length) await c.admin.from('customer_tasks').delete().in('id', created.tasks)
+          if (created.offer) { await c.admin.from('offer_activities').delete().eq('offer_id', created.offer); await c.admin.from('offer_line_items').delete().eq('offer_id', created.offer); await c.admin.from('offers').delete().eq('id', created.offer) }
+          if (created.tok) await c.admin.from('portal_access_tokens').delete().eq('id', created.tok)
+        }
+        out.push({ id: 'U269 portal-sikkerhed: browseren modtager ingen kost/margin/interne noter/interne opgaver; salgspris + kundevendt besigtigelse vises', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
       // U268 KOMMUNIKATIONS-HUB FASE 3A (00250 på staging): mail + portal ind via den RIGTIGE kanal-adapter (flag kun i kaldet),

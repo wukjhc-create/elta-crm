@@ -9,7 +9,7 @@ import type { OfferWithRelations } from '@/types/offers.types'
 import type { CompanySettings } from '@/types/company-settings.types'
 import type { ReactElement, JSXElementConstructor } from 'react'
 import { logger } from '@/lib/utils/logger'
-import { OFFER_LINE_PUBLIC_COLUMNS } from '@/lib/offers/line-columns'
+import { PORTAL_PDF_LINE_COLUMNS, PORTAL_OFFER_COLUMNS } from '@/lib/portal/projections'
 import { COMPANY_SETTINGS_PUBLIC_COLUMNS } from '@/lib/settings/company-columns'
 
 /**
@@ -43,9 +43,11 @@ export async function GET(request: NextRequest) {
     // garanterer at en gaettet offer-UUID fra anden kunde ikke kan leakes.
     const { data: offerRaw, error: offerError } = await supabase
       .from('offers')
+      // Portal-sikkerhedsreview 2026-11-18: eksplicitte portal-kolonner (før '*' + linjer med interne noter/leverandørfelter
+      // i serverens hukommelse; skabelonen tegnede dem ikke, men de hører ikke til en kunde-forespørgsel)
       .select(`
-        *,
-        line_items:offer_line_items(${OFFER_LINE_PUBLIC_COLUMNS}),
+        ${PORTAL_OFFER_COLUMNS}, scope,
+        line_items:offer_line_items(${PORTAL_PDF_LINE_COLUMNS}),
         customer:customers!offers_customer_id_fkey(id, customer_number, company_name, contact_person, email, phone, billing_address, billing_city, billing_postal_code, billing_country)
       `)
       .eq('id', offerId)

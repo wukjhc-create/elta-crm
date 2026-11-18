@@ -3064,6 +3064,63 @@ Total inkl. moms 11.718,75
     log(JSON.stringify((await stagingSql(`BEGIN READ ONLY; ${BACKFILL_ANALYZER_SQL}; `))[0]?.r ?? null))
     return
   }
+  if (SUB === 'portal-security-staging') {
+    // Portal-sikkerhed med den RIGTIGE portalkode mod staging (kræver 00252 på staging). Syntetiske ps252-*-data slettes igen.
+    const P = await import('./portal-00252-probe')
+    if (!(await stagingSql(P.STATE_00252_SQL))[0].f.applied_252) { log('00252 er ikke anvendt på staging'); process.exitCode = 2; return }
+    const { runPortalSecurityStaging } = await import('./portal-security-staging')
+    process.exitCode = await runPortalSecurityStaging(admin, runtime, log)
+    return
+  }
+  if (SUB === 'portal-00252-state' ||SUB === 'portal-00252-probe' || SUB === 'portal-00252-rollback-proof' || SUB === 'portal-00252-apply-staging') {
+    // 00252 customer_tasks.customer_visible (portal-sikkerhedsreview 2026-11-18). probe/rollback-proof er ROLLBACK-ONLY
+    // (én forespørgsel → RAISE EXCEPTION); apply-staging er permanent på STAGING og kræver --confirm + grøn prøve først.
+    const P = await import('./portal-00252-probe')
+    const st0 = (await stagingSql(P.STATE_00252_SQL))[0].f
+    if (SUB === 'portal-00252-state') { log(JSON.stringify({ applied_252: st0.applied_252, tasks: st0.tasks, md5_struct: st0.md5_struct })); return }
+    if (SUB === 'portal-00252-apply-staging') {
+      if (!process.argv.includes('--confirm')) { log('kræver --confirm'); process.exitCode = 2; return }
+      if (st0.applied_252) { log('00252 er allerede anvendt på staging'); return }
+      await stagingSql(readFileSync(resolve(process.cwd(), 'supabase/migrations/00252_customer_tasks_customer_visible.sql'), 'utf8'))
+      const st1 = (await stagingSql(P.STATE_00252_SQL))[0].f
+      log(`00252 anvendt på staging: ${JSON.stringify({ applied_252: st1.applied_252, tasks: st1.tasks })}`)
+      process.exitCode = st1.applied_252 ? 0 : 2
+      return
+    }
+    if (st0.applied_252) { log('kræver at 00252 IKKE er anvendt (prøven kører migrationskroppen selv)'); process.exitCode = 2; return }
+    const sql = SUB === 'portal-00252-probe' ? P.probe00252Sql() : P.rollbackProof00252Sql()
+    const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+      method: 'POST', headers: { Authorization: `Bearer ${boot.accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: sql }),
+    })
+    const text = await r.text()
+    const tag = SUB === 'portal-00252-probe' ? 'P252RESULT:' : 'P252ROLLBACK:'
+    let msg = text
+    try { const j = JSON.parse(text) as { message?: string }; if (typeof j.message === 'string') msg = j.message } catch { /* rå tekst */ }
+    const i = msg.indexOf(tag)
+    if (i < 0) { log(`uventet svar (${r.status}): ${msg.slice(0, 600)}`); process.exitCode = 2; return }
+    const rest = msg.slice(i + tag.length)
+    let depth = 0, end = -1
+    for (let k = 0; k < rest.length; k++) { if (rest[k] === '{') depth++; else if (rest[k] === '}') { depth--; if (depth === 0) { end = k; break } } }
+    const json = JSON.parse(rest.slice(0, end + 1))
+    const st1 = (await stagingSql(P.STATE_00252_SQL))[0].f
+    const untouched = JSON.stringify(st0) === JSON.stringify(st1)
+    if (SUB === 'portal-00252-probe') {
+      const checks = [...P.evaluateProbe252(json), { id: 'staging uændret efter prøven (tilstand før = efter)', ok: untouched, note: '' }]
+      for (const c of checks) log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.id}${!c.ok && c.note ? ` (${c.note})` : ''}`)
+      const failed = checks.filter((c) => !c.ok).length
+      log(failed ? `❌ ${failed} af ${checks.length}` : `✅ ${checks.length} tjek — rullet tilbage`)
+      process.exitCode = failed ? 2 : 0
+    } else {
+      const structSame = json.md5_struct === st0.md5_struct
+      const diff = Object.keys(st0.parts ?? {}).filter((k) => JSON.stringify(st0.parts[k]) !== JSON.stringify(json.parts?.[k]))
+      const ok = json.col_left === 0 && json.fn_left === 0 && json.trg_left === 0 && json.tasks === st0.tasks && structSame && untouched
+      log(`rollback efter krop: ${JSON.stringify({ col_left: json.col_left, fn_left: json.fn_left, trg_left: json.trg_left, tasks: `${json.tasks}/${st0.tasks}` })} · struktur = før: ${structSame} · afvigende dele: ${diff.join(',') || 'ingen'} · staging uændret: ${untouched}`)
+      log(ok ? '✅ 00252-rollback genskaber præcis før-tilstanden' : '❌ 00252-rollback efterlader noget')
+      process.exitCode = ok ? 0 : 2
+    }
+    return
+  }
   if (SUB === 'reception-00250-state') {
     const P = await import('./reception-00250-probe')
     log(JSON.stringify((await stagingSql(P.STATE_00250_SQL))[0].f))

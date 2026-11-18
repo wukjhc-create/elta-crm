@@ -1080,6 +1080,14 @@ export async function bookBesigtigelse(
         ? `${baseDescription}\n⚠ Bekræftelses-email til ${route.toEmail}: ukendt udfald (timeout) — tjek Sendt post, book ikke igen`
         : `${baseDescription}\nBekræftelses-email sendt til ${route.toEmail}`,
     }).eq('id', taskId)
+    // 00252 (portal-sikkerhedsreview 2026-11-18): kunden har nu fået bookingen (mail + kalenderinvitation) → opgaven er
+    // kundevendt og vises i portalen. Sættes med service_role bag denne actions gate (customers.edit + kunde-scope);
+    // databasen afviser at en indlogget bruger sætter flaget direkte (customer_tasks_visibility_guard).
+    {
+      const { error: visErr } = await createAdminClient().from('customer_tasks')
+        .update({ customer_visible: true }).eq('id', taskId).eq('customer_id', customerId)
+      if (visErr) logger.error('bookBesigtigelse: kunne ikke markere opgaven kundevendt', { error: visErr, entityId: customerId })
+    }
 
     revalidatePath('/dashboard/customers')
     revalidatePath('/dashboard/tasks')

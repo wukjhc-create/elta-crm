@@ -9,7 +9,7 @@
  *  - Booket besigtigelse (bookBesigtigelse — kunden har fået tid + ICS): titel "Besigtigelse hos …", ingen auto_rule.
  *  - Kundens egen portal-anmodning: titel "PORTAL: Besigtigelse …" (Elta skal handle — kunden skal ikke bekræfte/rykkes).
  */
-export type BesigtigelseTaskLike = { title?: string | null; auto_rule?: string | null; due_date?: string | null; status?: string | null }
+export type BesigtigelseTaskLike = { title?: string | null; auto_rule?: string | null; due_date?: string | null; status?: string | null; customer_visible?: boolean | null }
 
 /** Booket, kundevendt besigtigelse (må vises, bekræftes, ombookes og rykkes for bekræftelse) */
 export function isBookedCustomerBesigtigelse(t: BesigtigelseTaskLike): boolean {
@@ -19,6 +19,20 @@ export function isBookedCustomerBesigtigelse(t: BesigtigelseTaskLike): boolean {
 /** Kundens egen anmodning fra portalen (må vises i portalen, men ikke bekræftes/rykkes) */
 export function isPortalBesigtigelseRequest(t: BesigtigelseTaskLike): boolean {
   return /^portal:\s*besigtigelse/i.test((t.title ?? '').trim())
+}
+
+/**
+ * Portal-sikkerhedsreview 2026-11-18 (00252): synlighed udledes ALDRIG af titlen alene. En opgave er kun kundevendt,
+ * når serveren eksplicit har sat customer_visible (efter afsendt booking-bekræftelse eller ved kundens egen
+ * portal-anmodning) OG den er en besigtigelse. Manglende/false flag = intern.
+ */
+export function isPortalVisibleBesigtigelse(t: BesigtigelseTaskLike): boolean {
+  return t.customer_visible === true && (isBookedCustomerBesigtigelse(t) || isPortalBesigtigelseRequest(t))
+}
+
+/** Må kunden bekræfte/ombooke opgaven i portalen? Kun en kundevendt, booket besigtigelse (ikke egen anmodning). */
+export function isPortalConfirmableBesigtigelse(t: BesigtigelseTaskLike): boolean {
+  return t.customer_visible === true && isBookedCustomerBesigtigelse(t)
 }
 
 /**
@@ -37,6 +51,7 @@ export function rescheduledBesigtigelseDescription(description: string | null | 
 
 /** Må kunden rykkes for at bekræfte tiden? Kun bookede, åbne besigtigelser hvis tid endnu ikke er passeret. */
 export function shouldRemindBesigtigelse(t: BesigtigelseTaskLike, now: Date = new Date()): boolean {
-  if (!isBookedCustomerBesigtigelse(t) || t.status !== 'pending' || !t.due_date) return false
+  // 00252: kunden rykkes kun om en besigtigelse hun kan se og bekræfte i portalen
+  if (!isPortalConfirmableBesigtigelse(t) || t.status !== 'pending' || !t.due_date) return false
   return new Date(t.due_date).getTime() > now.getTime()
 }
