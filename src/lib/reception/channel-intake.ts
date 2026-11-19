@@ -86,6 +86,44 @@ export async function ingestEmailSource(emailId: string, deps: Deps = {}): Promi
   }
 }
 
+/**
+ * Stage A-preflight 2026-11-19 (S2): et mislykket indtag (DB-timeout, afbrudt kørsel, fejl i reception_ingest) blev
+ * ALDRIG forsøgt igen — mail-sync'ens genforsøg tager kun rækker der stadig er link_status 'pending', og en mail hvis
+ * kobling lykkedes er ikke længere pending. Afstemningen her finder indgående mails der er opdaget inden for indtagsvinduet
+ * (≥ SINCE og ≤ 14 dage), er færdigbehandlet af mail-sync'en (ikke 'pending'/'ignored'), ikke er fra ELTAs egne postkasser
+ * og som IKKE har et henvendelses-item — og indtager dem via samme vej. Idempotent: reception_ingest + det unikke indeks
+ * (source_table, source_id) giver højst ét item pr. mail; en samtidig kørsel ender som 'duplicate'.
+ * Kun læsning med den læseklient mail-sync'en allerede har (service_role); skrivning KUN via ingestEmailSource.
+ */
+export const EMAIL_INTAKE_SWEEP_LIMIT = 25
+export type IntakeCounts = Partial<Record<ChannelIntakeOutcome, number>>
+
+/** Mail-id'er der skulle have en henvendelse men ikke har det (ren udvælgelse — testes uden DB) */
+export function selectMissedEmailIds(candidates: Array<{ id: string; sender_email: string | null }>, ingested: Set<string>, limit = EMAIL_INTAKE_SWEEP_LIMIT): string[] {
+  return candidates.filter((c) => !ingested.has(c.id) && !OWN_DOMAIN.test(String(c.sender_email ?? ''))).slice(0, limit).map((c) => c.id)
+}
+
+/** Opdagelsesvinduet afstemningen ser i: fra max(SINCE, nu − 14 dage). Fejl = Stage A ikke (gyldigt) slået til. */
+export function emailIntakeSweepWindow(env: Record<string, string | undefined>, nowMs: number): { from: string } | { error: 'disabled' | 'since_not_configured' } {
+  if (!emailIngestEnabled(env)) return { error: 'disabled' }
+  const since = emailIngestSince(env)
+  if (!since) return { error: 'since_not_configured' }
+  return { from: new Date(Math.max(since.getTime(), nowMs - EMAIL_INGEST_DISCOVERY_DAYS * 86_400_000)).toISOString() }
+}
+
+/**
+ * Indtag de udvalgte mails via den normale vej (ingestEmailSource — samme regler, samme kapabilitet). Kaldes af mail-sync'en,
+ * som selv læser kandidaterne med sin egen klient — adapteren får aldrig den rå admin-klient.
+ */
+export async function ingestMissedEmailSources(ids: string[], deps: Deps = {}): Promise<IntakeCounts> {
+  const counts: IntakeCounts = {}
+  for (const id of ids.slice(0, EMAIL_INTAKE_SWEEP_LIMIT)) {
+    const r = await ingestEmailSource(id, deps)
+    counts[r.outcome] = (counts[r.outcome] ?? 0) + 1
+  }
+  return counts
+}
+
 /** Ny kundebesked i portalen (kaldes af sendPortalMessage EFTER at beskeden er gemt) */
 export async function ingestPortalMessageSource(messageId: string, deps: Deps = {}): Promise<ChannelIntakeResult> {
   const env = deps.env ?? process.env

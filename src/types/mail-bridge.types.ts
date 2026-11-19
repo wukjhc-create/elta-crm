@@ -195,4 +195,6 @@ export interface EmailSyncResult {
   durationMs: number
   /** Per-mailbox breakdown (populated for multi-mailbox sync) */
   mailboxResults?: MailboxSyncDetail[]
+  /** Stage A: henvendelses-udfald pr. kørsel (created/appended/duplicate/skipped/read_error/error, sweep_*) — kun antal */
+  henvendelser?: Record<string, number>
 }

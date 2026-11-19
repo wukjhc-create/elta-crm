@@ -113,6 +113,15 @@ export async function runEmailSync(): Promise<EmailSyncResult> {
       result.mailboxResults.push(mbDetail)
     }
 
+    // Stage A-preflight 2026-11-19 (S2): afstemning — indgående mails i indtagsvinduet uden henvendelses-item (fx et
+    // indtag der fejlede/timede ud i en tidligere kørsel) indtages igen. No-op når RECEPTION_EMAIL_INGEST_ENABLED er FRA.
+    try {
+      const sweep = await sweepMissedEmailIntake(supabase)
+      for (const [k, v] of Object.entries(sweep.counts)) if (v) countIntake(result, k, v, 'sweep')
+      if (sweep.error) countIntake(result, sweep.error === 'since_not_configured' ? 'config_error' : 'sweep_error', 1)
+    } catch { countIntake(result, 'sweep_error', 1) }
+    await reportIntakeHealth(result)
+
     // Success if at least one mailbox synced without errors
     const anySuccess = result.mailboxResults.some(m => m.status === 'success')
     result.success = anySuccess
@@ -452,7 +461,65 @@ async function linkAndAnalyze(
   try {
     const { ingestEmailSource } = await import('@/lib/reception/channel-intake')
     const r = await ingestEmailSource(email.id)
-    if (r.outcome !== 'disabled') console.log('HENVENDELSE:', r.outcome, r.reason ?? '')
+    if (r.outcome !== 'disabled') {
+      countIntake(result, r.outcome)
+      // Observerbarhed (Stage A): kun id'er + udfald/årsag — aldrig emne, afsender eller brødtekst i loggen
+      logger.info('Henvendelse intake', {
+        action: 'reception_email_intake', entity: 'incoming_emails', entityId: email.id,
+        metadata: { outcome: r.outcome, reason: r.reason ?? null, conversation_id: r.conversationId ?? null },
+      })
+    }
+  } catch { countIntake(result, 'error') /* aldrig fatalt */ }
+}
+
+/**
+ * Stage A-preflight 2026-11-19 (S2): afstemning af fejlede henvendelses-indtag. Mail-sync'en læser selv kandidaterne med sin
+ * egen klient (kun SELECT på incoming_emails/conversation_items); udvælgelse og indtag sker i channel-intake via den normale
+ * vej (ingestEmailSource → backgroundCapability) — adapteren får aldrig den rå admin-klient. Idempotent (unikt item pr. kilde).
+ */
+export async function sweepMissedEmailIntake(
+  supabase: ReturnType<typeof createAdminClient>,
+  deps: { env?: Record<string, string | undefined>; now?: () => number; capability?: import('@/lib/reception/background-actor').BackgroundCapability } = {},
+): Promise<{ counts: Record<string, number>; checked: number; error?: string }> {
+  const { emailIntakeSweepWindow, selectMissedEmailIds, ingestMissedEmailSources } = await import('@/lib/reception/channel-intake')
+  const env = deps.env ?? process.env
+  const win = emailIntakeSweepWindow(env, (deps.now ?? Date.now)())
+  if ('error' in win) return win.error === 'disabled' ? { counts: {}, checked: 0 } : { counts: {}, checked: 0, error: win.error }
+  const { data: rows, error } = await supabase.from('incoming_emails').select('id, sender_email')
+    .gte('created_at', win.from).not('link_status', 'in', '(pending,ignored)')
+    .order('created_at', { ascending: false }).limit(300)
+  if (error) return { counts: {}, checked: 0, error: 'read_candidates_failed' }
+  const cand = (rows ?? []) as Array<{ id: string; sender_email: string | null }>
+  const ingested = new Set<string>()
+  for (let i = 0; i < cand.length; i += 200) {
+    const { data: items, error: itemErr } = await supabase.from('conversation_items').select('source_id')
+      .eq('source_table', 'incoming_emails').in('source_id', cand.slice(i, i + 200).map((c) => c.id))
+    if (itemErr) return { counts: {}, checked: cand.length, error: 'read_items_failed' }
+    for (const it of (items ?? []) as Array<{ source_id: string }>) ingested.add(it.source_id)
+  }
+  const counts = await ingestMissedEmailSources(selectMissedEmailIds(cand, ingested), { env, now: deps.now, capability: deps.capability })
+  return { counts: counts as Record<string, number>, checked: cand.length }
+}
+
+/** Tæller henvendelses-udfald pr. kørsel (EmailSyncResult.henvendelser) — kun antal */
+function countIntake(result: EmailSyncResult, outcome: string, n = 1, via?: 'sweep'): void {
+  const h = (result.henvendelser ??= {})
+  const key = via ? `${via}_${outcome}` : outcome
+  h[key] = (h[key] ?? 0) + n
+}
+
+/**
+ * Én sundhedsrække pr. kørsel MED henvendelses-indtag (service 'reception' — ikke i ALL_SERVICES, så den påvirker hverken
+ * driftsstatus eller alarmmails). Kun antal. 'warning' ved fejl/læsefejl/konfigurationsfejl, ellers 'ok'.
+ */
+async function reportIntakeHealth(result: EmailSyncResult): Promise<void> {
+  const h = result.henvendelser
+  if (!h || Object.keys(h).length === 0) return
+  // fejl i selve indtaget, i afstemningen (sweep_*) eller konfigurationen (aktiveret uden gyldigt SINCE)
+  const bad = Object.entries(h).filter(([k]) => /(^|_)(error|read_error|not_found)$/.test(k)).reduce((a, [, v]) => a + v, 0)
+  try {
+    const { logHealth } = await import('@/lib/services/system-health')
+    await logHealth('reception', bad > 0 ? 'warning' : 'ok', bad > 0 ? 'henvendelses-indtag (mail): fejl i kørslen' : 'henvendelses-indtag (mail)', { counts: h })
   } catch { /* aldrig fatalt */ }
 }
 

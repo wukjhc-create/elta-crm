@@ -52,7 +52,9 @@ export function emailIngestEnabled(env: Record<string, string | undefined> = pro
  */
 export function emailIngestSince(env: Record<string, string | undefined> = process.env): Date | null {
   const raw = (env.RECEPTION_EMAIL_INGEST_SINCE ?? '').trim()
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw)) return null
+  // Stage A-preflight 2026-11-19: KUN fuldt ISO-tidspunkt MED tidszone (Z eller ±hh:mm). Uden zone ville Date.parse bruge
+  // serverens lokale tid (UTC på Vercel, dansk lokalt) — aktiveringen skal betyde præcis det samme øjeblik overalt.
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:?\d{2})$/.test(raw)) return null
   const t = Date.parse(raw)
   return Number.isFinite(t) ? new Date(t) : null
 }

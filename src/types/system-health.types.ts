@@ -14,6 +14,8 @@ export type HealthService =
   | 'user_action'
   // Relatel-observation 2026-11-15: godkendte webhook-leveringer i observationstilstand (kun skema-metadata) — ikke i ALL_SERVICES
   | 'telephony'
+  // Stage A 2026-11-19: henvendelses-indtag fra mail (kun antal pr. kørsel) — ikke i ALL_SERVICES
+  | 'reception'
 
 export type HealthStatus = 'ok' | 'warning' | 'error'
 

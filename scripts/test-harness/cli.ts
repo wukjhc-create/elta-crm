@@ -2871,6 +2871,12 @@ Total inkl. moms 11.718,75
     }
     return
   }
+  if (SUB === 'stage-a-staging') {
+    // Stage A preflight: rigtig indtagskode mod staging (kræver 00249+00250). Flag kun i kaldets env; data slettes igen.
+    const { runStageAStaging } = await import('./stage-a-staging')
+    process.exitCode = await runStageAStaging(admin, runtime, log)
+    return
+  }
   if (SUB === 'reception-hub-staging') {
     // STAGING (00249+00250 anvendt): fase 3A med den RIGTIGE kode (channel-intake, web-chat-service) mod staging-DB.
     // Syntetiske fixtures (p250hub-*), som slettes igen; audit_logs-rækker bliver (staging). Flag sættes kun i env-objektet
