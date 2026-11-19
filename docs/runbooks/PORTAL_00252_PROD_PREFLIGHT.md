@@ -143,3 +143,22 @@ fejle. Bevist: rollback-SQL genskaber præcis før-struktur (prod-dry-run og per
 | ny kode | — | `--stage new` 8/8; personaer (`prod-00252-dryrun.ts --post`) [NY] 28/28 · [UÆNDRET] 1/1; eksponering 0 |
 | regression | — | 00247 16, 00245 13, finans-2 14, read-scope 192, rls-effective, mail-00246 26+12, notes 25, 00239 35, SEC-B7 23, medarbejder OK; grok-batch-3 23 PASS + 2 FORÆLDEDE forventninger (før 00248/00249) |
 | hub | — | 00250-dormancy 5/5; 32/32/69 henvendelser md5 = 00250-baseline; Stage A og alle RECEPTION_* uændret FRA |
+
+## 12. Produktions-deploy 2026-11-19 (gennemført)
+| Trin | Resultat |
+|---|---|
+| Kildetjek | main `4487efd2`, review `6f901e2c` (0 bag), kun 00252, pakker uændrede, ingen 00251 |
+| Baseline | struktur `075e5dd6…`, 28 opgaver, gammel titelregel 6 (0 fremtidige), 0 rykker-kandidater, 0 kost-/tværkunde-eksponering |
+| Sidste dry-run | [NY] 32/32 · [UÆNDRET] 2/2, rullet tilbage |
+| 00252 anvendt | `prod-apply-migration.ts 00252 --approved-by-henrik` → COMMIT |
+| Post-tjek | 6/6 — kolonne NOT NULL DEFAULT false, 0 synlige, værn slået til, RLS/grants = pre, data = pre; struktur `72bc9f83…` |
+| Gammel kode på nyt skema (`--stage old`) | 8/8 |
+| main fast-forward | `4487efd2..6f901e2c` (ingen merge/rebase/force) |
+| Vercel Production | deployment `7907086223` success 07:40:29Z; live side bærer `dpl_DSctcUu8HYT2Q9tkMWVbnut8pBQ5` (= 6f901e2c; før `GHpXG1a3…` = 4487efd2) |
+| Ny kode (`--stage new`) | 8/8; post-tjek igen 6/6 |
+| Personaer efter deploy (`prod-00252-post-personas.ts`, rollback-only) | [NY] 9/9 · [UÆNDRET] 1/1 |
+| Rykker-kandidater | 0 (intet sendt) |
+| Eksponering | 0 kost/margin/noter, 0 tværkunde; 0 opgaver kundesynlige (exposure-scriptets "6 i portal" måler den GAMLE titelregel) |
+| Hub 00249/00250 | 32/32/69 (48 forslag) uændrede md5; dormancy 5/5; Stage A FRA |
+| Regression-smokes | 00247 16/16 (Relatel 401), 00245 13/13, finance-2 14/14, read-scope 192/192, rls-effective, mail-00246 26/26 + 12/12, notes 25/25, mp-00239 35/35, sec-b7 23/23, medarbejder-integritet kørt; grok-batch-3 23 PASS + 2 forældede forventninger (før-00248/00249-skema) |
+| CI | GitHub Actions "Lint, Type Check & Build" fejler — identisk på forrige prod-commit `4487efd2` (forudeksisterende, blokerer ikke Vercel) |
