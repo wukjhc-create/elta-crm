@@ -128,3 +128,18 @@ fejle. Bevist: rollback-SQL genskaber præcis før-struktur (prod-dry-run og per
 - Ved Graph-timeout (B) kan kunden se en booking i portalen uden at have fået mailen — kontoret ser advarslen i CRM.
 - 2 delte kontrakter med sti uden for kundens mappe vises uden link (forudeksisterende; kontoret bør rydde op).
 - 30 forudeksisterende røde regressionssuiter (identiske på prod-main) — separat oprydning.
+
+## 12. Prod-deploy 2026-11-19 (godkendt af Henrik)
+| Trin | Tid (UTC) | Resultat |
+|---|---|---|
+| kildetjek | — | main `4487efd2`, review `6f901e2c` (0 bag), kun 00252, package uændret, ingen 00251 |
+| baseline | — | struktur `075e5dd6…`; opgaver 28; gammel titelregel 6 (0 fremtidige); rykker-kandidater 0; eksponering 0 |
+| sidste dry-run | — | [NY] 32/32 · [UÆNDRET] 2/2, rullet tilbage |
+| 00252 anvendt | 07:39:10 | `prod-apply-migration 00252` → COMMIT |
+| post-tjek | — | 6/6: kolonne NOT NULL DEFAULT false, 0 synlige, værn, RLS/grants/data = pre; struktur `72bc9f83…` |
+| gammel kode på nyt skema | — | `--stage old` 8/8 (prod serverede stadig `4487efd2`) |
+| main fast-forward | 07:39:39 | `4487efd2..6f901e2c` (ingen force) |
+| Vercel Production | 07:40:29 | deployment `6f901e2c` success |
+| ny kode | — | `--stage new` 8/8; personaer (`prod-00252-dryrun.ts --post`) [NY] 28/28 · [UÆNDRET] 1/1; eksponering 0 |
+| regression | — | 00247 16, 00245 13, finans-2 14, read-scope 192, rls-effective, mail-00246 26+12, notes 25, 00239 35, SEC-B7 23, medarbejder OK; grok-batch-3 23 PASS + 2 FORÆLDEDE forventninger (før 00248/00249) |
+| hub | — | 00250-dormancy 5/5; 32/32/69 henvendelser md5 = 00250-baseline; Stage A og alle RECEPTION_* uændret FRA |

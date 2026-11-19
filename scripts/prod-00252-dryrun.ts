@@ -20,7 +20,8 @@ import { isPortalVisibleBesigtigelse, isPortalConfirmableBesigtigelse, shouldRem
 const body = readFileSync('supabase/migrations/00252_customer_tasks_customer_visible.sql', 'utf8').replace(/^\s*BEGIN;\s*$/m, '').replace(/^\s*COMMIT;\s*$/m, '')
 const rollback = readFileSync('docs/runbooks/sql/00252_rollback.sql', 'utf8').replace(/^\s*BEGIN;\s*$/m, '').replace(/^\s*COMMIT;\s*$/m, '')
 
-runMain(() => withProdRollbackProbe('00252-dryrun', async ({ q, as, add }) => {
+const POST = process.argv.includes('--post') // EFTER permanent anvendelse: ingen krop, ingen rollback-blok (personaer/projektion/rykker)
+runMain(() => withProdRollbackProbe(POST ? '00252-post-personas' : '00252-dryrun', async ({ q, as, add }) => {
   if (/^\s*(BEGIN|COMMIT|ROLLBACK)\s*;/im.test(body) || /^\s*(BEGIN|COMMIT|ROLLBACK)\s*;/im.test(rollback)) throw new Error('transaktionskontrol i kroppen')
   const pick = async (role: string) => (await q(`SELECT p.id FROM public.profiles p WHERE p.is_active AND p.role = $1 AND NOT EXISTS (SELECT 1 FROM public.user_permission_overrides o WHERE o.profile_id = p.id) ORDER BY p.created_at LIMIT 1`, [role]))[0]?.id as string | undefined
   const admin = await pick('admin'); const montor = await pick('montør'); const sl = await pick('serviceleder')
@@ -30,11 +31,15 @@ runMain(() => withProdRollbackProbe('00252-dryrun', async ({ q, as, add }) => {
   const total0 = (await q(`SELECT count(*)::int n FROM public.customer_tasks`))[0].n as number
   const seen = async (uid?: string) => { if (!uid) return null; const r = await as({ uid }, `SELECT count(*)::int n FROM public.customer_tasks`); return r.ok ? (r.rows[0].n as number) : -1 }
   const adminSeen0 = await seen(admin); const montorSeen0 = await seen(montor)
-  add('UÆNDRET', 'før: 00252 ikke anvendt; admin ser alle opgaver', !(await q(`SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='customer_tasks' AND column_name='customer_visible'`)).length && adminSeen0 === total0, `struktur ${struct0.slice(0, 8)}… · opgaver ${total0}`)
+  const hasCol = (await q(`SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='customer_tasks' AND column_name='customer_visible'`)).length > 0
+  if (POST) add('NY', 'efter: 00252 anvendt; admin ser alle opgaver', hasCol && adminSeen0 === total0, `struktur ${struct0.slice(0, 8)}… · opgaver ${total0}`)
+  else add('UÆNDRET', 'før: 00252 ikke anvendt; admin ser alle opgaver', !hasCol && adminSeen0 === total0, `struktur ${struct0.slice(0, 8)}… · opgaver ${total0}`)
 
   // ── 2. migrationskroppen ──
-  try { await q(body) } catch (e) { add('NY', 'migrationskroppen kører rent', false, (e as { code?: string }).code ?? 'fejl'); return }
-  add('NY', 'migrationskroppen kører rent på prod-skemaet (uden 00251)', true, '')
+  if (!POST) {
+    try { await q(body) } catch (e) { add('NY', 'migrationskroppen kører rent', false, (e as { code?: string }).code ?? 'fejl'); return }
+    add('NY', 'migrationskroppen kører rent på prod-skemaet (uden 00251)', true, '')
+  }
 
   // ── 3. efter krop ──
   const col = (await q(`SELECT is_nullable n, column_default d FROM information_schema.columns WHERE table_schema='public' AND table_name='customer_tasks' AND column_name='customer_visible'`))[0]
@@ -132,6 +137,7 @@ runMain(() => withProdRollbackProbe('00252-dryrun', async ({ q, as, add }) => {
   await q(`DELETE FROM public.customer_tasks WHERE id = ANY($1::uuid[])`, [fx])
   const fp2 = (await q(FP_00252_SQL))[0]
   add('NY', 'efter oprydning: data-fingeraftryk = før', FP_00252.every(([t]) => fp2[t] === fp0[t]), FP_00252.map(([t]) => t).filter((t) => fp2[t] !== fp0[t]).join(',') || 'alle = før')
+  if (POST) return
   await q(rollback)
   const left = (await q(`SELECT (SELECT count(*)::int FROM information_schema.columns WHERE table_schema='public' AND table_name='customer_tasks' AND column_name='customer_visible') c,
     (SELECT count(*)::int FROM pg_proc WHERE proname='customer_tasks_visibility_guard') f, (SELECT count(*)::int FROM pg_trigger WHERE tgname='trg_customer_tasks_visibility_guard') t`))[0]
