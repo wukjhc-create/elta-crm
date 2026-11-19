@@ -3064,6 +3064,77 @@ Total inkl. moms 11.718,75
     log(JSON.stringify((await stagingSql(`BEGIN READ ONLY; ${BACKFILL_ANALYZER_SQL}; `))[0]?.r ?? null))
     return
   }
+  if (SUB === 'portal-00252-oldcode-staging') {
+    // TILSTAND A (00252-preflight): den GAMLE prod-kode (4487efd2, i worktree --dir) mod staging MED 00252. Barneproces i
+    // worktreen (dens egen tsconfig/src); staging-forbindelsen gives kun via env (aldrig printet). Kun kald uden udgående
+    // effekt (læsninger + kundens portal-booking, hvis bekræftelsesmail er gated af et flag der ikke er sat).
+    const dirI = process.argv.indexOf('--dir'); const dir = dirI > 0 ? process.argv[dirI + 1] : ''
+    if (!dir) { log('kræver --dir <worktree med gammel kode>'); process.exitCode = 2; return }
+    const P = await import('./portal-00252-probe')
+    if (!(await stagingSql(P.STATE_00252_SQL))[0].f.applied_252) { log('00252 er ikke anvendt på staging'); process.exitCode = 2; return }
+    const { randomBytes } = await import('crypto')
+    const { spawnSync } = await import('child_process')
+    const tag = `p252old-${Date.now()}`
+    const created = { customers: [] as string[], offers: [] as string[], tokens: [] as string[] }
+    const checks: Array<{ id: string; ok: boolean; note?: string }> = []
+    const add = (id: string, ok: boolean, note = '') => checks.push({ id, ok, note })
+    try {
+      const adminProfile = (await admin.from('profiles').select('id').eq('role', 'admin').eq('is_active', true).limit(1).maybeSingle()).data as { id: string }
+      const A = (await admin.from('customers').insert({ company_name: `${tag} A`, contact_person: 'P252 A', customer_number: `${tag}-A`.slice(0, 40), email: `${tag}@p252-test.dk`, created_by: adminProfile.id }).select('id').single()).data!.id as string
+      created.customers.push(A)
+      const tok = randomBytes(32).toString('hex')
+      created.tokens.push((await admin.from('portal_access_tokens').insert({ customer_id: A, token: tok, email: `${tag}@p252-test.dk`, created_by: adminProfile.id, is_active: true, expires_at: new Date(Date.now() + 86400_000).toISOString() }).select('id').single()).data!.id)
+      const now = new Date().toISOString()
+      const oA = (await admin.from('offers').insert({ offer_number: `${tag}-O`.slice(0, 40), title: `${tag} tilbud`, customer_id: A, created_by: adminProfile.id, status: 'viewed', sent_at: now, viewed_at: now, total_amount: 1000, tax_percentage: 25, tax_amount: 250, final_amount: 1250, valid_until: new Date(Date.now() + 14 * 86400_000).toISOString().slice(0, 10) }).select('id').single()).data!.id as string
+      created.offers.push(oA)
+      await admin.from('offer_line_items').insert({ offer_id: oA, position: 1, line_type: 'manual', description: 'Ladestander', quantity: 2, unit: 'stk', unit_price: 500, discount_percentage: 0, total: 1000, cost_price: 300 })
+      const due = new Date(Date.now() + 5 * 86400_000).toISOString()
+      const tVis = (await admin.from('customer_tasks').insert({ customer_id: A, title: `Besigtigelse hos ${tag}`, description: 'Besigtigelse planlagt d. 1. januar kl. 10:00', status: 'pending', priority: 'normal', due_date: due, customer_visible: true }).select('id').single()).data!.id
+      const tOld = (await admin.from('customer_tasks').insert({ customer_id: A, title: `Besigtigelse hos ${tag} (titel)`, description: 'x', status: 'pending', priority: 'normal', due_date: due }).select('id').single()).data!.id
+      const child = `import * as portal from '../src/lib/actions/portal'
+const tok = process.env.P252_TOK as string, oA = process.env.P252_OFFER as string
+;(async () => {
+  const out: Record<string, unknown> = {}
+  const offs = await portal.getPortalOffers(tok); out.offers = { ok: offs.success, n: (offs.data ?? []).length, final: (offs.data ?? [])[0]?.final_amount, unit: (offs.data ?? [])[0]?.line_items?.[0]?.unit_price }
+  const det = await portal.getPortalOffer(tok, oA); out.offer = { ok: det.success }
+  const bes = await portal.getPortalBesigtigelser(tok); out.bes = { ok: bes.success, ids: (bes.data ?? []).map((b) => b.id) }
+  const d = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date(Date.now() + 10 * 86400000))
+  const book = await portal.portalBookBesigtigelse(tok, d, '08-10'); out.book = { ok: book.success, taskId: book.data?.taskId ?? null, err: book.error ?? null }
+  const docs = await portal.getPortalDocuments(tok); out.docs = { ok: docs.success }
+  const msgs = await portal.getPortalMessages(tok); out.msgs = { ok: msgs.success }
+  console.log('P252OLD:' + JSON.stringify(out))
+})().catch((e) => { console.log('P252OLD:' + JSON.stringify({ crash: String(e?.message ?? e).slice(0, 200) })) })
+`
+      const { writeFileSync: wf } = await import('fs')
+      const childPath = resolve(dir, 'scripts', `zz-${tag}.ts`)
+      wf(childPath, child)
+      const r = spawnSync(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['tsx', childPath], {
+        cwd: resolve(dir), encoding: 'utf8', shell: process.platform === 'win32', timeout: 300_000,
+        env: { ...process.env, NEXT_PUBLIC_SUPABASE_URL: runtime.url, SUPABASE_SERVICE_ROLE_KEY: runtime.serviceKey, P252_TOK: tok, P252_OFFER: oA, PORTAL_BOOKING_CONFIRMATION_EMAIL_ENABLED: '' },
+      })
+      const { unlinkSync } = await import('fs'); try { unlinkSync(childPath) } catch { /* */ }
+      const line = String(r.stdout ?? '').split('\n').find((l) => l.startsWith('P252OLD:'))
+      const o = line ? JSON.parse(line.slice('P252OLD:'.length)) : { crash: `ingen output (${String(r.stderr ?? '').slice(0, 200)})` }
+      add('gammel kode kørte (worktree 4487efd2, ingen customer_visible i koden)', !o.crash, o.crash ?? '')
+      add('tilstand A: tilbudsliste + tilbud virker (salgspris 500, i alt 1250)', o.offers?.ok && o.offers?.n === 1 && o.offers?.final === 1250 && o.offers?.unit === 500 && o.offer?.ok, JSON.stringify(o.offers))
+      add('tilstand A: besigtigelser virker med den gamle titelregel (begge "Besigtigelse hos"-opgaver vises som i prod i dag)', o.bes?.ok && o.bes.ids.includes(tVis) && o.bes.ids.includes(tOld), JSON.stringify(o.bes?.ids?.length))
+      const bookRow = o.book?.taskId ? (await admin.from('customer_tasks').select('customer_visible').eq('id', o.book.taskId).single()).data as { customer_visible: boolean } : null
+      add('tilstand A: kundens portal-booking virker (gammel insert uden flag → customer_visible=false, ingen fejl)', o.book?.ok && bookRow?.customer_visible === false, JSON.stringify({ ok: o.book?.ok, err: o.book?.err, vis: bookRow?.customer_visible }))
+      add('tilstand A: dokumenter og beskeder virker', o.docs?.ok && o.msgs?.ok)
+    } catch (e) {
+      add('opsætning', false, String((e as Error).message).slice(0, 200))
+    } finally {
+      if (created.offers.length) { await admin.from('offer_activities').delete().in('offer_id', created.offers); await admin.from('offer_line_items').delete().in('offer_id', created.offers); await admin.from('offers').delete().in('id', created.offers) }
+      if (created.customers.length) { await admin.from('customer_tasks').delete().in('customer_id', created.customers); await admin.from('portal_messages').delete().in('customer_id', created.customers) }
+      if (created.tokens.length) await admin.from('portal_access_tokens').delete().in('id', created.tokens)
+      if (created.customers.length) await admin.from('customers').delete().in('id', created.customers)
+    }
+    for (const c of checks) log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.id}${!c.ok && c.note ? ` (${c.note})` : ''}`)
+    const failed = checks.filter((c) => !c.ok).length
+    log(failed ? `❌ ${failed} af ${checks.length}` : `✅ ${checks.length} tjek — gammel kode på skema med 00252 (tilstand A)`)
+    process.exitCode = failed ? 2 : 0
+    return
+  }
   if (SUB === 'portal-security-staging') {
     // Portal-sikkerhed med den RIGTIGE portalkode mod staging (kræver 00252 på staging). Syntetiske ps252-*-data slettes igen.
     const P = await import('./portal-00252-probe')
@@ -3078,6 +3149,16 @@ Total inkl. moms 11.718,75
     const P = await import('./portal-00252-probe')
     const st0 = (await stagingSql(P.STATE_00252_SQL))[0].f
     if (SUB === 'portal-00252-state') { log(JSON.stringify({ applied_252: st0.applied_252, tasks: st0.tasks, md5_struct: st0.md5_struct })); return }
+    if (process.argv.includes('--rollback-staging')) {
+      // STAGING: kør docs/runbooks/sql/00252_rollback.sql permanent (kun til gen-kørsel af prøverne). Kræver --confirm.
+      if (!process.argv.includes('--confirm')) { log('kræver --confirm'); process.exitCode = 2; return }
+      if (!st0.applied_252) { log('00252 er ikke anvendt på staging'); return }
+      await stagingSql(readFileSync(resolve(process.cwd(), 'docs/runbooks/sql/00252_rollback.sql'), 'utf8'))
+      const st1 = (await stagingSql(P.STATE_00252_SQL))[0].f
+      log(`00252 rullet tilbage på staging: ${JSON.stringify({ applied_252: st1.applied_252, tasks: st1.tasks, md5_struct: st1.md5_struct })}`)
+      process.exitCode = st1.applied_252 ? 2 : 0
+      return
+    }
     if (SUB === 'portal-00252-apply-staging') {
       if (!process.argv.includes('--confirm')) { log('kræver --confirm'); process.exitCode = 2; return }
       if (st0.applied_252) { log('00252 er allerede anvendt på staging'); return }
