@@ -2871,6 +2871,92 @@ Total inkl. moms 11.718,75
     }
     return
   }
+  if (SUB.startsWith('sync-lease-')) {
+    // 00253 sync_leases (Stage A, mail-sync hvert 5. minut). probe/rollback-proof ROLLBACK-ONLY; apply-staging permanent på
+    // STAGING (--confirm); concurrency-staging: mange PARALLELLE forbindelser (PostgREST) kæmper om samme lease.
+    const P = await import('./sync-lease-00253-probe')
+    const st0 = (await stagingSql(P.STATE_00253_SQL))[0].f
+    if (SUB === 'sync-lease-00253-state') { log(JSON.stringify({ applied_253: st0.applied_253, md5_struct: st0.md5_struct })); return }
+    if (SUB === 'sync-lease-00253-apply-staging') {
+      if (!process.argv.includes('--confirm')) { log('kræver --confirm'); process.exitCode = 2; return }
+      if (st0.applied_253) { log('00253 er allerede anvendt på staging'); return }
+      await stagingSql(readFileSync(resolve(process.cwd(), 'supabase/migrations/00253_sync_leases.sql'), 'utf8'))
+      log(`00253 anvendt på staging: ${JSON.stringify({ applied_253: (await stagingSql(P.STATE_00253_SQL))[0].f.applied_253 })}`)
+      return
+    }
+    if (SUB === 'sync-lease-concurrency-staging') {
+      if (!st0.applied_253) { log('00253 er ikke anvendt på staging'); process.exitCode = 2; return }
+      const { withSyncLease } = await import('../../src/lib/services/sync-lease')
+      const name = `email-sync-ctest-${Date.now() % 100000}`.slice(0, 40)
+      const checks: Array<{ id: string; ok: boolean; note?: string }> = []
+      const add = (id: string, ok: boolean, note = '') => checks.push({ id, ok, note })
+      // separate klienter = separate HTTP-forbindelser/transaktioner
+      const clients = Array.from({ length: 12 }, () => createClient(runtime.url, runtime.serviceKey, { auth: { persistSession: false, autoRefreshToken: false } }))
+      const holders = await Promise.all(clients.map((cl) => cl.rpc('sync_lease_acquire', { p_name: name, p_ttl_seconds: 60 })))
+      const won = holders.filter((h) => !h.error && typeof h.data === 'string')
+      add('12 parallelle acquire på samme lease → præcis 1 vinder, 11 optaget', won.length === 1 && holders.filter((h) => !h.error && h.data === null).length === 11, `${won.length} vindere, fejl ${holders.filter((h) => h.error).length}`)
+      await clients[0].rpc('sync_lease_release', { p_name: name, p_holder: won[0]?.data })
+      // to "kørsler" via den rigtige wrapper: den lange holder leasen, den anden starter midt i og springes over
+      let ran = 0, maxParallel = 0, now = 0
+      const task = async () => { ran++; now++; maxParallel = Math.max(maxParallel, now); await new Promise((r) => setTimeout(r, 2500)); now--; return 'ran' }
+      const rpcOf = (cl: typeof clients[number]) => (fn: string, args: Record<string, unknown>) => cl.rpc(fn, args)
+      const lease = { name, ttlSeconds: 60 }
+      const p1 = withSyncLease(rpcOf(clients[1]), lease, task, (o) => `skip:${o}`)
+      await new Promise((r) => setTimeout(r, 400))
+      const r2 = await withSyncLease(rpcOf(clients[2]), lease, task, (o) => `skip:${o}`)
+      const r1 = await p1
+      add('lang kørsel efterfulgt af ny planlagt kørsel: den nye springes over (already_running), aldrig 2 samtidigt', r1.value === 'ran' && r2.value === 'skip:busy' && maxParallel === 1 && ran === 1, `${r1.value}/${r2.value} parallelt=${maxParallel}`)
+      const r3 = await withSyncLease(rpcOf(clients[3]), lease, task, (o) => `skip:${o}`)
+      add('efter at den lange kørsel er færdig, kører næste planlagte kørsel normalt (lease frigivet)', r3.value === 'ran' && r3.outcome === 'acquired', `${r3.outcome}`)
+      const r4 = await withSyncLease(rpcOf(clients[4]), lease, async () => { throw new Error('crash') }, (o) => `skip:${o}`).catch(() => 'threw')
+      const r5 = await withSyncLease(rpcOf(clients[5]), lease, task, (o) => `skip:${o}`)
+      add('kørsel der fejler frigiver leasen (næste kørsel kører)', r4 === 'threw' && r5.value === 'ran')
+      // dræbt kørsel (ingen release) → lease udløber efter TTL og overtages
+      const shortName = `${name}-k`.slice(0, 50)
+      const dead = await clients[6].rpc('sync_lease_acquire', { p_name: shortName, p_ttl_seconds: 30 })
+      const blocked = await clients[7].rpc('sync_lease_acquire', { p_name: shortName, p_ttl_seconds: 30 })
+      add('dræbt kørsel (ingen frigivelse): næste kørsel blokeres mens TTL gælder', typeof dead.data === 'string' && blocked.data === null)
+      // rydning: frigiv evt. resterende testleases (via service-role rpc med kendt holder)
+      if (typeof dead.data === 'string') await clients[6].rpc('sync_lease_release', { p_name: shortName, p_holder: dead.data })
+      for (const c of checks) log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.id}${!c.ok && c.note ? ` (${c.note})` : ''}`)
+      const failed = checks.filter((c) => !c.ok).length
+      log(failed ? `❌ ${failed} af ${checks.length}` : `✅ ${checks.length} tjek — kørsels-lease under samtidighed (staging)`)
+      process.exitCode = failed ? 2 : 0
+      return
+    }
+    if (st0.applied_253) { log('kræver at 00253 IKKE er anvendt (prøven kører migrationskroppen selv)'); process.exitCode = 2; return }
+    const sql = SUB === 'sync-lease-00253-probe' ? P.probe00253Sql() : P.rollbackProof00253Sql()
+    const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+      method: 'POST', headers: { Authorization: `Bearer ${boot.accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ query: sql }),
+    })
+    const text = await r.text()
+    const tag = SUB === 'sync-lease-00253-probe' ? 'P253RESULT:' : 'P253ROLLBACK:'
+    let msg = text
+    try { const j = JSON.parse(text) as { message?: string }; if (typeof j.message === 'string') msg = j.message } catch { /* rå tekst */ }
+    const i = msg.indexOf(tag)
+    if (i < 0) { log(`uventet svar (${r.status}): ${msg.slice(0, 600)}`); process.exitCode = 2; return }
+    const rest = msg.slice(i + tag.length)
+    let depth = 0, end = -1
+    for (let k = 0; k < rest.length; k++) { if (rest[k] === '{') depth++; else if (rest[k] === '}') { depth--; if (depth === 0) { end = k; break } } }
+    const json = JSON.parse(rest.slice(0, end + 1))
+    const st1 = (await stagingSql(P.STATE_00253_SQL))[0].f
+    const untouched = JSON.stringify(st0) === JSON.stringify(st1)
+    if (SUB === 'sync-lease-00253-probe') {
+      const checks = [...P.evaluateProbe253(json), { id: 'staging uændret efter prøven', ok: untouched, note: '' }]
+      for (const c of checks) log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.id}${!c.ok && c.note ? ` (${c.note})` : ''}`)
+      const failed = checks.filter((c) => !c.ok).length
+      log(failed ? `❌ ${failed} af ${checks.length}` : `✅ ${checks.length} tjek — rullet tilbage`)
+      process.exitCode = failed ? 2 : 0
+    } else {
+      const same = json.md5_struct === st0.md5_struct
+      const diff = Object.keys(st0.parts ?? {}).filter((k) => JSON.stringify(st0.parts[k]) !== JSON.stringify(json.parts?.[k]))
+      const ok = json.table_left === 0 && json.fn_left === 0 && same && untouched
+      log(`rollback efter krop: ${JSON.stringify({ table_left: json.table_left, fn_left: json.fn_left })} · struktur = før: ${same} · afvigende dele: ${diff.join(',') || 'ingen'} · staging uændret: ${untouched}`)
+      log(ok ? '✅ 00253-rollback genskaber præcis før-tilstanden' : '❌ 00253-rollback efterlader noget')
+      process.exitCode = ok ? 0 : 2
+    }
+    return
+  }
   if (SUB === 'stage-a-staging') {
     // Stage A preflight: rigtig indtagskode mod staging (kræver 00249+00250). Flag kun i kaldets env; data slettes igen.
     const { runStageAStaging } = await import('./stage-a-staging')

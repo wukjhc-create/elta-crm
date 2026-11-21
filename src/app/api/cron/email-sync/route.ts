@@ -4,7 +4,10 @@
  * Polls Microsoft Graph API for new emails in the CRM mailbox,
  * auto-links to customers, and detects AO product references.
  *
- * Schedule: Every 5 minutes (configurable in vercel.json)
+ * Schedule: hvert 5. minut — vercel.json-udtrykket "*\/5 * * * *" (Vercel Pro; Hobby tillader kun daglige crons). Indtil
+ *   2026-11-21 stod den reelt på "0 5 * * *" (én gang i døgnet), selv om denne kommentar sagde 5 min.
+ * Overlap: runEmailSync tager kørsels-leasen 'email-sync' (00253, TTL 330 s) — kører en sync allerede (cron eller manuel
+ *   "Hent nye"), springes den nye over (skippedReason 'already_running'). Mangler 00253, kører den uden lås + advarsel.
  * Auth: Bearer token via CRON_SECRET env var
  */
 

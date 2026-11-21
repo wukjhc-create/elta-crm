@@ -33,6 +33,29 @@ import type { GraphMailMessage, EmailSyncResult, MailboxSyncDetail } from '@/typ
 // =====================================================
 
 export async function runEmailSync(): Promise<EmailSyncResult> {
+  // Stage A (2026-11-21): kørsels-lease (00253) — cron hvert 5. minut + manuel "Hent nye" må aldrig overlappe
+  const { withSyncLease, EMAIL_SYNC_LEASE } = await import('@/lib/services/sync-lease')
+  const admin = createAdminClient()
+  const started = Date.now()
+  const { value } = await withSyncLease(
+    (fn, args) => admin.rpc(fn, args),
+    EMAIL_SYNC_LEASE,
+    () => runEmailSyncUnlocked(),
+    (outcome): EmailSyncResult => {
+      logger.info('Email sync skipped', { metadata: { reason: outcome === 'busy' ? 'already_running' : 'lease_error' } })
+      return { ...emptySyncResult(), success: outcome === 'busy', skippedReason: outcome === 'busy' ? 'already_running' as const : 'lease_error' as const,
+        errors: outcome === 'busy' ? [] : ['Kunne ikke tage kørsels-lås — springes over (næste kørsel prøver igen)'], durationMs: Date.now() - started }
+    },
+    () => logger.warn('Email sync uden kørsels-lås: sync_lease_acquire mangler (migration 00253 ikke anvendt)'),
+  )
+  return value
+}
+
+function emptySyncResult(): EmailSyncResult {
+  return { success: false, emailsFetched: 0, emailsInserted: 0, emailsSkipped: 0, emailsLinked: 0, aoMatchesFound: 0, kalkiaPricesUpdated: 0, attachmentsStored: 0, errors: [], durationMs: 0 }
+}
+
+async function runEmailSyncUnlocked(): Promise<EmailSyncResult> {
   console.log('SYNC START — runEmailSync called')
   const startTime = Date.now()
   const result: EmailSyncResult = {

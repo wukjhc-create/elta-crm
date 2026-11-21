@@ -27,7 +27,7 @@ export const CRON_REGISTRY: CronInfo[] = [
     knownIssue: 'Fejl (exception) skrives ikke til supplier_sync_logs — nu synlig via cron-log.' },
   { name: 'learning-feedback', schedule: '0 4 * * *', purpose: 'Kalkulations-feedback/kalibrering', external: 'none', gate: null,
     knownIssue: 'Bruger anon-klient → behandler 0 rækker (stille no-op).' },
-  { name: 'email-sync', schedule: '0 5 * * *', purpose: 'Hent mails fra Microsoft Graph', external: 'mail_read', gate: 'AUTO_CREATE_CASES_ENABLED (OFF) styrer auto-sager',
+  { name: 'email-sync', schedule: '*/5 * * * *', purpose: 'Hent mails fra Microsoft Graph', external: 'mail_read', gate: 'AUTO_CREATE_CASES_ENABLED (OFF) styrer auto-sager',
     knownIssue: 'Kobling mail→kunde (linkEmail) bruger anon-klient → formentlig stille no-op.' },
   { name: 'offer-reminders', schedule: '0 8 * * *', purpose: 'Rykker-mail til kunder på ubesvarede tilbud', external: 'customer_mail', gate: 'company_settings.reminder_enabled; tilbudsrykkere kun med OFFER_REMINDERS_LIVE=true (dry-run ellers); FOLLOWUP_REMINDERS_PAUSED=true = nødstop for fuldmagt/besigtigelse' },
   { name: 'invoice-reminders', schedule: '0 7 * * *', purpose: 'Betalingsrykker-mail til kunder', external: 'customer_mail', gate: 'INVOICE_REMINDERS_LIVE=true (standard fra → intet sendt; CR-2)',

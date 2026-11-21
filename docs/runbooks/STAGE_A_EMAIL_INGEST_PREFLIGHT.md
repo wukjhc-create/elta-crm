@@ -78,11 +78,19 @@ koblingen lykkedes men `reception_ingest` fejlede (timeout, afbrudt kørsel), fi
 ikke pending/ignored, ikke egne postkasser, UDEN item → `ingestEmailSource` (højst 25 pr. kørsel). Idempotent via DB-
 unikheden. Bevist på staging.
 
-**S2-2 (beslutning — ikke rettet her): mail-sync kører kun én gang i døgnet.** `vercel.json` har `"0 5 * * *"` for
-`/api/cron/email-sync` (rutens kommentar siger "hvert 5. minut"). Prod: alle mails opdages ~05:00 UTC; forsinkelse p50 15,6 t,
-p90 22,6 t. Stage A er SIKKER med det, men henvendelser kommer op til et døgn for sent — en receptionist-funktion har
-begrænset værdi. Hyppigere sync kræver en Vercel-plan med hyppige cron-jobs eller en ekstern planlægger (Henriks beslutning).
-Indtil da kan en medarbejder trykke "Synkronisér" (manuel `/api/email/sync`).
+**S2-2 (RETTET 2026-11-21): mail-sync hvert 5. minut + kørsels-lease (00253).** Henrik bekræftede Vercel **Pro** i
+dashboardet (historikken viser tre tidligere nedgraderinger pga. Hobby: `348674c7`, `513320f2`, `5c745192`). `vercel.json`:
+KUN `/api/cron/email-sync` ændret `"0 5 * * *"` → `"*/5 * * * *"` (cron-registeret og rutens kommentar opdateret).
+Fundet undervejs: der var INGEN kørsels-lås. Prod-kørsler: p50 75 s, p95 128 s, **max 241 s** (maxDuration 300 s) → med
+5-minutters cron (og manuel "Hent nye") kunne to kørsler overlappe og begge behandle samme ubehandlede mail (dobbelte AI-kald,
+mulige dublet-kunder). Indsættelse (`graph_message_id` UNIQUE) og henvendelser (`reception_ingest`, idempotent pr. kilde) var
+allerede sikre. Rettelse: migration **00253** `sync_leases` + `sync_lease_acquire/release` (service_role, ingen tabel-adgang,
+atomisk overtagelse kun af udløbet lease) og `runEmailSync` kører kun via leasen `email-sync` (TTL 330 s): optaget →
+kørslen springes over (`skippedReason: 'already_running'`, success); låsefejl → springes over (fail closed); 00253 mangler →
+kører uden lås som før + advarsel. Bevis: `sync-lease-test` 17/17, staging-prøve 10/10 + rollback-bevis eksakt, staging
+samtidighed 5/5 (12 parallelle acquire → 1 vinder; lang kørsel + ny planlagt → ny springes over, aldrig 2 samtidigt; fejlet
+kørsel frigiver; dræbt kørsel blokerer til TTL), prod-dry-run 00253 [NY] 6/6 + [UÆNDRET] 1/1 (rollback → præcis
+før-struktur `72bc9f83…`).
 
 **S3 (rettet):** SINCE uden tidszone afvises nu; observerbarhed (struktureret log med mail-id, henvendelses-id, udfald og
 årsag — aldrig emne/afsender/brødtekst; tællere i `EmailSyncResult.henvendelser`; én `system_health_log`-række pr. kørsel med
@@ -127,18 +135,35 @@ sundhed; 0 SMS/opkald; baseline uændret. (Kørt i dag som tørkørsel: viser ko
 
 ## 10. Anbefalet aktivering (NÆSTE trin — kræver Henriks godkendelse)
 Kun Stage A. Forbliver FRA: PORTAL_INGEST, WEBCHAT, BACKGROUND, BACKFILL, RETENTION_APPLY, UPLOAD_LINKS, LLM.
-1. Deploy denne branch (kode-only, ingen migration) og bekræft Vercel-SHA.
-2. `prod-stage-a-mail-health.ts` (ingen sync-fejl), `prod-stage-a-monitor.ts baseline --save`, `prod-stage-a-simulate.ts --days 7` (rollback-only).
-3. Notér aktiveringsøjeblikket T i UTC, fx `2026-11-20T08:30:00Z` — ALDRIG en tidligere dag.
-4. Vercel → Production env: `RECEPTION_EMAIL_INGEST_SINCE=T` og `RECEPTION_EMAIL_INGEST_ENABLED=true`. Redeploy production
-   (env-ændringer gælder kun nye deployments). Mails opdaget mellem T og redeploy fanges af afstemningen i næste kørsel.
-5. Første indtag sker ved næste sync (05:00 UTC) eller ved et manuelt "Synkronisér".
-6. `prod-stage-a-monitor.ts after --since T --baseline …` efter første kørsel; sammenlign de første mails i UI: samme kilde,
-   afsender, kundetilstand, sag, tråd, hastegrad; intet sendt.
+**Rækkefølge: 00253 FØR koden** — koden tåler at 00253 mangler, men så kører 5-minutters cron'en uden lås.
+0. Henriks godkendelse af 00253 (nr/formål/risiko/pre-post — denne runbook §5 S2-2).
+1. Baseline: `prod-stage-a-mail-health.ts`, `prod-stage-a-monitor.ts baseline --save`, `prod-stage-a-simulate.ts --days 7`,
+   `prod-00253-dryrun.ts` (rollback-only) → alle PASS.
+2. Anvend KUN 00253: lokal APPROVED-linje + `npm run prod:apply-migration -- 00253 --approved-by-henrik`; verificér tabel +
+   funktioner, ACL (kun service_role), struktur ændret kun med 00253.
+3. Fast-forward main til den endelige Stage A-HEAD (ingen merge/rebase/force); vent til Vercel **Production** er `success`
+   for præcis den SHA (tjek `environment: Production` — ikke en preview af samme SHA).
+4. Bekræft cron i produktion: Vercel → Project → Settings → Cron Jobs viser `/api/cron/email-sync` = `*/5 * * * *`;
+   `system_health_log` (service `cron`, cron `email-sync`) får en række ca. hvert 5. minut; ingen `already_running`-storm.
+5. Bekræft alle reception-flag FRA (Vercel env + adfærd: `prod-stage-a-monitor.ts` — 0 henvendelser siden deploy).
+6. Sundhed + simulator igen (`prod-stage-a-mail-health.ts`, `prod-stage-a-simulate.ts --days 7`).
+7. Notér aktiveringsøjeblikket T i UTC, fx `2026-11-21T10:30:00Z` — ALDRIG en tidligere dag.
+8–10. Vercel → Production env: `RECEPTION_EMAIL_INGEST_SINCE=T`, `RECEPTION_EMAIL_INGEST_ENABLED=true`; alle øvrige
+   RECEPTION_* uændret FRA.
+11–12. Redeploy SAMME kode (env gælder kun nye deployments); bekræft ny Production-deployment live (samme SHA).
+13. Kontrolleret sync: vent på næste 5-minutters kørsel (eller ét manuelt "Synkronisér" — leasen forhindrer overlap).
+14. `prod-stage-a-monitor.ts after --since T --baseline …`.
+15. Gennemgå de første rigtige mail → henvendelse-koblinger i UI: samme kilde, afsender, kundetilstand (kun kandidat, aldrig
+   bekræftet automatisk), sag, tråd, hastegrad; kun forslag; **intet svar sendt automatisk** (Stage A kan ikke sende).
 
-## 11. Rollback
-`RECEPTION_EMAIL_INGEST_ENABLED=false` + redeploy. Ingen kode-rollback. Henvendelser forbliver; mail-sync fortsætter
-uændret; ingen mail slettes; afstemningen er en no-op når flaget er fra.
+## 11. Rollback / nødstop
+**Nødstop A (henvendelser):** `RECEPTION_EMAIL_INGEST_ENABLED=false` + redeploy. Mail-sync fortsætter; henvendelser
+forbliver; afstemningen er no-op; ingen mail slettes.
+**Nødstop B (selve mail-sync'en, uden kodeændring):** `CRON_PAUSED=email-sync` + redeploy (`withCronRun` → kører intet,
+logges warning). Manuelt "Synkronisér" virker stadig.
+**Kode:** Vercel "Promote" af forrige deployment (`6f901e2c`, daglig cron, intet Stage A). 00253 må blive (den gamle kode
+bruger den ikke); rollback-SQL `docs/runbooks/sql/00253_rollback.sql` kun EFTER kode-rollback eller med cron'en tilbage på
+daglig.
 **Dårlig henvendelse i piloten:** slet aldrig kildemailen. I Henvendelser: afvis kundematch (`rejectHenvendelseCustomer`),
 afvis forslag (`decideHenvendelseAction` → reject) og markér håndteret. Forkert kunde på selve mailen rettes ved manuel
 kobling i Indbakken — triggeren afstemmer henvendelsen (auditeret).

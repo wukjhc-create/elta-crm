@@ -197,4 +197,6 @@ export interface EmailSyncResult {
   mailboxResults?: MailboxSyncDetail[]
   /** Stage A: henvendelses-udfald pr. kørsel (created/appended/duplicate/skipped/read_error/error, sweep_*) — kun antal */
   henvendelser?: Record<string, number>
+  /** Kørslen blev sprunget over: en anden sync kørte allerede (already_running) eller låsen kunne ikke tages (lease_error) */
+  skippedReason?: 'already_running' | 'lease_error'
 }
