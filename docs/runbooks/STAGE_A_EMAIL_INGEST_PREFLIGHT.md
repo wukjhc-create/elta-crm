@@ -179,3 +179,22 @@ kobling i Indbakken — triggeren afstemmer henvendelsen (auditeret).
 | grønne bl.a. | effective-permissions, employee-setup-integrity (59), grok-finance-1/-2 + reviews, claude-finance-2-review, relatel, relatel-review, telephony-persist, autolink-policy, customer-email, free-mail-domains, mail-recipient, tilbud/faktura/kunde/sag |
 Adapter-invarianten (kanal-adapteren får aldrig den rå admin-klient) fangede første udkast af afstemningen; læsningen ligger
 nu i mail-sync'en (`sweepMissedEmailIntake` i email-sync-orchestrator), udvælgelse/indtag i channel-intake.
+
+## 13. Drift efter aktivering (Stage A aktiv siden 2026-11-22T06:17:00Z)
+`00250`-dormancy-tjekket ("0 nye henvendelser") gælder ikke længere. Det afløses af
+`npx tsx scripts/prod-stage-a-ops.ts [--since ISO] [--retry-min 15]` (read-only, kun antal/UUID'er, exit 2 ved kritisk fund).
+Aktiverings-baseline: `scripts/data/stage-a-baseline-2026-11-22.json` (de oprindelige 32: id + md5; 32 items, 69 handlinger,
+48 proposed / 21 blocked). Første Stage A-resultat: 33 / 33 / 71 (testmail til kontakt@, 2026-11-22 08:11 UTC).
+
+**Forventet:** henvendelser fra egnede indgående mails opdaget efter aktivering (webformular-mails får kanalen web_chat, men
+kommer fra incoming_emails). **Kritisk → overvej nødstop A** (`RECEPTION_EMAIL_INGEST_ENABLED=false` + redeploy samme kode):
+godkendte/udførte handlinger · automatisk udgående (SMS, opkald, automatiske portal-svar) · dublet-kilde/-item/Graph-id ·
+egnet mail uden item efter retry-vinduet · historisk mail indtaget · indtag fra web-chat/portal/SMS/telefon/upload · backfill
+eller retention · kandidat-kunde/sags-kandidat bekræftet uden manuel kobling · svar i forkert Microsoft-tråd · urelaterede
+tråde flettet · tvær-kunde-tråd · manuel kobling overtrumfet · item tilføjet en håndteret henvendelse · de oprindelige 32 ændret
+uden menneskelig handling. **Advarsel:** sync-pause > 12 min, sync-/lease-fejl, udløbet lease, behandlings-/læsefejl.
+Menneskelig CRM-kommunikation (medarbejder-svar i portalen, egne sendte mails) vises særskilt og er ikke en Stage A-fejl.
+Rapporterer pr. kørsel: indgående, egnede, oprettede, tilføjede, ignorerede/system, egne ELTA-mails, ukendt/kandidat/bekræftet/
+tvetydig/læsefejl, sags-kandidat/bekræftet sag, behandlingsfejl, proposed/blocked/executed, mail-sync-kadence (seneste
+kørsel, varighed p50/max, already_running, lease_error, fejl, lease-tilstand) og afstemnings-genforsøg (sweep_*).
+Kør dagligt de første 2 uger og efter enhver deploy; tving aldrig overlap i produktion.
