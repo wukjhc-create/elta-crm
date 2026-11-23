@@ -36,15 +36,8 @@ const OPENAI_TIMEOUT_MS = 15_000
 // Constants
 // =====================================================
 
-const SUPPLIER_DOMAINS = new Set([
-  'mikma.dk',
-  'lemvigmueller.dk',
-  'lemvigh-muller.dk',
-  'lemvighmuller.dk',
-  'solar.dk',
-  'ao.dk',
-  'eltagrossisten.dk',
-])
+// Kendte grossister — ÉN liste i lib/email/supplier-senders (leverandør-/kunde-integritetsværnet, 2026-11-23)
+import { SUPPLIER_DOMAINS, classifySupplierSender } from '@/lib/email/supplier-senders'
 
 const SUPPLIER_SIGNATURE_MARKERS = [
   'lemvigh-müller',
@@ -793,7 +786,15 @@ async function processEmailIntelligenceUnsafe(
   }
 
   // -------- Stage 1: classify --------
-  const type = await classifyEmail(email)
+  let type = await classifyEmail(email)
+  // Leverandør-/kunde-integritetsværn (2026-11-23): DETERMINISTISK leverandør-evidens (kendt grossist, suppliers-felter,
+  // afsenderens/domænets leverandør-historik) vinder over AI'ens "customer" — også når en forurenet kunderække med samme
+  // e-mail findes. Nyhedsbreve/ignorerede forbliver det.
+  const supplierGuard = type === 'customer' || type === 'supplier' ? await classifySupplierSender(supabase, email.senderEmail) : null
+  if (type === 'customer' && supplierGuard?.isSupplier) {
+    console.log('SUPPLIER GUARD: deterministisk leverandør-afsender — klassificeret som supplier', { reasons: supplierGuard.reasons })
+    type = 'supplier'
+  }
   console.log('EMAIL TYPE:', type, '—', redactSubject(email.subject))
 
   // Hard-ignored or newsletter → skip ALL AI extraction, mark email ignored.
@@ -871,17 +872,39 @@ async function processEmailIntelligenceUnsafe(
   }
 
   // -------- Stage 3: decide (match or create) --------
-  // Suppress sender-as-customer-email when:
-  //  (a) the email is from a supplier (sender is the supplier, not the customer)
-  //  (b) the body is forwarded (sender is the forwarder, not the customer)
+  // Leverandør-/kunde-integritetsværn (2026-11-23, S2): en leverandørmail må ALDRIG oprette, matche eller auto-koble en
+  // kunde (heller ikke via et kundenavn/-telefon i brødteksten eller leverandørens egen signatur). Mailen bevares som
+  // ukoblet; klassifikation og udtræk gemmes i loggen; Stage A indtager den internt; manuel kobling er stadig mulig.
+  if (type === 'supplier') {
+    await supabase
+      .from('incoming_emails')
+      .update({ link_status: 'unidentified', processed_at: new Date().toISOString() })
+      .eq('id', emailId)
+      .is('customer_id', null)
+    await writeIntelligenceLog({
+      emailId,
+      subject: email.subject,
+      classification: 'supplier',
+      extractedName: extracted.name,
+      extractedPhone: extracted.phone,
+      extractedAddress: extracted.address,
+      confidence: extracted.confidence,
+      action: 'skipped',
+      reason: `Leverandør-afsender — ingen auto-kunde/-kobling (værn${supplierGuard?.reasons.length ? `: ${supplierGuard.reasons.join(',')}` : ': AI-klassifikation'})`,
+    })
+    return { type, customerId: null, created: false, skipped: true }
+  }
+
+  // Suppress sender-as-customer-email when the body is forwarded (sender is the forwarder, not the customer).
+  // (Leverandørmails når aldrig hertil — værnet ovenfor returnerer før matchning/oprettelse.)
   const isForwarded = isForwardedEmail(email)
-  const suppressSenderEmail = type === 'supplier' || isForwarded
+  const suppressSenderEmail = isForwarded
   // Kunde-/leads-review 2026-10-07: egen/relæ-afsender (hc@eltasolar.dk, FormSubmit) må aldrig blive kundens e-mail —
   // ellers kobles kollegers mails efterfølgende til den kunde
   const senderDomain = (email.senderEmail || '').split('@')[1] || null
   const fallbackEmail = suppressSenderEmail || isNonCustomerDomain(senderDomain) ? null : email.senderEmail || null
   if (suppressSenderEmail) {
-    console.log('FALLBACK EMAIL SUPPRESSED:', { reason: type === 'supplier' ? 'supplier' : 'forwarded' })
+    console.log('FALLBACK EMAIL SUPPRESSED:', { reason: 'forwarded' })
   }
 
   // LC-2: allerede koblet → kun match (aldrig en ny, forældreløs kunde)

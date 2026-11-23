@@ -24,6 +24,7 @@
 import type { InboundCommunication } from './contract'
 import { runReceptionTurn, type ReceptionTurn } from './engine'
 import { buildIngestPayload, callReceptionIngest, enginePortsFor, type IngestResult } from './henvendelser-core'
+import { supplierSenderIdentity, SUPPLIER_SENDER_REASON } from './identity-match'
 import { intakeGateEnabled, receptionLlmEnabled, type IntakeGate } from './flags'
 import type { ClaimedFacts } from './disclosure'
 
@@ -62,6 +63,11 @@ export interface BackgroundCapability {
   readSource: (table: BackgroundSourceTable, id: string) => Promise<SourceRead>
   /** Læs brødteksten af ÉN kilderække (kun BACKGROUND_SOURCE_BODY_COLUMNS) */
   readSourceBody: (table: BackgroundBodyTable, id: string) => Promise<SourceRead>
+  /**
+   * Leverandør-/kunde-integritetsværn (2026-11-23): er afsenderen deterministisk en kendt leverandør? Faste opslag i
+   * lib/email/supplier-senders (suppliers + mail-klassifikations-historik); kun læsning, intet ud over ja/nej + årsager.
+   */
+  supplierSender: (email: string | null | undefined) => Promise<{ isSupplier: boolean; reasons: string[] }>
 }
 
 export class BackgroundCapabilityError extends Error {}
@@ -88,6 +94,10 @@ export function backgroundCapability(admin: Db): BackgroundCapability {
     }, payload),
     readSource: (table, id) => readOne(admin, BACKGROUND_SOURCE_COLUMNS, table, id),
     readSourceBody: (table, id) => readOne(admin, BACKGROUND_SOURCE_BODY_COLUMNS, table, id),
+    supplierSender: async (email) => {
+      const { classifySupplierSender } = await import('@/lib/email/supplier-senders')
+      return classifySupplierSender(admin, email)
+    },
   }
 }
 
@@ -116,13 +126,18 @@ export type BackgroundOutcome =
  */
 export async function receptionBackgroundIngest(
   comm: InboundCommunication, text: string | null,
-  deps: { capability: () => BackgroundCapability; env?: Record<string, string | undefined>; gate?: IntakeGate; claimed?: ClaimedFacts; cap?: BackgroundCapability },
+  deps: { capability: () => BackgroundCapability; env?: Record<string, string | undefined>; gate?: IntakeGate; claimed?: ClaimedFacts; cap?: BackgroundCapability; supplierSender?: boolean },
 ): Promise<BackgroundOutcome> {
   const env = deps.env ?? process.env
   // Hvert aktiveringstrin har sit eget flag (fase 3A) — ingen fælles hovedafbryder
   if (!intakeGateEnabled(deps.gate ?? 'background', env)) return { outcome: 'disabled' }
   const cap = deps.cap ?? deps.capability()
   const ports = enginePortsFor(cap.readPort, { confirmedCustomerId: comm.customer.customerId, candidateCustomerId: comm.customer.candidateId })
+  // Leverandør-/kunde-integritetsværn: kendt leverandør-afsender → ALDRIG kundekandidat (heller ikke via en forurenet
+  // kunderække med samme e-mail). Bekræftet kunde (manuel kobling) er allerede afgjort af et menneske og røres ikke.
+  if (deps.supplierSender && comm.customer.state !== 'confirmed') {
+    ports.identify = async () => supplierSenderIdentity()
+  }
   if (receptionLlmEnabled(env)) {
     const { llmClassify } = await import('./llm-classify')
     ports.classify = (t, kw) => llmClassify(t, kw)
@@ -133,7 +148,11 @@ export async function receptionBackgroundIngest(
     ...(deps.claimed ? { claimed: deps.claimed } : {}),
   }, ports)
   // execute: false → alle handlinger gemmes som forslag (databasen håndhæver det også for service_role)
-  const r = await cap.ingest(buildIngestPayload(comm, turn, { execute: false }))
+  const payload = buildIngestPayload(comm, turn, { execute: false })
+  if (deps.supplierSender && comm.customer.state !== 'confirmed') {
+    payload.handoff_reasons = [...new Set([...((payload.handoff_reasons as string[] | undefined) ?? []), SUPPLIER_SENDER_REASON])]
+  }
+  const r = await cap.ingest(payload)
   if (r.outcome === 'created' || r.outcome === 'appended') return { outcome: r.outcome, conversationId: r.conversationId, proposals: r.actions.filter((a) => a.state === 'proposed').length, urgency: turn.urgency, handoff: !!turn.handoff, reply: turn.reply, turn }
   if (r.outcome === 'duplicate') return { outcome: 'duplicate', conversationId: r.conversationId }
   return { outcome: 'error', error: r.error }

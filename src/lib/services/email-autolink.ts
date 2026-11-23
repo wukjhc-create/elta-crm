@@ -66,10 +66,14 @@ export async function gatherAutoLinkSignals(
   emailId: string,
   email: string,
   conversationId: string | null
-): Promise<{ signals: AutoLinkSignals; contactIdByCustomer: Map<string, string>; threadCaseByCustomer: Map<string, string | null> }> {
+): Promise<{ signals: AutoLinkSignals; contactIdByCustomer: Map<string, string>; threadCaseByCustomer: Map<string, string | null>; supplier?: boolean }> {
   const signals: AutoLinkSignals = { exactCustomerIds: [], contactCustomerIds: [], threadCustomerIds: [], domainCustomerIds: [] }
   const contactIdByCustomer = new Map<string, string>()
   const threadCaseByCustomer = new Map<string, string | null>()
+  // Leverandør-/kunde-integritetsværn (2026-11-23, S2): deterministisk leverandør-evidens nedlægger veto mod ALLE
+  // kundesignaler (eksakt, kontakt, tråd, domæne) — også når en forurenet kunderække har samme e-mail.
+  const { classifySupplierSender } = await import('@/lib/email/supplier-senders')
+  if ((await classifySupplierSender(admin, email)).isSupplier) return { signals, contactIdByCustomer, threadCaseByCustomer, supplier: true }
   const emailLower = email.toLowerCase().trim()
   const domain = senderDomain(emailLower)
   const matchSender = !!domain && !isNonCustomerDomain(domain)
@@ -231,7 +235,7 @@ export async function autoLinkEmail(
   }
 
   const extracted = extractOriginalSender(senderEmail, senderName, subject, bodyHtml, bodyText)
-  const { signals, contactIdByCustomer, threadCaseByCustomer } = await gatherAutoLinkSignals(admin, emailId, extracted.email, (row.conversation_id as string | null) ?? null)
+  const { signals, contactIdByCustomer, threadCaseByCustomer, supplier } = await gatherAutoLinkSignals(admin, emailId, extracted.email, (row.conversation_id as string | null) ?? null)
   const decision = decideAutoLink(signals)
   const now = new Date().toISOString()
 
@@ -255,7 +259,7 @@ export async function autoLinkEmail(
       const sc = threadCaseByCustomer.get(decision.customerId)
       if (sc) update.service_case_id = sc
     }
-  } else if (classifyNoise(extracted.email, subject, bodyText, bodyHtml)) {
+  } else if (!supplier && classifyNoise(extracted.email, subject, bodyText, bodyHtml)) {
     status = 'ignored'
     Object.assign(update, { link_status: status, linked_by: 'auto-noise' })
   } else {

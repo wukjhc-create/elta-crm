@@ -79,7 +79,15 @@ export async function ingestEmailSource(emailId: string, deps: Deps = {}): Promi
     }
     const comm = emailToInbound({ ...row, form_fields: form })
     if (!comm) return { outcome: 'skipped', reason: 'ignored' }
-    const r = await receptionBackgroundIngest(comm, `${comm.title}. ${comm.message}`, { capability: () => cap, cap, gate: 'email', env })
+    // Leverandør-/kunde-integritetsværn (2026-11-23): kendt leverandør-afsender → intern henvendelse uden kundekandidat
+    // (webformularer: afsenderen er FormSubmit — aldrig leverandør-evidens; manuelt koblede mails røres ikke)
+    let supplierSender = false
+    if (comm.customer.state !== 'confirmed' && !form) {
+      const sup = typeof cap.supplierSender === 'function' ? await cap.supplierSender(row.sender_email) : { isSupplier: false, reasons: [] }
+      supplierSender = sup.isSupplier
+      if (supplierSender) comm.customer = { state: 'no_match', customerId: null, candidateId: null, candidateCount: 0 }
+    }
+    const r = await receptionBackgroundIngest(comm, `${comm.title}. ${comm.message}`, { capability: () => cap, cap, gate: 'email', env, supplierSender })
     return mapOutcome(r)
   } catch {
     return { outcome: 'error', reason: 'exception' }

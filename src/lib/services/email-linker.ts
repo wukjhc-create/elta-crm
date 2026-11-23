@@ -437,8 +437,18 @@ export async function linkEmail(
     bodyText
   )
 
+  // 1b. Leverandør-/kunde-integritetsværn (2026-11-23, S2): kendt leverandør-afsender → INGEN automatisk kundekobling
+  //     (hverken eksakt/kontakt/domæne eller tråd) — heller ikke når en forurenet kunderække med samme e-mail findes.
+  //     Mailen forbliver 'unidentified' (ikke støj), så mail-analysen klassificerer den og Stage A indtager den internt.
+  const { classifySupplierSender } = await import('@/lib/email/supplier-senders')
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const supplierGuard = await classifySupplierSender(createAdminClient(), extracted.email)
+  if (supplierGuard.isSupplier) threadCustomerId = null
+
   // 2. Match against customers (email/domain/name)
-  const match = await matchCustomer(extracted.email, extracted.name)
+  const match = supplierGuard.isSupplier
+    ? { customerId: null, customerContactId: null, matchedOn: null, confidence: 'low' as const }
+    : await matchCustomer(extracted.email, extracted.name)
 
   // Use thread match if direct match failed
   if (!match.customerId && threadCustomerId) {
@@ -457,7 +467,7 @@ export async function linkEmail(
   if (match.customerId) {
     status = 'linked'
     linkedBy = 'auto'
-  } else if (classifyNoise(extracted.email, subject, bodyText, bodyHtml)) {
+  } else if (!supplierGuard.isSupplier && classifyNoise(extracted.email, subject, bodyText, bodyHtml)) {
     status = 'ignored'
     linkedBy = 'auto-noise'
   } else {
@@ -477,7 +487,7 @@ export async function linkEmail(
     processed_at: new Date().toISOString(),
     // Sprint 8D-1: arv service_case_id fra existing thread (0a/0b match). Kunde-/leads-review 2026-10-07: KUN ved
     // tråd-match — før blev en manuelt sat sag nulstillet, når "auto-kobl ventende" kørte.
-    ...(threadServiceCaseId ? { service_case_id: threadServiceCaseId } : {}),
+    ...(threadServiceCaseId && !supplierGuard.isSupplier ? { service_case_id: threadServiceCaseId } : {}),
   }
 
   const { error } = await supabase

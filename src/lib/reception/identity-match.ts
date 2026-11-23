@@ -114,6 +114,17 @@ export function classifyIdentity(input: IdentityInput, rows: IdentityRows): Iden
   return { state: 'ambiguous', candidates, leadIds, keysUsed: k.keys, error: null }
 }
 
+/**
+ * Leverandør-/kunde-integritetsværn (2026-11-23, S2): en afsender der deterministisk er kendt som leverandør
+ * (lib/email/supplier-senders) må ALDRIG blive kundekandidat — heller ikke når en (forurenet, auto-oprettet) kunderække har
+ * samme e-mail. Resultatet er no_match; årsagen 'supplier_sender' lægges på henvendelsen som intern handoff-årsag.
+ * "Findes i customers" er altså ikke bevis for en slutkunde, når leverandør-evidens findes.
+ */
+export const SUPPLIER_SENDER_REASON = 'supplier_sender' as const
+export function supplierSenderIdentity(): IdentityResult {
+  return { state: 'no_match', candidates: [], leadIds: [], keysUsed: [], error: null }
+}
+
 type Q = { data: unknown[] | null; error: { message: string } | null }
 
 /**

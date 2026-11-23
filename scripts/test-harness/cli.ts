@@ -2957,6 +2957,11 @@ Total inkl. moms 11.718,75
     }
     return
   }
+  if (SUB === 'supplier-guard-staging') {
+    const { runSupplierGuardStaging } = await import('./supplier-guard-staging')
+    process.exitCode = await runSupplierGuardStaging(admin, runtime, log)
+    return
+  }
   if (SUB === 'stage-a-staging') {
     // Stage A preflight: rigtig indtagskode mod staging (kræver 00249+00250). Flag kun i kaldets env; data slettes igen.
     const { runStageAStaging } = await import('./stage-a-staging')
