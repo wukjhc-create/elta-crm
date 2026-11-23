@@ -2957,6 +2957,128 @@ Total inkl. moms 11.718,75
     }
     return
   }
+  if (SUB === 'sql-ro') {
+    // Read-only staging-forespørgsel fra fil (schema-kortlægning). Altid READ ONLY + ROLLBACK; kun resultat-JSON ud.
+    const fs = await import('node:fs')
+    const q = fs.readFileSync(process.argv[3], 'utf8').trim().replace(/;\s*$/, '')
+    const rows = await stagingSql(`BEGIN READ ONLY; ${q}; `)
+    try { await stagingSql('ROLLBACK') } catch { /* noop */ }
+    console.log(JSON.stringify(rows))
+    return
+  }
+  if (SUB === 'party-00254-rollback-proof') {
+    // Kører migrationsfilens dokumenterede ROLLBACK-sektion i én transaktion, måler tilstanden og ruller tilbage (intet ændres)
+    const { readFileSync } = await import('node:fs')
+    const { resolve } = await import('node:path')
+    const P = await import('./party-00254-probe')
+    const src = readFileSync(resolve(process.cwd(), 'supabase/migrations/00254_party_audience_foundation.sql'), 'utf8').replace(/\r\n/g, '\n')
+    const rbAt = src.indexOf('-- ROLLBACK (manuel')
+    const sec = src.slice(src.indexOf('\n-- BEGIN;', rbAt))
+    const stmts = sec.split('\n').filter((l) => l.startsWith('-- ') && !/^-- (BEGIN|COMMIT|NOTIFY|ROLLBACK)/.test(l)).map((l) => l.slice(3)).join('\n')
+      .split(';').map((s) => s.trim()).filter((s) => /^(DROP|ALTER|DELETE)/.test(s))
+    const st0 = (await stagingSql(P.STATE_00254_SQL))[0].f
+    if (!st0.applied) { log('kræver 00254 anvendt'); process.exitCode = 2; return }
+    const body = stmts.map((s) => `EXECUTE ${"$q$"}${s}${"$q$"};`).join('\n  ')
+    const sql = `DO $rb$ BEGIN\n  ${body}\n  RAISE EXCEPTION 'P254RB%P254END', (${P.STATE_00254_SQL.replace(/ f$/, '').replace(/^SELECT /, 'SELECT ')})::text; END $rb$;`
+    const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+      method: 'POST', headers: { Authorization: `Bearer ${boot.accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ query: sql }),
+    })
+    let msg = await r.text()
+    try { const j = JSON.parse(msg) as { message?: string }; if (typeof j.message === 'string') msg = j.message } catch { /* rå */ }
+    const i = msg.indexOf('P254RB'), e = msg.indexOf('P254END')
+    if (i < 0 || e < i) { log(`uventet svar: ${msg.slice(0, 600)}`); process.exitCode = 2; return }
+    const after = JSON.parse(msg.slice(i + 6, e))
+    const st1 = (await stagingSql(P.STATE_00254_SQL))[0].f
+    const checks = [
+      { id: `ROLLBACK-sektionen (${stmts.length} udsagn) fjerner tabeller, kolonner og nøgler`, ok: after.applied === false && after.conv_cols === 0 && after.keys === 0, note: JSON.stringify(after) },
+      { id: 'katalog efter rollback = før 00254 (−2 nøgler, −5 standardpar)', ok: after.catalog === st0.catalog - 2 && after.pairs === st0.pairs - 5, note: `${st0.catalog}/${st0.pairs} → ${after.catalog}/${after.pairs}` },
+      { id: 'kunder/sager urørt af rollback', ok: after.customers === st0.customers && after.cases === st0.cases, note: '' },
+      { id: 'staging uændret efter beviset (transaktionen rullet tilbage)', ok: JSON.stringify(st0) === JSON.stringify(st1), note: '' },
+    ]
+    for (const c of checks) log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.id}${!c.ok && c.note ? ` (${c.note})` : ''}`)
+    const failed = checks.filter((c) => !c.ok).length
+    log(failed ? `❌ ${failed} af ${checks.length}` : `✅ ${checks.length} tjek — 00254-rollback (staging, rollback-only)`)
+    process.exitCode = failed ? 2 : 0
+    return
+  }
+  if (SUB === 'party-00254-app') {
+    // 00254 via PostgREST (rigtige klienter): anon, service_role og indlogget serviceleder/salg. Skriver intet (alle kald
+    // forventes afvist eller tomme); kræver 00254 anvendt på staging.
+    const { readExternalFeed } = await import('../../src/lib/parties/audience')
+    const { loginPersonas } = await import('./role-matrix')
+    const checks: Array<{ id: string; ok: boolean; note: string }> = []
+    const add = (id: string, ok: boolean, note = '') => checks.push({ id, ok, note })
+    const anon = createClient(runtime.url, runtime.anonKey, { auth: { persistSession: false } })
+    const fakeParty = '00000000-0000-4000-8000-000000000254'
+    const pubArgs = { p_audience_kind: 'customer', p_audience_party_id: fakeParty, p_service_case_id: null, p_content_kind: 'message', p_title: null, p_body: 'x', p_document_id: null, p_derived_from_table: null, p_derived_from_id: null }
+    for (const t of ['parties', 'party_relationships', 'case_participants', 'external_publications']) {
+      const r = await anon.from(t).select('id').limit(1)
+      add(`anon: ${t} utilgængelig`, !!r.error || (r.data ?? []).length === 0, r.error?.code ?? `${(r.data ?? []).length} rækker`)
+    }
+    const af = await anon.rpc('external_feed', { p_audience_kind: 'customer', p_party_id: fakeParty })
+    add('anon: external_feed afvist', !!af.error, af.error?.code ?? 'ingen fejl')
+    const ap = await anon.rpc('publish_external', pubArgs)
+    add('anon: publish_external afvist', !!ap.error, ap.error?.code ?? 'ingen fejl')
+    const sp = await admin.rpc('publish_external', pubArgs)
+    add('service_role (baggrund/AI): publish_external afvist', !!sp.error, sp.error?.code ?? 'ingen fejl')
+    const si = await admin.from('external_publications').insert({ audience_kind: 'customer', audience_party_id: fakeParty, content_kind: 'message', body: 'AI', published_by: fakeParty })
+    add('service_role: direkte INSERT i external_publications afvist', !!si.error, si.error?.code ?? 'ingen fejl')
+    let feedOk = false
+    try { feedOk = (await readExternalFeed(admin, 'customer', fakeParty)).length === 0 } catch { feedOk = false }
+    add('service_role: readExternalFeed (ukendt part) → tom', feedOk)
+    add('readExternalFeed uden part → tom (intet kald)', (await readExternalFeed(admin, 'customer', null)).length === 0)
+    const p = await loginPersonas({ url: runtime.url, anonKey: runtime.anonKey, admin })
+    const sl = p.get('serviceleder' as never)!, salg = p.get('salg' as never)!, mont = p.get('montør' as never) ?? p.get('montor' as never)
+    const slf = await sl.rpc('external_feed', { p_audience_kind: 'customer', p_party_id: fakeParty })
+    add('serviceleder: external_feed afvist (kun portal-serveren)', !!slf.error, slf.error?.code ?? 'ingen fejl')
+    const slp = await sl.rpc('publish_external', pubArgs)
+    add('serviceleder: publish_external når funktionen, afvises på ukendt part (check_violation)', slp.error?.code === '23514', `${slp.error?.code} ${slp.error?.message ?? ''}`)
+    const sli = await sl.from('external_publications').insert({ audience_kind: 'customer', audience_party_id: fakeParty, content_kind: 'message', body: 'x', published_by: fakeParty })
+    add('serviceleder: direkte INSERT afvist', !!sli.error, sli.error?.code ?? 'ingen fejl')
+    if (mont) {
+      const mp = await mont.rpc('publish_external', pubArgs)
+      add('montør: publish_external afvist (mangler portal.publish)', mp.error?.code === '42501', `${mp.error?.code} ${mp.error?.message ?? ''}`)
+    }
+    const sgp = await salg.from('parties').insert({ kind: 'person', display_name: 'probe' })
+    add('salg: kan ikke oprette parter (mangler parties.manage)', !!sgp.error, sgp.error?.code ?? 'ingen fejl')
+    for (const c of checks) log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.id}${!c.ok && c.note ? ` (${c.note})` : ''}`)
+    const failed = checks.filter((c) => !c.ok).length
+    log(failed ? `❌ ${failed} af ${checks.length}` : `✅ ${checks.length} tjek — 00254 via PostgREST (staging)`)
+    process.exitCode = failed ? 2 : 0
+    return
+  }
+  if (SUB === 'party-00254-state' || SUB === 'party-00254-probe' || SUB === 'party-00254-apply-staging') {
+    // 00254 parts-/publikumsfundament (STAGING). probe = rollback-only (kører selv kroppen hvis 00254 ikke er anvendt).
+    const P = await import('./party-00254-probe')
+    const st0 = (await stagingSql(P.STATE_00254_SQL))[0].f
+    if (SUB === 'party-00254-state') { log(JSON.stringify(st0)); return }
+    if (SUB === 'party-00254-apply-staging') {
+      if (st0.applied) { log('00254 er allerede anvendt på staging'); return }
+      const { readFileSync } = await import('node:fs')
+      const { resolve } = await import('node:path')
+      await stagingSql(readFileSync(resolve(process.cwd(), 'supabase/migrations/00254_party_audience_foundation.sql'), 'utf8'))
+      log(`00254 anvendt på staging: ${JSON.stringify((await stagingSql(P.STATE_00254_SQL))[0].f)}`)
+      return
+    }
+    const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+      method: 'POST', headers: { Authorization: `Bearer ${boot.accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ query: P.probe00254Sql(!st0.applied) }),
+    })
+    const text = await r.text()
+    let msg = text
+    try { const j = JSON.parse(text) as { message?: string }; if (typeof j.message === 'string') msg = j.message } catch { /* rå tekst */ }
+    const i = msg.indexOf('P254RESULT')
+    const e = msg.indexOf('P254END')
+    if (i < 0 || e < i) { log(`uventet svar (${r.status}): ${msg.slice(0, 900)}`); process.exitCode = 2; return }
+    const json = JSON.parse(msg.slice(i + 'P254RESULT'.length, e))
+    const st1 = (await stagingSql(P.STATE_00254_SQL))[0].f
+    const checks = [...P.evaluateProbe254(json), { id: 'staging uændret efter prøven (rollback)', ok: JSON.stringify(st0) === JSON.stringify(st1), note: `${JSON.stringify(st0)} → ${JSON.stringify(st1)}` }]
+    log(`00254 ${st0.applied ? 'anvendt' : 'IKKE anvendt — kroppen kørt i prøven'}`)
+    for (const c of checks) log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.id}${!c.ok && c.note ? ` (${c.note})` : ''}`)
+    const failed = checks.filter((c) => !c.ok).length
+    log(failed ? `❌ ${failed} af ${checks.length}` : `✅ ${checks.length} tjek — parts-/publikumsisolation (staging, rollback-only)`)
+    process.exitCode = failed ? 2 : 0
+    return
+  }
   if (SUB === 'supplier-guard-staging') {
     const { runSupplierGuardStaging } = await import('./supplier-guard-staging')
     process.exitCode = await runSupplierGuardStaging(admin, runtime, log)

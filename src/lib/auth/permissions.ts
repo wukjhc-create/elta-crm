@@ -41,6 +41,12 @@ export const PERMISSIONS = {
   'conversations.view_unmatched': ['admin', 'serviceleder'],
   'conversations.manage': ['admin', 'serviceleder', 'salg', 'bogholderi'],
 
+  // Parter/publikum (00254, 2026-11-23 — docs/runbooks/COMMUNICATION_PARTY_AUDIENCE_MODEL.md). parties.manage = oprette/
+  // bekræfte parter, relationer og sagsdeltagere. portal.publish = EKSPLICIT offentliggøre indhold til en bestemt ekstern
+  // part (kunde/partner/leverandør …) og trække det tilbage. Sagsdeltagelse eller klassifikation giver aldrig synlighed.
+  'parties.manage': ['admin', 'serviceleder'],
+  'portal.publish': ['admin', 'serviceleder', 'salg'],
+
   // Offer permissions
   'offers.view': ['admin', 'serviceleder', 'salg'],
   // API-2 (Henrik 2026-10-19): alle tilbud — uden den kun egne (oprettet af brugeren / på en sag i brugerens sags-scope)

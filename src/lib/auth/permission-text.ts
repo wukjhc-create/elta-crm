@@ -41,6 +41,7 @@ const LABELS: Record<string, string> = {
   'offers.view.cost_prices': 'Se kostpriser i tilbud', 'suppliers.credentials': 'Leverandør-logins (adgangsoplysninger)',
   'calls.view': 'Se opkald (kunder i eget scope)', 'calls.view_unmatched': 'Se ukendte/ubekræftede opkald', 'calls.match': 'Koble opkald til kunde',
   'conversations.view': 'Se henvendelser (kunder i eget scope)', 'conversations.view_unmatched': 'Se ukoblede henvendelser', 'conversations.manage': 'Behandle henvendelser',
+  'parties.manage': 'Administrere parter, relationer og sagsdeltagere', 'portal.publish': 'Offentliggøre indhold til en bestemt ekstern part',
 }
 
 /** PERM-1: dansk etiket for en rettighedsnøgle i admin-UI'et (fx "Oprette kunder", "Se sager (alle)") */

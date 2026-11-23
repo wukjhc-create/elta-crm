@@ -455,3 +455,10 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   (74/74, inkl. PostgREST), `cli.ts tel-00247-state`, `cli.ts tel-00247-rollback-staging`,
   `scripts/telephony-persist-test.ts`; prod read-only `scripts/prod-verify-00247.ts pre|post`. Runbook
   docs/runbooks/telephony-events-proposal.md (godkendelsesrapport)
+- 2026-11-23: 00254 parts-/publikumsfundament (`parties`, `party_relationships`, `case_participants`, `external_publications`,
+  `conversations.source_party_id/communication_class/communication_class_source`, nøgler `parties.manage`/`portal.publish`)
+  er KUN i STAGING (branch `claude-party-audience`; prod kræver egen godkendelse). Sagskobling/deltagelse/klasse giver ALDRIG
+  ekstern synlighed — kun `publish_external` (indlogget bruger, ingen service_role) → `external_feed(type, part)` (kun
+  service_role, via `lib/parties/audience.ts`). Prøver: `cli.ts party-00254-probe|party-00254-app|party-00254-rollback-proof`,
+  `scripts/party-audience-test.ts`; prod read-only `scripts/prod-verify-00254.ts pre|post`. Runbook
+  docs/runbooks/COMMUNICATION_PARTY_AUDIENCE_MODEL.md
