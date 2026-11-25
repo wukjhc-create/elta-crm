@@ -33,6 +33,8 @@ withProdReadOnly('prod-verify-00254', async (run) => {
       'auth_feed', has_function_privilege('authenticated', 'public.external_feed(text, uuid)', 'EXECUTE'),
       'anon_feed', has_function_privilege('anon', 'public.external_feed(text, uuid)', 'EXECUTE'),
       'svc_feed', has_function_privilege('service_role', 'public.external_feed(text, uuid)', 'EXECUTE'),
+      'svc_other_fns', (SELECT count(*) FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname IN ('publish_external','revoke_external_publication','party_can_be_audience','party_visible_to_me','case_visible_to_me','conversations_party_guard','party_relationships_guard','external_publications_guard') AND has_function_privilege('service_role', oid, 'EXECUTE')),
+      'anon_fns', (SELECT count(*) FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname IN ('publish_external','revoke_external_publication','external_feed','party_can_be_audience','party_visible_to_me','case_visible_to_me','conversations_party_guard','party_relationships_guard','external_publications_guard') AND has_function_privilege('anon', oid, 'EXECUTE')),
       'svc_pub_insert', has_table_privilege('service_role', 'public.external_publications', 'INSERT'),
       'auth_pub_insert', has_table_privilege('authenticated', 'public.external_publications', 'INSERT'),
       'anon_parties', has_table_privilege('anon', 'public.parties', 'SELECT'),
@@ -45,6 +47,7 @@ withProdReadOnly('prod-verify-00254', async (run) => {
     checks.push(['struktur: 4 tabeller, 3 kolonner, 9 funktioner, 2 nøgler, 5 standardpar', st.tables === 4 && st.conv_cols === 3 && st.fns === 9 && st.keys === 2 && st.pairs === 5])
     checks.push(['publish_external: kun authenticated (ikke service_role/anon)', x.auth_publish === true && x.svc_publish === false && x.anon_publish === false])
     checks.push(['external_feed: kun service_role', x.svc_feed === true && x.auth_feed === false && x.anon_feed === false])
+    checks.push(['funktions-ACL: service_role ingen af de 8 øvrige 00254-funktioner; anon ingen af de 9 (default privileges lukket)', x.svc_other_fns === 0 && x.anon_fns === 0])
     checks.push(['ingen direkte INSERT i external_publications (service_role/authenticated)', x.svc_pub_insert === false && x.auth_pub_insert === false])
     checks.push(['anon: ingen adgang til parties; RLS slået til', x.anon_parties === false && x.rls === true])
     checks.push(['ingen backfill: 0 rækker i de nye tabeller', x.rows === 0])

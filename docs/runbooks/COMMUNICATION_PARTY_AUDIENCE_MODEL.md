@@ -1,6 +1,7 @@
 # Kommunikation: parter, relationer og publikum (audience)
 
-Status 2026-11-23:
+Status 2026-11-23 (prod-præflight 2026-11-25: se `PARTY_AUDIENCE_00254_PROD_PREFLIGHT.md` — rollback-only 61/61, fund P-1
+rettet i migrationen, F-6/D-1 tilføjet, F-1 er HÅRD blokering for portaludvidelse):
 - **Leverandør-/kunde-integritetsværn (S2)** er i PROD (main `380adb71`, kode-only) — afsnit 2.
 - **Parts-/relations-/publikumsfundamentet (00254)** er bygget på branch `claude-party-audience`, anvendt og bevist på
   STAGING. **Ikke i prod** (kræver egen godkendelse af migration 00254 + push). Fundamentet er inert: ingen UI, ingen
@@ -169,7 +170,8 @@ originaler.
   relation; leverandør = registerkobling eller aktiv relation), og på en sag: kunde = sagens (slut)kunde eller deltager i
   kunderolle; øvrige = aktiv deltager med matchende rolle. Dokument: hører til sagen, aldrig mail-vedhæftning.
   Audit (`external_publication_published`/`_revoked`).
-- AI/baggrund kan ikke offentliggøre: ingen EXECUTE til service_role; service_role har kun SELECT på tabellen; værnet afviser
+- AI/baggrund kan ikke offentliggøre: ingen EXECUTE til service_role (REVOKE eksplicit også FROM service_role — prods default
+  privileges giver ellers nye funktioner EXECUTE til service_role; fund P-1 i præflighten); service_role har kun SELECT på tabellen; værnet afviser
   enhver INSERT uden `elta.publish`-flag + `published_by = auth.uid()` (også for service_role).
 - Eksempler: leverandørmail "Indkøbspris 31.800 kr., batteriet er restordre" → intern for altid; personalet kan skrive en ny
   kundebesked ("leveringen er forsinket") — proveniens peger internt på mailen, indholdet kopieres ikke. Internt notat →
@@ -214,7 +216,8 @@ vækst. Senere, egen godkendt plan: (1) read-only liste over de 12 → (2) perso
   `customer_id`) og partnerportalen (sager hvor partneren er betaler, `PARTNER_DOCUMENT_TYPES`) respekterer. Et dokument delt
   "med kunden" på en partnerbetalt sag ses også af partneren (og omvendt). Prod-eksponering i dag: **0 dokumenter** (0 sager
   med betaler ≠ kunde; 1 partner-token). Retning: partnerportalens dokumenter flyttes til `external_publications`
-  (publikum `partner`) i fase B.
+  (publikum `partner`) i fase B. **Præflight 2026-11-25: HÅRD BLOKERING — før fase B eller nogen udvidelse af partner-/
+  leverandørportal skal den gamle synlighedsvej erstattes af part-scoped offentliggørelser/feed.** (Prod-eksponering stadig 0.)
 - **F-2 (info):** `document_type = 'internal'` er ikke en tilladt værdi (00184 blev aldrig kørt i prod; staging afviser den) —
   kodefiltrene `.neq.internal` er død forsvar. De reelle interne markører er `visible_in_portal = false` og `source_email_id`.
 - **F-3 (rettet under udvikling):** første udkast af `publish_external` lod en NULL-sammenligning (`end_customer_id` NULL)
@@ -223,6 +226,12 @@ vækst. Senere, egen godkendt plan: (1) read-only liste over de 12 → (2) perso
 - **F-4 (info):** forældet personlig postkasse i `graph_sync_state` (se 11).
 - **F-5 (info):** leverandørregistrets kontakt-/CVR-/kreditorfelter er tomme i prod (0/2), og 0/64 leverandørfakturaer er
   koblet til `supplier_id` — leverandørværnet hviler på domænelisten + historik.
+- **P-1 (rettet i migrationen, præflight 2026-11-25):** service_role havde EXECUTE på `publish_external`/
+  `revoke_external_publication` i prod (default privileges; staging har det ikke). Funktionerne afviste den alligevel via
+  `auth.role()`; REVOKE-listen omfatter nu service_role, og `prod-verify-00254 post` tjekker hele funktions-ACL'en.
+- **F-6 (fase B):** `INSERT … RETURNING` på `parties` afvises for brugere (SELECT-politikken slår rækken op igen); brug
+  `return=minimal` med klient-genereret id eller inline SELECT-politik i en senere migration.
+- **D-1 (beslutning):** `customers.view.all` giver læsning af hele den interne partsliste (kun læsning); montør ser intet.
 - `portal_messages` er pr. kunde (ikke pr. sag): fin for kunden, men en fremtidig partnerchat skal gå via publikumsmodellen.
 
 ## 14. Tests og resultater (2026-11-23, branch `claude-party-audience`)

@@ -2966,6 +2966,26 @@ Total inkl. moms 11.718,75
     console.log(JSON.stringify(rows))
     return
   }
+  if (SUB === 'party-00254-acl' || SUB === 'party-00254-acl-staging') {
+    // Prod-præflight 2026-11-25: Supabases default privileges gav service_role EXECUTE på publish_external m.fl. Migrationen
+    // lukker nu også service_role; -staging bringer en allerede anvendt staging-00254 i samme tilstand (idempotent).
+    const ACL = `SELECT json_build_object(
+      'svc', (SELECT coalesce(json_agg(proname ORDER BY proname), '[]') FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname IN ('publish_external','revoke_external_publication','party_can_be_audience','party_visible_to_me','case_visible_to_me','conversations_party_guard','party_relationships_guard','external_publications_guard') AND has_function_privilege('service_role', oid, 'EXECUTE')),
+      'anon', (SELECT coalesce(json_agg(proname ORDER BY proname), '[]') FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname IN ('publish_external','revoke_external_publication','external_feed','party_can_be_audience','party_visible_to_me','case_visible_to_me','conversations_party_guard','party_relationships_guard','external_publications_guard') AND has_function_privilege('anon', oid, 'EXECUTE')),
+      'feed_svc', has_function_privilege('service_role', 'public.external_feed(text, uuid)', 'EXECUTE'),
+      'pub_auth', has_function_privilege('authenticated', 'public.publish_external(text, uuid, uuid, text, text, text, uuid, text, uuid)', 'EXECUTE')) a`
+    if (SUB === 'party-00254-acl-staging') {
+      await stagingSql(`REVOKE ALL ON FUNCTION public.case_visible_to_me(uuid), public.party_visible_to_me(uuid), public.party_can_be_audience(uuid, text),
+        public.conversations_party_guard(), public.party_relationships_guard(), public.external_publications_guard(),
+        public.publish_external(text, uuid, uuid, text, text, text, uuid, text, uuid), public.revoke_external_publication(uuid) FROM service_role`)
+      await stagingSql(`NOTIFY pgrst, 'reload schema'`)
+    }
+    const a = (await stagingSql(ACL))[0].a
+    const ok = JSON.stringify(a.svc) === '[]' && JSON.stringify(a.anon) === '[]' && a.feed_svc === true && a.pub_auth === true
+    log(`${ok ? 'PASS' : 'FAIL'}  00254-funktions-ACL (staging): service_role kun external_feed, anon intet, authenticated publish_external — ${JSON.stringify(a)}`)
+    process.exitCode = ok ? 0 : 2
+    return
+  }
   if (SUB === 'party-00254-rollback-proof') {
     // Kører migrationsfilens dokumenterede ROLLBACK-sektion i én transaktion, måler tilstanden og ruller tilbage (intet ændres)
     const { readFileSync } = await import('node:fs')

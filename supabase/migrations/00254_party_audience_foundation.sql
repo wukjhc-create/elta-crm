@@ -405,10 +405,14 @@ GRANT ALL ON public.parties, public.party_relationships, public.case_participant
 REVOKE ALL ON public.external_publications FROM service_role;
 GRANT SELECT ON public.external_publications TO service_role;
 
+-- Supabases default privileges giver ALLE nye funktioner EXECUTE til anon, authenticated OG service_role — derfor lukkes
+-- alle fire eksplicit (prod-præflight 2026-11-25: uden service_role i listen beholdt baggrunds-/AI-nøglen EXECUTE på
+-- publish_external/revoke_external_publication; funktionerne afviste den kun via auth.role()-tjekket). Kun det nødvendige
+-- gives tilbage herunder.
 REVOKE ALL ON FUNCTION public.case_visible_to_me(uuid), public.party_visible_to_me(uuid), public.party_can_be_audience(uuid, text),
   public.conversations_party_guard(), public.party_relationships_guard(), public.external_publications_guard(),
   public.publish_external(text, uuid, uuid, text, text, text, uuid, text, uuid), public.revoke_external_publication(uuid),
-  public.external_feed(text, uuid) FROM PUBLIC, anon, authenticated;
+  public.external_feed(text, uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.case_visible_to_me(uuid), public.party_visible_to_me(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.publish_external(text, uuid, uuid, text, text, text, uuid, text, uuid), public.revoke_external_publication(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.external_feed(text, uuid) TO service_role;
