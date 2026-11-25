@@ -40,7 +40,11 @@ const feed = (kind: string, party: string) => `(SELECT coalesce(jsonb_agg(f.id O
 const pub = (kind: string, party: string, kase: string, ck: string, body: string, doc = 'NULL', from = 'NULL, NULL') =>
   `public.publish_external('${kind}', ${party}, ${kase}, '${ck}', 'Titel', ${body}, ${doc}, ${from})`
 
-export function probe00254Sql(runBody: boolean): string {
+/**
+ * rpcWrites: 00255 er anvendt → ingen bruger skriver direkte i partstabellerne; serviceleder opretter parter/relationer/
+ * deltagere via RPC'erne (de samme isolationsmålinger gælder uændret bagefter).
+ */
+export function probe00254Sql(runBody: boolean, rpcWrites = false): string {
   return `DO $probe$
 DECLARE
   res jsonb := '{}'::jsonb;
@@ -85,17 +89,25 @@ BEGIN
 
   -- Serviceleder (parties.manage + portal.publish) opretter parter, relationer, deltagere
   ${asUser('u_sl')}
-  ${t('sl_parties', `INSERT INTO public.parties (kind, display_name, customer_id, created_by) VALUES ('person', 'A', c_a, u_sl), ('person', 'B', c_b, u_sl), ('organisation', 'Y', c_y, u_sl);
+  ${rpcWrites
+    ? t('sl_parties', `PERFORM public.ensure_register_party('customer', c_a); PERFORM public.ensure_register_party('customer', c_b);
+     PERFORM public.ensure_register_party('customer', c_y); PERFORM public.ensure_register_party('supplier', s_x)`)
+    : t('sl_parties', `INSERT INTO public.parties (kind, display_name, customer_id, created_by) VALUES ('person', 'A', c_a, u_sl), ('person', 'B', c_b, u_sl), ('organisation', 'Y', c_y, u_sl);
      INSERT INTO public.parties (kind, display_name, supplier_id, created_by) VALUES ('organisation', 'X', s_x, u_sl)`)}
   ${asOwner}
   SELECT id INTO p_a FROM public.parties WHERE customer_id = c_a; SELECT id INTO p_b FROM public.parties WHERE customer_id = c_b;
   SELECT id INTO p_y FROM public.parties WHERE customer_id = c_y; SELECT id INTO p_x FROM public.parties WHERE supplier_id = s_x;
   ${asUser('u_sl')}
-  ${t('sl_rel', `INSERT INTO public.party_relationships (party_id, relationship, status, source, created_by) VALUES (p_a, 'customer', 'active', 'register', u_sl), (p_x, 'supplier', 'active', 'register', u_sl);
+  ${rpcWrites
+    ? t('sl_rel', `PERFORM public.set_party_relationship(p_y, 'cooperation_partner', '{}'::text[])`)
+    : t('sl_rel', `INSERT INTO public.party_relationships (party_id, relationship, status, source, created_by) VALUES (p_a, 'customer', 'active', 'register', u_sl), (p_x, 'supplier', 'active', 'register', u_sl);
      INSERT INTO public.party_relationships (party_id, relationship, status, source, confirmed_by, confirmed_at, created_by) VALUES (p_y, 'cooperation_partner', 'active', 'manual', u_sl, now(), u_sl)`)}
   ${t('sl_rel_register_without_link', `INSERT INTO public.party_relationships (party_id, relationship, status, source, created_by) VALUES (p_y, 'supplier', 'active', 'register', u_sl)`)}
   ${t('sl_rel_active_other_confirmer', `INSERT INTO public.party_relationships (party_id, relationship, status, source, confirmed_by, confirmed_at, created_by) VALUES (p_b, 'subcontractor', 'active', 'manual', u_salg, now(), u_sl)`)}
-  ${t('sl_participants', `INSERT INTO public.case_participants (service_case_id, party_id, role, created_by) VALUES (case1, p_a, 'customer', u_sl), (case1, p_y, 'cooperation_partner', u_sl), (case1, p_x, 'supplier', u_sl)`)}
+  ${rpcWrites
+    ? t('sl_participants', `PERFORM public.add_case_participant(case1, p_a, 'customer', NULL); PERFORM public.add_case_participant(case1, p_y, 'cooperation_partner', NULL);
+     PERFORM public.add_case_participant(case1, p_x, 'supplier', NULL)`)
+    : t('sl_participants', `INSERT INTO public.case_participants (service_case_id, party_id, role, created_by) VALUES (case1, p_a, 'customer', u_sl), (case1, p_y, 'cooperation_partner', u_sl), (case1, p_x, 'supplier', u_sl)`)}
   -- Offentliggørelser (eksplicitte, menneskeskrevne)
   BEGIN pub_cust := ${pub('customer', 'p_a', 'case1', 'status_update', `'Montage planlagt uge 49'`)}; EXCEPTION WHEN OTHERS THEN res := jsonb_set(res, '{pub_cust_err}', to_jsonb(SQLSTATE || ' ' || SQLERRM)); END;
   BEGIN pub_doc := ${pub('customer', 'p_a', 'case1', 'document', 'NULL', 'doc_shared')}; EXCEPTION WHEN OTHERS THEN res := jsonb_set(res, '{pub_doc_err}', to_jsonb(SQLSTATE || ' ' || SQLERRM)); END;
@@ -169,7 +181,9 @@ BEGIN
   ${asService}
   ${g('feed_partner_y_before_end', `(SELECT to_jsonb(count(*)) FROM public.external_feed('partner', p_y))`)}
   ${asUser('u_sl')}
-  ${t('sl_end_partner_rel', `UPDATE public.party_relationships SET status = 'ended' WHERE party_id = p_y AND relationship = 'cooperation_partner'`)}
+  ${rpcWrites
+    ? t('sl_end_partner_rel', `PERFORM public.end_party_relationship((SELECT id FROM public.party_relationships WHERE party_id = p_y AND relationship = 'cooperation_partner' AND status = 'active'), 'ended')`)
+    : t('sl_end_partner_rel', `UPDATE public.party_relationships SET status = 'ended' WHERE party_id = p_y AND relationship = 'cooperation_partner'`)}
   ${asService}
   ${g('feed_partner_y_after_end', `(SELECT to_jsonb(count(*)) FROM public.external_feed('partner', p_y))`)}
 

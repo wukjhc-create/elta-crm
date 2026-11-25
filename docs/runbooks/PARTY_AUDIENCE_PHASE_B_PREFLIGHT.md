@@ -1,6 +1,31 @@
-# Parter — Fase B præflight (forslag, 2026-11-25)
+# Parter — Fase B præflight (2026-11-25)
 
-Status: **KUN forslag. Intet er implementeret, intet migreret, intet deployet.** Kræver Henriks eksplicitte godkendelse.
+Status: **Godkendt af Henrik 2026-11-25 og implementeret** (kode + 00255). Udrulning: A kode med `PARTIES_UI_ENABLED` FRA →
+B inert-verifikation → C 00255 → D post-verifikation → E STOP. **F: flaget tændes kun efter Henriks særskilte godkendelse.**
+Prod-rollback må IKKE køres som test — kun rollback-only (transaktion uden commit) i `scripts/prod-00255-dryrun.ts`;
+`docs/runbooks/sql/00255_rollback.sql` køres kun ved en egentlig rollback-beslutning.
+
+## 0. Henriks beslutninger (2026-11-25) og hvordan de er implementeret
+1. **cases.edit** må oprette/koble den nødvendige part KUN via sagsdeltager-flowet for sagens egne kunder/kontakt:
+   `add_case_participant_for_register` (kunde = sagens `customer_id/end_customer_id/orderer_customer_id/payer_customer_id/
+   purchased_from_customer_id/site_customer_id`; kontakt = `site_contact_id` eller kontakt hos en af dem; synlig sag + synlig
+   kunde). `add_case_participant` kobler en eksisterende synlig part (ingen oprettelse). Fri oprettelse (`create_party`),
+   redigering (`update_party`), `ensure_register_party`, relationer og leverandør/lead/medarbejder kræver `parties.manage`.
+   → **Afvigelse fra forslaget:** `ensure_register_party` kræver nu KUN parties.manage (cases.edit-vejen er flyttet ind i
+   `add_case_participant_for_register`), så cases.edit ikke bliver en indirekte generel skrive-ret.
+2. **Montør** ser kun kunde-parter i eget kundescope + parter der deltager på egne/tildelte sager (00254's
+   `party_visible_to_me`, uændret); intet partsregister, ingen skrivning.
+3. **Udrulning** som ovenfor; flag ON er et selvstændigt godkendelsestrin.
+4. **D-1** admin/serviceleder skriver via RPC; salg/bogholderi read-only; montør scoped read; INGEN rolle har direkte
+   INSERT/UPDATE (heller ikke admin). **F-6** bevist (afsnit 9). **F-1** urørt.
+
+Øvrige afvigelser/tilføjelser i forhold til forslaget:
+- **`update_party`** (B-1 redigering: navn, organisation, verificerede e-mails/domæner, CVR) — 8 RPC'er i alt, ikke 6.
+- Audit skrives af RPC'erne selv i `audit_logs` (party_created/party_updated/party_relationship_set/_ended/
+  case_participant_added/_ended) — ikke via `insertAuditRow`.
+- Dublet-søgningen matcher også en register-part på registrets CVR (leverandør), e-mail og navn (kunde/leverandør) —
+  fundet under staging-prøven (en register-part har typisk ingen verificerede felter).
+- `parties_vat_digits` CHECK (CVR kun cifre 8–14) ud over unikt indeks.
 Forudsætninger i prod: 00254 (inert fundament, 2026-11-25), Stage A live, Stage B FRA.
 
 Faste beslutninger (Henrik 2026-11-25):

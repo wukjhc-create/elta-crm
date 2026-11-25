@@ -189,6 +189,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   montor: ['U265', 'U255', 'U233', 'U232', 'U231', 'U226', 'U225', 'U224', 'U221', 'U197', 'U196', 'U189', 'U188', 'U119', 'U117', 'U11', 'U21', 'U30', 'U34', 'U40', 'U79', 'U80', 'U43', 'U44', 'U48', 'U183', 'U63', 'U66', 'U67', 'U71', 'U73', 'U62', 'U72', 'U90', 'U96', 'U97', 'U112'],
   economy: ['U266', 'U264', 'U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   reception: ['U267', 'U268'],
+  parties: ['U270'], // parter fase B (00255 på staging; UI_PARTIES_UI_ENABLED=false = som prod)
   'portal-security': ['U269', 'U10', 'U180', 'U256'], // portal-sikkerhedsreview 2026-11-18 (00252 på staging)
   'pilot-sim': ['U240', 'U241', 'U242', 'U243', 'U244', 'U245', 'U246', 'U247', 'U248', 'U249', 'U250', 'U251', 'U252', 'U253', 'U254'],
   'portal-mail': ['U215', 'U211', 'U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -325,6 +326,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     // 00250 (staging only): ELTA web-chat-testsiden (U268). Mail-/portal-indtag tændes IKKE i serveren (U268 kalder adapteren
     // med flag i selve kaldet), så andre tests' portalbeskeder ikke bliver til henvendelser
     RECEPTION_WEBCHAT_ENABLED: process.env.UI_RECEPTION_WEBCHAT_ENABLED ?? 'true',
+    // 00255 (staging): parter fase B — paneler på kundekort og sag (U270). UI_PARTIES_UI_ENABLED=false → som prod (FRA)
+    PARTIES_UI_ENABLED: process.env.UI_PARTIES_UI_ENABLED ?? 'true',
     // staging-harness: misbrugsværnets HMAC-nøgle genereres pr. kørsel (ingen hemmelighed i repo); uden den er chatten FRA
     RECEPTION_WEBCHAT_RATE_SECRET: `harness-${randomBytes(24).toString('hex')}`,
     // `next dev` genstarter ved 80 % af heap-grænsen, og efter en genstart fejler resten af kørslen (O1).
@@ -6594,6 +6597,79 @@ ${m.text()}`) })
         out.push({ id: 'U269 portal-sikkerhed: browseren modtager ingen kost/margin/interne noter/interne opgaver; salgspris + kundevendt besigtigelse vises', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') })
       }
 
+      // U270 PARTER FASE B (00255 på staging). Med PARTIES_UI_ENABLED (harness-standard): admin registrerer kunden som part,
+      // tilføjer sagens kunde som sagsdeltager, opretter ny partner, får dublet-dialog ved samme navn; salg ser panelet read-only.
+      // UI_PARTIES_UI_ENABLED=false (= prod før aktivering): panelerne findes ikke på kundekort eller sag.
+      if (want('U270')) {
+        const r: Record<string, boolean> = {}
+        const flagOn = (process.env.UI_PARTIES_UI_ENABLED ?? 'true') === 'true'
+        const tag = `U270${stamp}`
+        let custId: string | null = null, caseId: string | null = null
+        let diag = ''
+        try {
+          const cu = await c.admin.from('customers').insert([{ customer_number: `U270-${stamp}`, company_name: `[HARNESS] ${tag}`, contact_person: 'P', email: `u270-${stamp}@harness.test`,
+            created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
+          custId = (cu.data?.[0] as { id: string } | undefined)?.id ?? null
+          const sc = custId ? await c.admin.from('service_cases').insert([{ title: `[HARNESS] ${tag} sag`, customer_id: custId, status: 'in_progress', priority: 'medium', created_by: adminUser.id }]).select('id') : null
+          caseId = (sc?.data?.[0] as { id: string } | undefined)?.id ?? null
+          r.seed = !!custId && !!caseId
+          const a = await login(adminUser)
+          try {
+            await gotoSafe(a.page, `${base}/dashboard/customers/${custId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await a.page.waitForTimeout(1500)
+            if (!flagOn) {
+              r.kunde_panel_skjult = (await a.page.getByTestId('customer-parties-panel').count()) === 0
+              await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+              await a.page.waitForTimeout(1500)
+              r.sag_panel_skjult = (await a.page.getByTestId('case-participants-panel').count()) === 0
+              r.sag_side_vist = (await a.page.locator('body').innerText()).includes(`${tag} sag`)
+            } else {
+              await a.page.getByTestId('customer-parties-panel').waitFor({ timeout: 60_000 })
+              await a.page.getByTestId('ensure-customer-party').click()
+              await a.page.getByTestId('customer-party').waitFor({ timeout: 30_000 })
+              const { data: cp } = await c.admin.from('parties').select('id').eq('customer_id', custId!)
+              r.kunde_registreret = (cp ?? []).length === 1
+              await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+              await a.page.getByTestId('case-participants-panel').waitFor({ timeout: 60_000 })
+              await a.page.getByTestId('participant-add-case').click()
+              await a.page.getByTestId('participant-add-case-submit').click()
+              await a.page.getByTestId('case-participants-list').waitFor({ timeout: 30_000 })
+              r.deltager_tilfoejet = (await a.page.getByTestId('case-participants-list').innerText()).includes(tag)
+              await a.page.getByTestId('participant-add-new').click()
+              await a.page.getByTestId('party-create-name').fill(`${tag} Partner ApS`)
+              await a.page.getByTestId('party-create-submit').click()
+              await a.page.waitForFunction((t) => (document.querySelector('[data-testid="case-participants-list"]')?.textContent ?? '').includes(`${t} Partner`), tag, { timeout: 30_000 }).catch(() => {})
+              r.ny_partner_deltager = (await a.page.getByTestId('case-participants-list').innerText()).includes(`${tag} Partner ApS`)
+              await a.page.getByTestId('participant-add-new').click()
+              await a.page.getByTestId('party-create-name').fill(`${tag.toUpperCase()} partner A/S`)
+              await a.page.getByTestId('party-create-submit').click()
+              r.dublet_dialog = await a.page.getByTestId('party-duplicate-candidates').waitFor({ timeout: 30_000 }).then(() => true).catch(() => false)
+              const { count } = await c.admin.from('parties').select('id', { count: 'exact', head: true }).ilike('display_name', `%${tag}%partner%`)
+              r.ingen_dublet_oprettet = count === 1
+            }
+          } finally { await a.ctx.close().catch(() => {}) }
+          if (flagOn) {
+            const s = await login(salg)
+            try {
+              await gotoSafe(s.page, `${base}/dashboard/customers/${custId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+              r.salg_ser_panel = await s.page.getByTestId('customer-parties-panel').waitFor({ timeout: 60_000 }).then(() => true).catch(() => false)
+              r.salg_kun_laesning = await s.page.getByTestId('parties-readonly').waitFor({ timeout: 30_000 }).then(() => true).catch(() => false)
+              r.salg_ser_kundepart = await s.page.getByTestId('customer-party').waitFor({ timeout: 30_000 }).then(() => true).catch(() => false)
+              r.salg_ingen_skriveknap = (await s.page.getByTestId('ensure-customer-party').count()) === 0
+            } finally { await s.ctx.close().catch(() => {}) }
+          }
+        } catch (e) {
+          diag += ` fejl:${String(e).slice(0, 160)}`
+          r.ingen_undtagelse = false
+        } finally {
+          const { data: ps } = await c.admin.from('parties').select('id').or(`customer_id.eq.${custId ?? '00000000-0000-0000-0000-000000000000'},display_name.ilike.*${tag}*`)
+          const pids = (ps ?? []).map((p) => (p as { id: string }).id)
+          if (pids.length) { await c.admin.from('audit_logs').delete().in('entity_id', pids); await c.admin.from('parties').delete().in('id', pids) }
+          if (caseId) { await c.admin.from('audit_logs').delete().eq('entity_type', 'case_participant').contains('metadata', { service_case_id: caseId }); await c.admin.from('service_cases').delete().eq('id', caseId) }
+          if (custId) await c.admin.from('customers').delete().eq('id', custId)
+        }
+        out.push({ id: `U270 parter fase B (flag ${flagOn ? 'TIL' : 'FRA'}): ${flagOn ? 'registrér kunde, sagsdeltager, ny partner, dublet-dialog, salg read-only' : 'paneler findes ikke'}`, ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + diag })
+      }
       // U268 KOMMUNIKATIONS-HUB FASE 3A (00250 på staging): mail + portal ind via den RIGTIGE kanal-adapter (flag kun i kaldet),
       // Henvendelser-visninger (Nye/Ikke tildelt/Venter på ELTA) og kanalfilter, én tråd (svar i samme mail-tråd), vedhæftnings-
       // reference, venter-på-ELTA + tildeling + tilbageringning, ELTA web-chat (test-side) med nød → godkendt tekst og

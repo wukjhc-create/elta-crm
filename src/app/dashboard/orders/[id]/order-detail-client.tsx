@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 import { Pencil } from 'lucide-react'
 import { EditSiteInfoDialog } from '@/components/modules/orders/edit-site-info-dialog'
 import { EditServiceCasePartiesDialog } from '@/components/modules/orders/edit-service-case-parties-dialog'
+import { CaseParticipantsPanel, type CaseRegisterOption } from '@/components/modules/parties/case-participants-panel'
 import {
   SERVICE_CASE_PRIORITY_LABELS,
   SERVICE_CASE_PRIORITY_COLORS,
@@ -80,6 +81,21 @@ const fmtAmount = (n: number | null | undefined) =>
 
 const fmtDate = (s: string | null | undefined) => (s ? s.slice(0, 10) : '—')
 
+/** Sagens egne kunder/kontakt (de eneste register-rækker cases.edit uden parties.manage må bruge i sagsdeltager-flowet) */
+function caseRegisterOptions(sag: ServiceCaseWithRelations): CaseRegisterOption[] {
+  const out: CaseRegisterOption[] = []
+  const seen = new Set<string>()
+  const add = (o: CaseRegisterOption) => { const k = `${o.register}:${o.id}`; if (!seen.has(k)) { seen.add(k); out.push(o) } }
+  if (sag.customer) add({ register: 'customer', id: sag.customer.id, label: `${sag.customer.company_name} (kunde)`, defaultRole: 'customer' })
+  if (sag.end_customer) add({ register: 'customer', id: sag.end_customer.id, label: `${sag.end_customer.company_name} (slutkunde)`, defaultRole: 'end_customer' })
+  if (sag.orderer_customer) add({ register: 'customer', id: sag.orderer_customer.id, label: `${sag.orderer_customer.company_name} (ordregiver)`, defaultRole: 'orderer' })
+  if (sag.payer_customer) add({ register: 'customer', id: sag.payer_customer.id, label: `${sag.payer_customer.company_name} (betaler)`, defaultRole: 'payer' })
+  if (sag.purchased_from_customer) add({ register: 'customer', id: sag.purchased_from_customer.id, label: `${sag.purchased_from_customer.company_name} (købssted)`, defaultRole: 'cooperation_partner' })
+  if (sag.site_customer) add({ register: 'customer', id: sag.site_customer.id, label: `${sag.site_customer.company_name} (leveringskunde)`, defaultRole: 'end_customer' })
+  if (sag.site_contact) add({ register: 'customer_contact', id: sag.site_contact.id, label: `${sag.site_contact.name} (kontakt på stedet)`, defaultRole: 'site_contact' })
+  return out
+}
+
 export function OrderDetailClient({
   sag,
   formand,
@@ -92,6 +108,7 @@ export function OrderDetailClient({
   canAddNote = false,
   canEditCase = false,
   canInspect = false,
+  partiesEnabled = false,
   materialPerms = { seePrices: false, add: false, edit: false, del: false, otherEdit: false, otherDel: false },
   canManageAllNotes = false,
   tabAccess = { workOrders: true, materials: true, otherCosts: true, allInvoices: false },
@@ -114,6 +131,8 @@ export function OrderDetailClient({
   canEditCase?: boolean
   /** PM2-6: service.edit — Dokumentation-fanen (teknisk besigtigelse); uden ret ville gem altid blive afvist */
   canInspect?: boolean
+  /** Parter fase B: PARTIES_UI_ENABLED (server) — standard FRA → panelet renderes ikke */
+  partiesEnabled?: boolean
   materialPerms?: { seePrices: boolean; add: boolean; edit: boolean; del: boolean; otherEdit?: boolean; otherDel?: boolean }
   /** Sprint Ø7.4 — cases.edit: må redigere/slette ALLE noter (ikke kun egne). */
   canManageAllNotes?: boolean
@@ -289,6 +308,7 @@ export function OrderDetailClient({
           {active === 'overblik' && (
             <OverblikTab
               canEditCase={canEditCase}
+              partiesEnabled={partiesEnabled}
               onOpenNotes={() => setActive('noter')}
               sag={sag}
               customerName={customerName}
@@ -370,8 +390,10 @@ function OverblikTab({
   onOpenFakturakladde,
   canOpenInvoices = false,
   canEditCase = false,
+  partiesEnabled = false,
   onOpenNotes,
 }: {
+  partiesEnabled?: boolean
   /** DE2-1/2: fakturalisten/-detaljen kræver invoices.view.all */
   canOpenInvoices?: boolean
   canEditCase?: boolean
@@ -570,6 +592,9 @@ function OverblikTab({
           Dette panel er foreløbig read-only. Tilbud/faktura sendes fortsat efter eksisterende routing indtil Phase 6.
         </div>
       </Panel>
+
+      {/* Parter fase B — interne sagsdeltagere (additive; Sagspartnere ovenfor er uændrede). Kun med PARTIES_UI_ENABLED. */}
+      {partiesEnabled && <CaseParticipantsPanel caseId={sag.id} caseOptions={caseRegisterOptions(sag)} />}
 
       {/* Sprint 8G — Leveringskontakt / arbejdssted */}
       <Panel

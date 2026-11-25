@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, type ComponentProps } from 'react'
+import { CustomerPartiesPanel } from '@/components/modules/parties/customer-parties-panel'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useUserRole } from '@/lib/hooks/use-user-role'
@@ -84,9 +85,11 @@ interface CustomerDetailClientProps {
   initialTasks?: ComponentProps<typeof CustomerTasks>['initial']
   initialNotes?: ComponentProps<typeof CustomerNotesTimeline>['initial']
   initialMailbox?: ComponentProps<typeof CustomerEmailTimeline>['initial']
+  /** Parter fase B: PARTIES_UI_ENABLED (server) — standard FRA → panelet renderes ikke */
+  partiesEnabled?: boolean
 }
 
-export function CustomerDetailClient({ customer, portalTokens, partnerTokens, companySettings, canManagePricing = false, initialActivity, initialPaymentHealth, initialTasks, initialNotes, initialMailbox }: CustomerDetailClientProps) {
+export function CustomerDetailClient({ customer, portalTokens, partnerTokens, companySettings, canManagePricing = false, initialActivity, initialPaymentHealth, initialTasks, initialNotes, initialMailbox, partiesEnabled = false }: CustomerDetailClientProps) {
   const router = useRouter()
   // M-10 (mobil-review 2026-10-14): kun handlinger brugeren har ret til (bogholderi/salg fik knapper der altid fejlede)
   const { can } = useUserRole()
@@ -706,6 +709,8 @@ export function CustomerDetailClient({ customer, portalTokens, partnerTokens, co
                 </div>
               )}
             </div>
+
+            {partiesEnabled && <CustomerPartiesPanel customerId={customer.id} />}
 
             {/* Email Timeline */}
             <CustomerEmailTimeline customerId={customer.id} customerEmail={customer.email} initial={initialMailbox} />

@@ -3081,7 +3081,7 @@ Total inkl. moms 11.718,75
       return
     }
     const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
-      method: 'POST', headers: { Authorization: `Bearer ${boot.accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ query: P.probe00254Sql(!st0.applied) }),
+      method: 'POST', headers: { Authorization: `Bearer ${boot.accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ query: P.probe00254Sql(!st0.applied, (await stagingSql(`SELECT to_regprocedure('public.create_party(text,text,uuid,text[],text[],text,text,text)') IS NOT NULL AS r`))[0].r === true) }),
     })
     const text = await r.text()
     let msg = text
@@ -3096,6 +3096,68 @@ Total inkl. moms 11.718,75
     for (const c of checks) log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.id}${!c.ok && c.note ? ` (${c.note})` : ''}`)
     const failed = checks.filter((c) => !c.ok).length
     log(failed ? `❌ ${failed} af ${checks.length}` : `✅ ${checks.length} tjek — parts-/publikumsisolation (staging, rollback-only)`)
+    process.exitCode = failed ? 2 : 0
+    return
+  }
+  if (SUB === 'party-00255-app') {
+    const { runParty00255App } = await import('./party-00255-app')
+    process.exitCode = await runParty00255App(admin, runtime, log)
+    return
+  }
+  if (SUB === 'party-00255-state' || SUB === 'party-00255-probe' || SUB === 'party-00255-apply-staging' || SUB === 'party-00255-rollback-proof') {
+    // 00255 parter fase B (STAGING). probe = rollback-only (kører selv kroppen hvis 00255 ikke er anvendt). apply-staging er
+    // permanent på STAGING og kræver --confirm + grøn prøve. rollback-proof kører rollback-sektionen i én transaktion og ruller
+    // tilbage (intet ændres).
+    const P = await import('./party-00255-probe')
+    const st0 = (await stagingSql(P.STATE_00255_SQL))[0].f
+    if (SUB === 'party-00255-state') { log(JSON.stringify(st0)); return }
+    const viaMgmt = async (query: string, a: string, b: string) => {
+      const r = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+        method: 'POST', headers: { Authorization: `Bearer ${boot.accessToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ query }),
+      })
+      let msg = await r.text()
+      try { const jj = JSON.parse(msg) as { message?: string }; if (typeof jj.message === 'string') msg = jj.message } catch { /* rå */ }
+      const i = msg.indexOf(a), e = msg.indexOf(b)
+      if (i < 0 || e < i) throw new Error(`uventet svar (${r.status}): ${msg.slice(0, 900)}`)
+      return JSON.parse(msg.slice(i + a.length, e))
+    }
+    if (SUB === 'party-00255-apply-staging') {
+      if (st0.applied) { log('00255 er allerede anvendt på staging'); return }
+      if (!process.argv.includes('--confirm')) { log('kræver --confirm (permanent på staging)'); process.exitCode = 2; return }
+      const { readFileSync } = await import('node:fs')
+      const { resolve } = await import('node:path')
+      await stagingSql(readFileSync(resolve(process.cwd(), 'supabase/migrations/00255_party_write_rpcs.sql'), 'utf8'))
+      log(`00255 anvendt på staging: ${JSON.stringify((await stagingSql(P.STATE_00255_SQL))[0].f)}`)
+      return
+    }
+    if (SUB === 'party-00255-rollback-proof') {
+      if (!st0.applied) { log('kræver 00255 anvendt'); process.exitCode = 2; return }
+      const rb = P.rollback00255Statements()
+      const after = await viaMgmt(`DO $rb$ DECLARE h text; BEGIN\n${rb}\n SELECT (${P.STRUCT_00255_SQL}) INTO h; RAISE EXCEPTION 'P255RB%P255END', json_build_object('h', h, 'st', (${P.STATE_00255_SQL.replace(/ f$/, '')}))::text; END $rb$;`, 'P255RB', 'P255END')
+      const st1 = (await stagingSql(P.STATE_00255_SQL))[0].f
+      // rollback ∘ 00255-krop skal give præcis den nuværende struktur (fingeraftryk af funktioner, politikker, grants, indeks)
+      const now = (await stagingSql(`SELECT (${P.STRUCT_00255_SQL}) h`))[0].h
+      const reapplied = await viaMgmt(`DO $rb$ DECLARE h text; BEGIN\n${rb}\n EXECUTE $mig$${P.migration00255Body()}$mig$;\n SELECT (${P.STRUCT_00255_SQL}) INTO h; RAISE EXCEPTION 'P255RB%P255END', json_build_object('h', h)::text; END $rb$;`, 'P255RB', 'P255END')
+      const checks = [
+        { id: 'rollback-sektionen fjerner RPC\'er/indeks og genskaber 00254-skrivepolitikker + grants', ok: after.st.applied === false && after.st.vat_idx === false && after.st.write_policies === 6 && after.st.auth_ins === true, note: JSON.stringify(after.st) },
+        { id: 'data urørt af rollback (parter/relationer/deltagere/kunder/sager/offentliggørelser)', ok: ['parties', 'rels', 'participants', 'customers', 'cases', 'pubs', 'portal_docs'].every((k) => after.st[k] === st0[k]), note: JSON.stringify(after.st) },
+        { id: 'struktur efter rollback ≠ nu (noget blev faktisk fjernet)', ok: after.h !== now, note: '' },
+        { id: 'rollback → 00255 igen giver præcis samme struktur som nu (fingeraftryk)', ok: reapplied.h === now, note: `${reapplied.h} ≠ ${now}` },
+        { id: 'staging uændret efter beviset (transaktionen rullet tilbage)', ok: JSON.stringify(st0) === JSON.stringify(st1), note: '' },
+      ]
+      for (const c of checks) log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.id}${!c.ok && c.note ? ` (${c.note})` : ''}`)
+      const failed = checks.filter((c) => !c.ok).length
+      log(failed ? `❌ ${failed} af ${checks.length}` : `✅ ${checks.length} tjek — 00255-rollback (staging, rollback-only)`)
+      process.exitCode = failed ? 2 : 0
+      return
+    }
+    const json = await viaMgmt(P.probe00255Sql(!st0.applied), 'P255RESULT', 'P255END')
+    const st1 = (await stagingSql(P.STATE_00255_SQL))[0].f
+    const checks = [...P.evaluateProbe255(json), { id: 'staging uændret efter prøven (rollback)', ok: JSON.stringify(st0) === JSON.stringify(st1), note: `${JSON.stringify(st0)} → ${JSON.stringify(st1)}` }]
+    log(`00255 ${st0.applied ? 'anvendt' : 'IKKE anvendt — kroppen kørt i prøven'}`)
+    for (const c of checks) log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.id}${!c.ok && c.note ? ` (${c.note})` : ''}`)
+    const failed = checks.filter((c) => !c.ok).length
+    log(failed ? `❌ ${failed} af ${checks.length}` : `✅ ${checks.length} tjek — parter fase B (staging, rollback-only)`)
     process.exitCode = failed ? 2 : 0
     return
   }

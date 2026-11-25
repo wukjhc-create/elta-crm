@@ -11,6 +11,7 @@ import { getCustomerPaymentHealthAction } from '@/lib/actions/invoices'
 import { getCustomerTasks, getActiveProfiles, getCustomerTaskAbilitiesAction } from '@/lib/actions/customer-tasks'
 import { getCustomerNotes } from '@/lib/actions/customer-notes'
 import { getCustomerMailbox, getUnlinkedCustomerEmailCountAction } from '@/lib/actions/customer-mailbox'
+import { partiesUiEnabled } from '@/lib/parties/feature-flag'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,6 +68,7 @@ export default async function CustomerDetailPage({ params }: CustomerDetailPageP
       initialTasks={tasks && profiles && taskAbilities ? { tasks, profiles, abilities: taskAbilities } : undefined}
       initialNotes={notes ?? undefined}
       initialMailbox={initialMailbox}
+      partiesEnabled={partiesUiEnabled()}
     />
   )
 }

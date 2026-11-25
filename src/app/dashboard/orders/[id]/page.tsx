@@ -4,6 +4,7 @@ import { getServiceCase } from '@/lib/actions/service-cases'
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
 import { pageHasPermission } from '@/lib/auth/page-guard'
 import { OrderDetailClient } from './order-detail-client'
+import { partiesUiEnabled } from '@/lib/parties/feature-flag'
 
 export const metadata: Metadata = {
   title: 'Sag / Ordre',
@@ -150,6 +151,7 @@ export default async function OrderDetailPage({
       canManageAllNotes={canManageAllNotes}
       canEditCase={canManageAllNotes}
       canInspect={canInspect}
+      partiesEnabled={partiesUiEnabled()}
       materialPerms={materialPerms}
       tabAccess={{
         workOrders: (await pageHasPermission('work_orders.view.all')) || (await pageHasPermission('work_orders.view.assigned')),
