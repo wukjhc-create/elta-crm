@@ -1,6 +1,12 @@
 # 00254 parts-/publikumsfundament — PRODUCTION-PRÆFLIGHT (2026-11-25)
 
-Status: **rollback-only præflight gennemført. 00254 er IKKE anvendt i prod. Intet er deployet.** Stage A, leverandørværnet og
+**Opdatering 2026-11-25 (efter Henriks godkendelse "Jeg godkender 00254 til produktion"):** kode `58ff6cd8` deployet
+(Vercel Production success) → 00254 anvendt i prod efter en mail-sync → `prod-verify-00254 post` 8/8, prod-db-audit
+HØJ/MIDDEL/LAV 0, fingeraftryk: kun tilføjelser (10 politikker, 9 funktioner, 4 tabeller, 15 indeks, 2 nøgler, 5 standarder;
+0 eksisterende objekter/rækker ændret), Stage A efter 2 syncs 0 kritiske (ops-monitorens 32-tjek ekskluderer nu de 3 nye
+kolonner — falsk alarm bevist: 0/32 ændret ekskl. dem), portaleksponering uændret (15/3, F-1 0).
+
+Oprindelig status: **rollback-only præflight gennemført. 00254 er IKKE anvendt i prod. Intet er deployet.** Stage A, leverandørværnet og
 00253-lease kører uændret; Stage B er FRA; ingen portalflag er ændret; ingen offentliggørelser findes.
 
 Model og design: `COMMUNICATION_PARTY_AUDIENCE_MODEL.md`. Denne fil er beviset for prod-sikkerheden og den præcise

@@ -457,7 +457,11 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   docs/runbooks/telephony-events-proposal.md (godkendelsesrapport)
 - 2026-11-23: 00254 parts-/publikumsfundament (`parties`, `party_relationships`, `case_participants`, `external_publications`,
   `conversations.source_party_id/communication_class/communication_class_source`, nøgler `parties.manage`/`portal.publish`)
-  er KUN i STAGING (branch `claude-party-audience`; prod kræver egen godkendelse). Sagskobling/deltagelse/klasse giver ALDRIG
+  er i STAGING og PROD (prod 2026-11-25 efter Henriks godkendelse, kode 58ff6cd8; præflight
+  docs/runbooks/PARTY_AUDIENCE_00254_PROD_PREFLIGHT.md, rollback-only `scripts/prod-00254-dryrun.ts` 61/61). Inert: ingen UI/
+  kaldsteder, 0 rækker. Fase B kræver egen godkendelse; F-1 (delt `visible_in_portal`) er HÅRD blokering for portaludvidelse;
+  F-6: `INSERT … RETURNING` på parties afvises for brugere (brug return=minimal). Prods default privileges giver nye
+  funktioner EXECUTE til service_role (staging gør ikke) — REVOKE altid også FROM service_role. Sagskobling/deltagelse/klasse giver ALDRIG
   ekstern synlighed — kun `publish_external` (indlogget bruger, ingen service_role) → `external_feed(type, part)` (kun
   service_role, via `lib/parties/audience.ts`). Prøver: `cli.ts party-00254-probe|party-00254-app|party-00254-rollback-proof`,
   `scripts/party-audience-test.ts`; prod read-only `scripts/prod-verify-00254.ts pre|post`. Runbook
