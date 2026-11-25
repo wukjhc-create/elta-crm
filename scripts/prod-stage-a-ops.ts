@@ -130,7 +130,9 @@ withProdReadOnly('prod-stage-a-ops', async (run) => {
   console.log(`INFO  tråde: ${multi.length} henvendelser med flere items · afsendere pr. henvendelse >1: ${[...sendersPerConv.values()].filter((s) => s.size > 1).length}`)
 
   // ── 3. De oprindelige 32 (aktiverings-baseline) ──
-  const now32 = await run(`SELECT id::text, md5((to_jsonb(x) - 'thread_key' - 'text_purged_at' - 'customer_deleted_at' - 'case_deleted_at')::text) h, (handled_by IS NOT NULL OR updated_at > '${since}'::timestamptz) touched FROM public.conversations x WHERE id IN (${B})`)
+  // 00254 (prod 2026-11-25) tilføjede source_party_id/communication_class/communication_class_source med standardværdier — ikke
+  // en ændring af henvendelsen; uden udeladelsen gav tjekket falsk "32 ændret" efter migrationen
+  const now32 = await run(`SELECT id::text, md5((to_jsonb(x) - 'thread_key' - 'text_purged_at' - 'customer_deleted_at' - 'case_deleted_at' - 'source_party_id' - 'communication_class' - 'communication_class_source')::text) h, (handled_by IS NOT NULL OR updated_at > '${since}'::timestamptz) touched FROM public.conversations x WHERE id IN (${B})`)
   const hm = new Map(now32.map((r) => [r.id as string, r]))
   const changed32 = BASELINE.convs.filter((c) => hm.get(c.id)?.h !== c.h)
   const a32 = (await one(`SELECT md5(coalesce(string_agg(to_jsonb(x)::text, '|' ORDER BY x.id), '')) m, count(*)::int n FROM conversation_actions x WHERE conversation_id IN (${B})`))
