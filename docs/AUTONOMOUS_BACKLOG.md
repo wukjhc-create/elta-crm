@@ -19,6 +19,14 @@ Supabase (Authentication → Sign In / Providers). Derefter (read-only): `disabl
 oprettelse · invitation/onboarding virker stadig (admin-genererede links påvirkes ikke af signup-flaget). Først da: P1 CLOSED.
 Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 
+## TECH-LEASE-1 — ustabil `sync-lease-concurrency-staging` (registreret 2026-11-26, Henrik: separat opgave, ikke Phase B)
+- Fund: 1 FAIL ud af 4 kørsler på staging 2026-11-25 (de 3 andre 5/5); den fejlende linje blev ikke gemt.
+- Kendt afgrænsning: testen kalder kun `sync_lease_acquire`/`sync_lease_release` + `src/lib/services/sync-lease.ts`; ingen
+  00255-/parts-stier; Phase B-diff rørte ikke lease-kode. Prod 2026-11-26: 1133 mail-sync-kørsler, already_running 0,
+  lease_error 0, 0 udløbne leases, Stage A-monitor 0/0 → ingen reel race i prod.
+- Opgave: kør testen gentagne gange med fuld log, find den fejlende påstand (sandsynligvis timing/TTL-margin i testen),
+  ret testen eller dokumentér en reel race. Ingen ændring af lease-kode uden egen godkendelse.
+
 ## NEXT-60 (Henrik 2026-11-01 — aflevering pr. sagstype, opfølgning)
 - `TODO` **Batteri-tjekliste (BESS uden solceller).** I dag hører batteri-only under Solceller / batteri og får
   solcelle-tjeklisten (inverterfoto relevant, panelfoto ikke). Henrik: blokerer ikke 00244 — byg senere en dedikeret
