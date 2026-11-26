@@ -28,7 +28,7 @@ export const DB_AUDIT_QUERIES = {
   definerFunctions: `SELECT p.proname AS name, pg_get_function_identity_arguments(p.oid) AS args, pg_get_function_result(p.oid) AS result,
       coalesce(array_to_string(p.proconfig, ','), '') AS cfg,
       has_function_privilege('anon', p.oid, 'EXECUTE') AS anon_exec, has_function_privilege('authenticated', p.oid, 'EXECUTE') AS auth_exec,
-      (p.prosrc ~* 'auth\\.uid\\(|is_admin\\(|user_role\\(|current_employee_id\\(|can_view_|can_write_|auth\\.role\\(|auth\\.jwt\\(') AS checks_auth,
+      (p.prosrc ~* 'auth\\.uid\\(|is_admin\\(|user_role\\(|current_employee_id\\(|can_view_|can_write_|auth\\.role\\(|auth\\.jwt\\(|user_has_permission\\(|_party_require_user\\(') AS checks_auth,
       p.prokind AS kind
     FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public' AND p.prosecdef ORDER BY 1`,

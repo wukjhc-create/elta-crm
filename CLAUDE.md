@@ -466,3 +466,15 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   service_role, via `lib/parties/audience.ts`). Prøver: `cli.ts party-00254-probe|party-00254-app|party-00254-rollback-proof`,
   `scripts/party-audience-test.ts`; prod read-only `scripts/prod-verify-00254.ts pre|post`. Runbook
   docs/runbooks/COMMUNICATION_PARTY_AUDIENCE_MODEL.md
+- 2026-11-26: 00255 parter fase B er i STAGING og PROD (prod 2026-11-26 efter Henriks godkendelse; kode 50776519 med
+  `PARTIES_UI_ENABLED` FRA = inert; aktivering af flaget kræver SÆRSKILT godkendelse). Al skrivning i parties/
+  party_relationships/case_participants går via 8 SECURITY DEFINER-RPC'er (`create_party`, `update_party`,
+  `ensure_register_party`, `set/end_party_relationship`, `add_case_participant[_for_register]`, `end_case_participant`);
+  INGEN rolle (heller ikke admin) har direkte INSERT/UPDATE — brug aldrig `.from('parties').insert()` (F-6: id kommer som
+  RPC-returværdi). cases.edit uden parties.manage kun via `add_case_participant_for_register` for sagens egne kunder/kontakt.
+  CVR kun cifre + unik. Dublet-normalisering i `lib/parties/party-dedupe.ts` = SQL `party_normalize_*`. Kode:
+  `lib/actions/parties.ts`, `components/modules/parties/*`, flag `lib/parties/feature-flag.ts`. Prøver: `cli.ts
+  party-00255-probe|party-00255-app|party-00255-rollback-proof`, `scripts/party-phase-b-test.ts`, UI U270 (gruppe parties);
+  prod `scripts/prod-00255-dryrun.ts` (rollback-only), `scripts/prod-verify-00255.ts pre|post`. Prod-rollback
+  (`docs/runbooks/sql/00255_rollback.sql`) KUN ved egentlig beslutning — aldrig som test. F-1 stadig HÅRD blokering.
+  Runbook docs/runbooks/PARTY_AUDIENCE_PHASE_B_PREFLIGHT.md

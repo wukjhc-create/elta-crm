@@ -210,3 +210,15 @@ Efter deploy:
    tilføjer en sagsdeltager — eller kun `parties.manage`? (Forslag: ja, idempotent og registerbundet.)
 2. Montør ser parter der er deltagere på montørens egne sager (00254-adfærd). OK? (Forslag: ja — hvem er på stedet.)
 3. Feature-flag-udrulning (kode FRA → 00255 → flag ON) — OK?
+
+## 13. Udrulningslog
+- 2026-11-25 staging: 00255 anvendt. `party-00255-probe` 50/50 (rollback-only), `party-00255-rollback-proof` 5/5,
+  `party-00255-app` 20/20 (inkl. 3 samtidige create_party → 1 oprettet), `party-00254-probe` 37/37 (nu via RPC'er),
+  U270 flag TIL + FRA, smoke 15/15, Stage A 40/40, supplier-guard 14/14.
+- A: kode 50776519 → main, Vercel Production success, `PARTIES_UI_ENABLED` ikke sat (FRA).
+- B: inert — `prod-verify-00255 pre` 4/4 (0 parter, 0 party-audit), Stage A 0/0, portaleksponering 15/3/0.
+- C: `prod-00255-dryrun` 61/61 (rollback-only, 4,3 s; struktur-md5 af hele public + 19 data-fingeraftryk = før efter
+  rollback-SQL) → `prod:apply-migration 00255` COMMIT.
+- D: `prod-verify-00255 post` 7/7, `prod-verify-00254 post` 8/8, `prod-db-audit` 0/0/0 (efter at auditens auth-regex lærte
+  `user_has_permission(`/`_party_require_user(`), Stage A 0/0, portaleksponering 15/3/0, 0 offentliggørelser.
+- E: STOP. F (flag ON) afventer Henriks særskilte godkendelse.

@@ -1,5 +1,6 @@
 # Kommunikation: parter, relationer og publikum (audience)
 
+Fase B (00255, intern partsforvaltning via RPC'er) i STAGING og PROD 2026-11-26, UI-flag FRA — se `PARTY_AUDIENCE_PHASE_B_PREFLIGHT.md`.
 Status 2026-11-23 (prod-præflight 2026-11-25: se `PARTY_AUDIENCE_00254_PROD_PREFLIGHT.md` — rollback-only 61/61, fund P-1
 rettet i migrationen, F-6/D-1 tilføjet, F-1 er HÅRD blokering for portaludvidelse):
 - **Leverandør-/kunde-integritetsværn (S2)** er i PROD (main `380adb71`, kode-only) — afsnit 2.
