@@ -48,6 +48,16 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 - Opgave: forslag til en dedikeret intern salg-testprofil i prod (invitation af Henrik, minimale rettigheder, kun testdata)
   + rollback-only/UI-smoke mod C000008 / SVC-01006. Kræver godkendelse.
 
+### TECH-HEALTH-1 — daglig health_check-advarsel er permanent støj (kendte konfigurationshuller) — `TODO`
+- Fund 2026-11-26: 3 `health_check/warning`-rækker hver dag kl. 09:00 UTC (set dagligt 2026-11-20 → 11-26, 3/dag),
+  fra cron `/api/cron/system-health-check` → `scanAndAlert` (`lib/services/admin-alerts.ts`):
+  `health rollup: warning` + `admin_alert:economic_not_configured` (ingen komplet `accounting_integration_settings` for
+  provider `economic`) + `admin_alert:bank_import_stale` (0 `bank_transactions` de seneste 7 dage). notification_only.
+- Ikke en fejl og ikke Phase B: e-conomic er bevidst ikke koblet på, og bankimport er ikke i brug. Men advarslen er altid
+  gul, så en NY reel advarsel drukner (samme "altid gul"-problem som en ufølsom alarm).
+- Forslag (kræver godkendelse): eksplicit "ikke i brug/accepteret"-tilstand pr. integration (konfiguration, ikke kode-
+  undertrykkelse), så rollup'en kun bliver gul ved afvigelse; alternativt stop bank-tjekket til bankimporten er aktiveret.
+
 ## TECH-LEASE-1 — ustabil `sync-lease-concurrency-staging` (registreret 2026-11-26, Henrik: separat opgave, ikke Phase B)
 - Fund: 1 FAIL ud af 4 kørsler på staging 2026-11-25 (de 3 andre 5/5); den fejlende linje blev ikke gemt.
 - Kendt afgrænsning: testen kalder kun `sync_lease_acquire`/`sync_lease_release` + `src/lib/services/sync-lease.ts`; ingen

@@ -39,4 +39,5 @@ Første gennemførelse: 2026-11-26 (flag-aktivering, se `PARTY_AUDIENCE_PHASE_B_
   for hver række, kendt aktør, kun kendte audit-handlinger, 0 offentliggørelser, portaleksponering (F-1 = 0).
 - `post --expect inert`: flag FRA og ingen brug → 0 partsdata. Staging står p.t. inert: `npx tsx scripts/test-harness/cli.ts
   verify-00255 --expect inert`.
-- Uden `--expect` detekteres tilstanden ud fra data. Fixture-test af evalueringen: `npx tsx scripts/verify-00255-core-test.ts`.
+- `post` KRÆVER `--expect` (fra 2026-11-26; Production-monitorering bruger altid `--expect active` — tilstanden gættes aldrig). `post --detect`
+  er kun til diagnose. Fixture-test af evalueringen: `npx tsx scripts/verify-00255-core-test.ts`.

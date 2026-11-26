@@ -1,7 +1,7 @@
 /**
  * 00255 parter fase B — PRODUCTION READ-ONLY før/efter-tjek (kun SELECT, kun antal/flag; aldrig navne/e-mails/CVR/id'er).
  *   npx tsx scripts/prod-verify-00255.ts pre                    (før: 00254 findes, 00255 ikke anvendt, 0 rækker)
- *   npx tsx scripts/prod-verify-00255.ts post                   (efter: tilstanden detekteres ud fra data)
+ *   npx tsx scripts/prod-verify-00255.ts post --detect          (KUN diagnose: tilstanden gættes ud fra data — aldrig i drift)
  *   npx tsx scripts/prod-verify-00255.ts post --expect active   (prod fra 2026-11-26: PARTIES_UI_ENABLED=true)
  *   npx tsx scripts/prod-verify-00255.ts post --expect inert    (flag FRA og ingen brug: 0 partsdata)
  *
@@ -15,8 +15,11 @@ import { STATE_00255_SQL, ACL_00255_SQL, detectMode, evaluatePost00255, type Sta
 
 const mode = process.argv[2]
 const expectArg = (() => { const i = process.argv.indexOf('--expect'); return i > 0 ? process.argv[i + 1] : undefined })()
-if ((mode !== 'pre' && mode !== 'post') || (expectArg !== undefined && expectArg !== 'inert' && expectArg !== 'active')) {
-  console.error('brug: pre | post [--expect inert|active]'); process.exit(2)
+const detectArg = process.argv.includes('--detect')
+if ((mode !== 'pre' && mode !== 'post') || (expectArg !== undefined && expectArg !== 'inert' && expectArg !== 'active') ||
+    (mode === 'post' && !expectArg && !detectArg) || (expectArg && detectArg)) {
+  // Production-monitorering skal angive tilstanden eksplicit (fra 2026-11-26: --expect active) — ingen tavs gætning
+  console.error('brug: pre | post --expect inert|active | post --detect (kun diagnose)'); process.exit(2)
 }
 
 withProdReadOnly('prod-verify-00255', async (run) => {

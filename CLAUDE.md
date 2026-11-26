@@ -479,7 +479,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   prod `scripts/prod-00255-dryrun.ts` (rollback-only), `scripts/prod-verify-00255.ts pre|post`. Prod-rollback
   (`docs/runbooks/sql/00255_rollback.sql`) KUN ved egentlig beslutning — aldrig som test. F-1 stadig HÅRD blokering.
   Runbook docs/runbooks/PARTY_AUDIENCE_PHASE_B_PREFLIGHT.md
-  - Drift: `prod-verify-00255.ts post --expect active` (inert|active; aktiv = integritet/audit/dubletter/referencer/portal, ikke
+  - Drift: `prod-verify-00255.ts post --expect active` (`--expect` er PÅKRÆVET — gætter aldrig; `--detect` kun diagnose; inert|active; aktiv = integritet/audit/dubletter/referencer/portal, ikke
     "vilkårligt antal rækker"; logik `scripts/test-harness/verify-00255-core.ts`, fixture `scripts/verify-00255-core-test.ts`,
     staging `cli.ts verify-00255 --expect inert`). Kontrolleret prod-smoke: `scripts/prod-party-activation-check.ts
     snapshot|verify|montor C000008 SVC-01006` — runbook docs/runbooks/PARTY_PHASE_B_PROD_SMOKE.md. C000008 / SVC-01006 og
