@@ -21,7 +21,11 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 
 ## Teknisk gæld efter Phase B-aktivering (registreret 2026-11-26, Henrik: separate opgaver, ingen UI-/runtime-ændring uden godkendelse)
 
-### TECH-PARTY-ROLE-1 — "Fra sagen" forvælger Samarbejdspartner — `TODO` (årsag fundet, ikke rettet)
+### TECH-PARTY-ROLE-1 — "Fra sagen" forvælger Samarbejdspartner — `RETTET (branch claude-party-role-default, staging-testet; prod-deploy afventer godkendelse)`
+- Rettelse 2026-11-26 (Henrik godkendte implementering + staging-test): `lib/parties/participant-role-default.ts` (ren logik) +
+  `openMode` i panelet — hver tilføjelse starter forfra (første mulighed + dens standardrolle, også ved én mulighed); skift af
+  mulighed sætter rollen; manuel ændring bevares indtil næste skift; Eksisterende/Ny part → Samarbejdspartner. Test:
+  `scripts/participant-role-default-test.ts` (20/20), U270 udvidet (én/flere muligheder, skift, manuel, gemt rolle, nulstilling).
 - Fund (prod-smoke): "Fra sagen" på SVC-01006 viste rollen Samarbejdspartner, skønt eneste valg var sagens kunde.
 - Årsag: `components/modules/parties/case-participants-panel.tsx` initialiserer `role` til `'cooperation_partner'`;
   registerets `defaultRole` (fra `caseRegisterOptions` i `orders/[id]/order-detail-client.tsx`: kunde → `customer`,

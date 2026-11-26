@@ -18,12 +18,18 @@ import {
   type PartyRow,
 } from '@/lib/actions/parties'
 import { CASE_PARTICIPANT_ROLES, type CaseParticipantRole } from '@/lib/parties/audience'
+import {
+  initialParticipantSelection,
+  participantOptionKey,
+  roleForOption,
+  type ParticipantMode,
+} from '@/lib/parties/participant-role-default'
 import { PARTICIPANT_ROLE_LABELS, PARTY_INTERNAL_NOTE } from './party-labels'
 import { PartyCreateForm } from './party-create-form'
 
 export interface CaseRegisterOption { register: 'customer' | 'customer_contact'; id: string; label: string; defaultRole: CaseParticipantRole }
 
-type Mode = null | 'case' | 'search' | 'new'
+type Mode = ParticipantMode
 
 export function CaseParticipantsPanel({ caseId, caseOptions }: { caseId: string; caseOptions: CaseRegisterOption[] }) {
   const [view, setView] = useState<CaseParticipantsView | null>(null)
@@ -31,9 +37,18 @@ export function CaseParticipantsPanel({ caseId, caseOptions }: { caseId: string;
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [mode, setMode] = useState<Mode>(null)
-  const [role, setRole] = useState<CaseParticipantRole>('cooperation_partner')
+  const [role, setRole] = useState<CaseParticipantRole>(() => initialParticipantSelection(null, caseOptions).role)
   const [note, setNote] = useState('')
-  const [optionKey, setOptionKey] = useState(caseOptions[0] ? `${caseOptions[0].register}:${caseOptions[0].id}` : '')
+  const [optionKey, setOptionKey] = useState(() => initialParticipantSelection(null, caseOptions).optionKey)
+
+  /** Åbn en tilføjelse: start altid forfra (første mulighed + dens standardrolle) — TECH-PARTY-ROLE-1 */
+  function openMode(next: Exclude<Mode, null>) {
+    const init = initialParticipantSelection(next, caseOptions)
+    setOptionKey(init.optionKey)
+    setRole(init.role)
+    setNote('')
+    setMode(next)
+  }
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<PartyRow[]>([])
 
@@ -55,7 +70,7 @@ export function CaseParticipantsPanel({ caseId, caseOptions }: { caseId: string;
   }
 
   async function addFromCase() {
-    const opt = caseOptions.find((o) => `${o.register}:${o.id}` === optionKey)
+    const opt = caseOptions.find((o) => participantOptionKey(o) === optionKey)
     if (!opt) return
     setBusy(true)
     await done(await addCaseParticipantFromRegisterAction(caseId, opt.register, opt.id, role, note))
@@ -88,9 +103,9 @@ export function CaseParticipantsPanel({ caseId, caseOptions }: { caseId: string;
         <h3 className="flex items-center gap-2 text-sm font-semibold"><Users className="h-4 w-4" />Sagsdeltagere</h3>
         {view?.canEdit && mode === null && (
           <div className="flex gap-1">
-            {caseOptions.length > 0 && <button type="button" onClick={() => setMode('case')} className="inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs hover:bg-gray-50" data-testid="participant-add-case"><Plus className="h-3 w-3" />Fra sagen</button>}
-            <button type="button" onClick={() => setMode('search')} className="inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs hover:bg-gray-50"><Plus className="h-3 w-3" />Eksisterende part</button>
-            {view.canManage && <button type="button" onClick={() => setMode('new')} className="inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs hover:bg-gray-50" data-testid="participant-add-new"><Plus className="h-3 w-3" />Ny part</button>}
+            {caseOptions.length > 0 && <button type="button" onClick={() => openMode('case')} className="inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs hover:bg-gray-50" data-testid="participant-add-case"><Plus className="h-3 w-3" />Fra sagen</button>}
+            <button type="button" onClick={() => openMode('search')} className="inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs hover:bg-gray-50"><Plus className="h-3 w-3" />Eksisterende part</button>
+            {view.canManage && <button type="button" onClick={() => openMode('new')} className="inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs hover:bg-gray-50" data-testid="participant-add-new"><Plus className="h-3 w-3" />Ny part</button>}
           </div>
         )}
       </div>
@@ -102,7 +117,7 @@ export function CaseParticipantsPanel({ caseId, caseOptions }: { caseId: string;
         <div className="mb-3 space-y-2 rounded-md border bg-gray-50 p-3 text-sm">
           <div className="flex flex-wrap gap-2">
             <label className="text-xs text-gray-600">Rolle
-              <select value={role} onChange={(e) => setRole(e.target.value as CaseParticipantRole)} className="ml-1 rounded border px-1 py-0.5 text-sm">
+              <select value={role} onChange={(e) => setRole(e.target.value as CaseParticipantRole)} data-testid="participant-role" className="ml-1 rounded border px-1 py-0.5 text-sm">
                 {CASE_PARTICIPANT_ROLES.map((r) => <option key={r} value={r}>{PARTICIPANT_ROLE_LABELS[r]}</option>)}
               </select>
             </label>
@@ -112,10 +127,9 @@ export function CaseParticipantsPanel({ caseId, caseOptions }: { caseId: string;
             <div className="flex flex-wrap items-center gap-2">
               <select value={optionKey} onChange={(e) => {
                 setOptionKey(e.target.value)
-                const o = caseOptions.find((x) => `${x.register}:${x.id}` === e.target.value)
-                if (o) setRole(o.defaultRole)
-              }} className="rounded border px-1 py-0.5 text-sm">
-                {caseOptions.map((o) => <option key={`${o.register}:${o.id}`} value={`${o.register}:${o.id}`}>{o.label}</option>)}
+                setRole(roleForOption(caseOptions, e.target.value))
+              }} data-testid="participant-case-option" className="rounded border px-1 py-0.5 text-sm">
+                {caseOptions.map((o) => <option key={participantOptionKey(o)} value={participantOptionKey(o)}>{o.label}</option>)}
               </select>
               <button type="button" disabled={busy} onClick={addFromCase} className="rounded bg-emerald-600 px-2 py-0.5 text-xs font-medium text-white disabled:opacity-50" data-testid="participant-add-case-submit">Tilføj</button>
             </div>

@@ -6604,15 +6604,20 @@ ${m.text()}`) })
         const r: Record<string, boolean> = {}
         const flagOn = (process.env.UI_PARTIES_UI_ENABLED ?? 'true') === 'true'
         const tag = `U270${stamp}`
-        let custId: string | null = null, caseId: string | null = null
+        let custId: string | null = null, caseId: string | null = null, endCustId: string | null = null
         let diag = ''
         try {
           const cu = await c.admin.from('customers').insert([{ customer_number: `U270-${stamp}`, company_name: `[HARNESS] ${tag}`, contact_person: 'P', email: `u270-${stamp}@harness.test`,
             created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
           custId = (cu.data?.[0] as { id: string } | undefined)?.id ?? null
+          if (flagOn) {
+            const ec = await c.admin.from('customers').insert([{ customer_number: `U270S-${stamp}`, company_name: `[HARNESS] ${tag} slut`, contact_person: 'P', email: `u270s-${stamp}@harness.test`,
+              created_by: adminUser.id, custom_fields: { harness: 'ui-e2e' } }]).select('id')
+            endCustId = (ec.data?.[0] as { id: string } | undefined)?.id ?? null
+          }
           const sc = custId ? await c.admin.from('service_cases').insert([{ title: `[HARNESS] ${tag} sag`, customer_id: custId, status: 'in_progress', priority: 'medium', created_by: adminUser.id }]).select('id') : null
           caseId = (sc?.data?.[0] as { id: string } | undefined)?.id ?? null
-          r.seed = !!custId && !!caseId
+          r.seed = !!custId && !!caseId && (!flagOn || !!endCustId)
           const a = await login(adminUser)
           try {
             await gotoSafe(a.page, `${base}/dashboard/customers/${custId}`, { waitUntil: 'networkidle', timeout: 180_000 })
@@ -6632,10 +6637,44 @@ ${m.text()}`) })
               await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
               await a.page.getByTestId('case-participants-panel').waitFor({ timeout: 60_000 })
               await a.page.getByTestId('participant-add-case').click()
+              const roleSel = a.page.getByTestId('participant-role'), optSel = a.page.getByTestId('participant-case-option')
+              // TECH-PARTY-ROLE-1: én mulighed (kun sagens kunde) → rollen er Kunde uden at røre vælgeren
+              r.rolle_en_mulighed_kunde = (await roleSel.inputValue()) === 'customer'
               await a.page.getByTestId('participant-add-case-submit').click()
               await a.page.getByTestId('case-participants-list').waitFor({ timeout: 30_000 })
               r.deltager_tilfoejet = (await a.page.getByTestId('case-participants-list').innerText()).includes(tag)
+              const activeRoles = async (registerCustomerId: string) => {
+                const { data: pp } = await c.admin.from('parties').select('id').eq('customer_id', registerCustomerId)
+                const ids = (pp ?? []).map((p) => (p as { id: string }).id)
+                if (!ids.length) return '[]'
+                const { data } = await c.admin.from('case_participants').select('role').eq('service_case_id', caseId!).in('party_id', ids).is('ended_at', null)
+                return JSON.stringify((data ?? []).map((x) => (x as { role: string }).role).sort())
+              }
+              r.rolle_gemt_kunde = (await activeRoles(custId!)) === '["customer"]'
+              // Flere muligheder: sagen får en slutkunde → genindlæs
+              const up = endCustId ? await c.admin.from('service_cases').update({ end_customer_id: endCustId }).eq('id', caseId!) : null
+              r.slutkunde_sat = !!up && !up.error
+              await gotoSafe(a.page, `${base}/dashboard/orders/${caseId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+              await a.page.getByTestId('case-participants-panel').waitFor({ timeout: 60_000 })
+              await a.page.getByTestId('participant-add-case').click()
+              r.rolle_flere_start_kunde = (await optSel.inputValue()) === `customer:${custId}` && (await roleSel.inputValue()) === 'customer'
+              await optSel.selectOption(`customer:${endCustId}`)
+              r.rolle_skift_slutkunde = (await roleSel.inputValue()) === 'end_customer'
+              await roleSel.selectOption('payer')
+              r.rolle_manuel_aendring = (await roleSel.inputValue()) === 'payer'
+              await optSel.selectOption(`customer:${custId}`)
+              r.rolle_skift_tilbage_kunde = (await roleSel.inputValue()) === 'customer'
+              await optSel.selectOption(`customer:${endCustId}`)
+              await roleSel.selectOption('orderer')
+              await a.page.getByTestId('participant-add-case-submit').click()
+              await a.page.waitForFunction((t) => (document.querySelector('[data-testid="case-participants-list"]')?.textContent ?? '').includes(`${t} slut`), tag, { timeout: 30_000 }).catch(() => {})
+              r.rolle_manuel_gemt = (await activeRoles(endCustId!)) === '["orderer"]'
+              // Nulstilling mellem tilføjelser: næste "Fra sagen" starter på første mulighed + Kunde (ikke forrige Ordregiver)
+              await a.page.getByTestId('participant-add-case').click()
+              r.nulstil_fra_sagen = (await optSel.inputValue()) === `customer:${custId}` && (await roleSel.inputValue()) === 'customer'
+              await a.page.getByTestId('case-participants-panel').getByRole('button', { name: 'Annuller', exact: true }).click()
               await a.page.getByTestId('participant-add-new').click()
+              r.ny_part_generisk_rolle = (await roleSel.inputValue()) === 'cooperation_partner'
               await a.page.getByTestId('party-create-name').fill(`${tag} Partner ApS`)
               await a.page.getByTestId('party-create-submit').click()
               await a.page.waitForFunction((t) => (document.querySelector('[data-testid="case-participants-list"]')?.textContent ?? '').includes(`${t} Partner`), tag, { timeout: 30_000 }).catch(() => {})
@@ -6667,8 +6706,9 @@ ${m.text()}`) })
           if (pids.length) { await c.admin.from('audit_logs').delete().in('entity_id', pids); await c.admin.from('parties').delete().in('id', pids) }
           if (caseId) { await c.admin.from('audit_logs').delete().eq('entity_type', 'case_participant').contains('metadata', { service_case_id: caseId }); await c.admin.from('service_cases').delete().eq('id', caseId) }
           if (custId) await c.admin.from('customers').delete().eq('id', custId)
+          if (endCustId) await c.admin.from('customers').delete().eq('id', endCustId)
         }
-        out.push({ id: `U270 parter fase B (flag ${flagOn ? 'TIL' : 'FRA'}): ${flagOn ? 'registrér kunde, sagsdeltager, ny partner, dublet-dialog, salg read-only' : 'paneler findes ikke'}`, ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + diag })
+        out.push({ id: `U270 parter fase B (flag ${flagOn ? 'TIL' : 'FRA'}): ${flagOn ? 'registrér kunde, sagsdeltager + standardrolle (én/flere muligheder, skift, manuel, nulstilling), ny partner, dublet-dialog, salg read-only' : 'paneler findes ikke'}`, ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + diag })
       }
       // U268 KOMMUNIKATIONS-HUB FASE 3A (00250 på staging): mail + portal ind via den RIGTIGE kanal-adapter (flag kun i kaldet),
       // Henvendelser-visninger (Nye/Ikke tildelt/Venter på ELTA) og kanalfilter, én tråd (svar i samme mail-tråd), vedhæftnings-
