@@ -1,6 +1,6 @@
 # Phase C — præflight: mærkbar tidsbesparelse i kommunikation og kunderegister
 
-Status: **FORSLAG (2026-11-26)** — intet er implementeret, ingen migration er skrevet, intet flag er sat. Hver leverance
+Status: **FORSLAG (2026-11-26)** — C0+C1 implementeret som read-only shadow (se `PHASE_C0_C1.md`); C4a besluttet (automatisk kundeoprettelse bevares indtil C2/C3/C4-erstatning er klar) — intet er implementeret, ingen migration er skrevet, intet flag er sat. Hver leverance
 nedenfor kræver Henriks særskilte godkendelse (implementering, hver migration og hvert prod-trin for sig).
 
 Faste rammer for hele Phase C:

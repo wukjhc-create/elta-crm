@@ -487,3 +487,9 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   - Et Vercel-flag virker først efter at variablen er GEMT og et nyt Production-deploy er Ready (2026-11-26: første "flag sat"
     var aldrig gemt). Kendt gæld: TECH-HYDRATION-1, TECH-HTTP400-1,
     TECH-RATE-1, TECH-TEST-SALES-1, TECH-LEASE-1 (docs/AUTONOMOUS_BACKLOG.md). Fase C er IKKE startet.
+- 2026-11-26: Phase C0+C1 (branch `claude-phase-c-c0-c1`, IKKE i prod): deterministisk henvendelses-klassifikator
+  `src/lib/classification/inquiry-classifier.ts` (+ `inquiry-text-signals.ts`, version c1-v1) med TRE adskilte dimensioner
+  (afsendertype · henvendelsestype · sagsreference) + foreslået handling; tvivl → ukendt; bruges IKKE af appen endnu.
+  Shadow = read-only måling: `scripts/prod-phase-c-shadow.ts baseline|shadow [--since]` (staging `cli.ts phase-c-shadow`),
+  kun antal/regel-id'er ud. Test `scripts/inquiry-classifier-test.ts`. Runbook docs/runbooks/PHASE_C0_C1.md. C4a: automatisk
+  kundeoprettelse fra mail må IKKE slås fra før C2/C3/C4-erstatningsflow er klar (Henrik 2026-11-26)

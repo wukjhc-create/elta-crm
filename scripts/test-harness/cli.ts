@@ -3099,6 +3099,22 @@ Total inkl. moms 11.718,75
     process.exitCode = failed ? 2 : 0
     return
   }
+  if (SUB === 'phase-c-shadow') {
+    // Phase C0/C1 mod STAGING (read-only): baseline|shadow [--since YYYY-MM-DD] — samme kerner som scripts/prod-phase-c-shadow.ts
+    const mode = process.argv[3]
+    const i = process.argv.indexOf('--since')
+    const since = i > 0 ? process.argv[i + 1] : '2026-01-01'
+    if ((mode !== 'baseline' && mode !== 'shadow') || !/^\d{4}-\d{2}-\d{2}$/.test(since ?? '')) { log('brug: phase-c-shadow baseline|shadow [--since YYYY-MM-DD]'); process.exitCode = 2; return }
+    if (mode === 'baseline') {
+      const B = await import('./phase-c-baseline-core')
+      for (const l of B.baselineReport((await stagingSql(B.baselineSql(since)))[0].j)) log(l)
+    } else {
+      const S = await import('./inquiry-shadow-core')
+      const rows = S.classifyAll((await stagingSql(S.SHADOW_DATA_SQL))[0].j, { since })
+      for (const l of S.shadowReport(rows)) log(l)
+    }
+    return
+  }
   if (SUB === 'verify-00255') {
     // Samme read-only tjek som scripts/prod-verify-00255.ts post, mod STAGING. [--expect inert|active]
     const V = await import('./verify-00255-core')
