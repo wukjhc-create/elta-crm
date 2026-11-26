@@ -1,6 +1,6 @@
 # Parter — Fase B præflight (2026-11-25)
 
-Status: **GENNEMFØRT og AKTIV i Production 2026-11-26** (Henrik: funktionelt godkendt). Kode 50776519 + 00255 i prod;
+Status: **AFSLUTTET og AKTIV i Production 2026-11-26** (Henrik: funktionelt godkendt; TECH-PARTY-ROLE-1 rettet i prod f4910c93). Kode 50776519 + 00255 i prod;
 `PARTIES_UI_ENABLED=true` (Vercel, KUN Production, type Config) skal forblive TIL. Udrulning: A kode med flaget FRA →
 B inert-verifikation → C 00255 → D post-verifikation → E STOP → F flag TIL efter Henriks særskilte godkendelse (se §13).
 Løbende verifikation: `prod-verify-00255 post --expect active`; kontrolleret prod-smoke: `PARTY_PHASE_B_PROD_SMOKE.md`.
@@ -250,6 +250,6 @@ Efter deploy:
 - F-1 er stadig HÅRD blokering: ingen offentliggørelser/portaludvidelse (0 `external_publications`), ingen fase C.
 - Salg er ikke prøvet i prod (mangler salg-testprofil — TECH-TEST-SALES-1); staging-beviserne gælder.
 - "Fra sagen" forvælger rollen Samarbejdspartner i stedet for registerets standardrolle, når der kun er én valgmulighed
-  (TECH-PARTY-ROLE-1, ikke rettet). Kontrollér rollen før "Tilføj".
+  (TECH-PARTY-ROLE-1 — rettet i prod 2026-11-26, f4910c93: "Fra sagen" forvælger nu sagens rolle, fx Kunde).
 - Konsolfejl React #418/#419 + én HTTP 400 set én gang i prod-sessionen (ikke reproduceret på Phase B-siderne) →
   TECH-HYDRATION-1 / TECH-HTTP400-1.

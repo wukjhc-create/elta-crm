@@ -467,7 +467,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   `scripts/party-audience-test.ts`; prod read-only `scripts/prod-verify-00254.ts pre|post`. Runbook
   docs/runbooks/COMMUNICATION_PARTY_AUDIENCE_MODEL.md
 - 2026-11-26: 00255 parter fase B er i STAGING og PROD (prod 2026-11-26 efter Henriks godkendelse; kode 50776519).
-  **Fase B GENNEMFØRT og AKTIV i prod 2026-11-26**: `PARTIES_UI_ENABLED=true` i Vercel KUN for Production (type Config) — skal
+  **Fase B AFSLUTTET og AKTIV i prod 2026-11-26** (sidste rettelse TECH-PARTY-ROLE-1 i prod f4910c93): `PARTIES_UI_ENABLED=true` i Vercel KUN for Production (type Config) — skal
   forblive TIL; staging/Preview har flaget FRA. Al skrivning i parties/
   party_relationships/case_participants går via 8 SECURITY DEFINER-RPC'er (`create_party`, `update_party`,
   `ensure_register_party`, `set/end_party_relationship`, `add_case_participant[_for_register]`, `end_case_participant`);
@@ -485,5 +485,5 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
     snapshot|verify|montor C000008 SVC-01006` — runbook docs/runbooks/PARTY_PHASE_B_PROD_SMOKE.md. C000008 / SVC-01006 og
     deres partsdata (1 part, 1 relation, 1 deltager, 2 audit) er faste interne smoke-testdata — slettes ikke.
   - Et Vercel-flag virker først efter at variablen er GEMT og et nyt Production-deploy er Ready (2026-11-26: første "flag sat"
-    var aldrig gemt). Kendt gæld: TECH-PARTY-ROLE-1 ("Fra sagen" forvælger Samarbejdspartner), TECH-HYDRATION-1, TECH-HTTP400-1,
+    var aldrig gemt). Kendt gæld: TECH-HYDRATION-1, TECH-HTTP400-1,
     TECH-RATE-1, TECH-TEST-SALES-1, TECH-LEASE-1 (docs/AUTONOMOUS_BACKLOG.md). Fase C er IKKE startet.

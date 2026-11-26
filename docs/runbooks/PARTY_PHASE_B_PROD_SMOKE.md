@@ -22,7 +22,7 @@ Første gennemførelse: 2026-11-26 (flag-aktivering, se `PARTY_AUDIENCE_PHASE_B_
 2. Snapshot lige før UI-testen: `npx tsx scripts/prod-party-activation-check.ts snapshot C000008 SVC-01006`
    (read-only; md5 pr. række i 13 tabeller gemmes i `%TEMP%/elta-party-activation/`).
 3. UI-test (admin) på C000008 / SVC-01006 — kun de godkendte handlinger, fx: tilføj/afslut deltagerrolle, sæt relation,
-   "Ny part" med navnevariant → dublet-dialog → annullér. Kontrollér rollen før "Tilføj" (TECH-PARTY-ROLE-1).
+   "Ny part" med navnevariant → dublet-dialog → annullér. Rollen forvælges ud fra sagen (kunde → Kunde; rettet f4910c93) — kontrollér den før "Tilføj".
 4. Verifikation (read-only): `npx tsx scripts/prod-party-activation-check.ts verify C000008 SVC-01006 [--expect P,R,C,A]`
    - altid: alle nye parter/relationer/deltagere/audit ligger på testkunden/-sagen, kendt aktør, kun kendte audit-handlinger,
      ingen ny udokumenteret navne-dublet, 0 offentliggørelser, ingen eksisterende rækker ændret/slettet

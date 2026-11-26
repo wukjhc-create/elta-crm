@@ -21,7 +21,7 @@ Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 
 ## Teknisk gæld efter Phase B-aktivering (registreret 2026-11-26, Henrik: separate opgaver, ingen UI-/runtime-ændring uden godkendelse)
 
-### TECH-PARTY-ROLE-1 — "Fra sagen" forvælger Samarbejdspartner — `RETTET (branch claude-party-role-default, staging-testet; prod-deploy afventer godkendelse)`
+### TECH-PARTY-ROLE-1 — "Fra sagen" forvælger Samarbejdspartner — `DONE — i prod 2026-11-26 (f4910c93; prod-tjek: én mulighed → Kunde, manuel ændring, nulstilling; intet gemt)`
 - Rettelse 2026-11-26 (Henrik godkendte implementering + staging-test): `lib/parties/participant-role-default.ts` (ren logik) +
   `openMode` i panelet — hver tilføjelse starter forfra (første mulighed + dens standardrolle, også ved én mulighed); skift af
   mulighed sætter rollen; manuel ændring bevares indtil næste skift; Eksisterende/Ny part → Samarbejdspartner. Test:
