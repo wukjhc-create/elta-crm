@@ -493,3 +493,10 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   Shadow = read-only måling: `scripts/prod-phase-c-shadow.ts baseline|shadow [--since]` (staging `cli.ts phase-c-shadow`),
   kun antal/regel-id'er ud. Test `scripts/inquiry-classifier-test.ts`. Runbook docs/runbooks/PHASE_C0_C1.md. C4a: automatisk
   kundeoprettelse fra mail må IKKE slås fra før C2/C3/C4-erstatningsflow er klar (Henrik 2026-11-26)
+- 2026-11-26: C0/C1 i PROD (3b1af72a, inert: appen importerer ikke klassifikatoren). Mail-sync kører HVERT 5. MIN siden
+  2026-11-22 (Vercel Pro, lease 00253; median ~2 min) — dokumenter der siger "dagligt" er forældede
+  (docs/runbooks/MAIL_SYNC_FREQUENCY_REVIEW.md). C0-målepunkter: `prod-phase-c-shadow.ts metrics` (ikke målbare markeres,
+  ingen opfundne tal). C1a klassifikationsfeedback (branch, IKKE prod): flag `CLASSIFICATION_FEEDBACK_ENABLED` (standard FRA)
+  + `settings.manage`; feedback = `audit_logs` action `classification_feedback` (ingen migration; rører aldrig mailflowet);
+  kontekst-kerne `src/lib/classification/inquiry-context.ts` (shadow og C1a identiske, `cli.ts c1a-parity`). Stage A:
+  0/111 forslag afgjort — se docs/runbooks/STAGE_A_USAGE_REVIEW.md. C2/C3: docs/runbooks/PHASE_C2_C3_PREFLIGHT.md

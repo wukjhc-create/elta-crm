@@ -2,6 +2,7 @@
 
 import { CreateLeadFromMailButton } from './create-lead-from-mail-button'
 import { WebInquiryCard } from './web-inquiry-card'
+import { ClassificationFeedbackPanel } from './classification-feedback-panel'
 import { useState, useEffect } from 'react'
 import {
   Mail,
@@ -57,6 +58,8 @@ interface MailDetailProps {
   /** Sprint 8C-3: tilbagefoer en ignoreret mail til 'unidentified'. */
   onRestoreFromIgnored?: () => void
   isCreatingServiceCase?: boolean
+  /** C1a: vis klassifikationsboksen (server har afgjort flag + admin) */
+  showClassificationFeedback?: boolean
 }
 
 // =====================================================
@@ -115,6 +118,7 @@ export function MailDetail({
   onUnlinkCustomer,
   onRestoreFromIgnored,
   isCreatingServiceCase,
+  showClassificationFeedback,
 }: MailDetailProps) {
   const [portalAccess, setPortalAccess] = useState<{ hasPortal: boolean } | null>(null)
   const [isBackfilling, setIsBackfilling] = useState(false)
@@ -683,6 +687,7 @@ export function MailDetail({
       {/* EMAIL BODY                                     */}
       {/* ============================================== */}
       <div className="flex-1 overflow-y-auto p-5">
+        {showClassificationFeedback && <ClassificationFeedbackPanel emailId={email.id} />}
         <div className="mb-4 empty:hidden"><WebInquiryCard email={email} /></div>
         {email.body_html ? (
           <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(email.body_html) }} />

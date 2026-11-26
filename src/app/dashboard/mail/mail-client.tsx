@@ -109,7 +109,7 @@ function countsAsUnread(e: { is_archived?: boolean | null; link_status?: string 
   return !!e && !e.is_archived && e.link_status !== 'ignored'
 }
 
-export function MailClient() {
+export function MailClient({ showClassificationFeedback = false }: { showClassificationFeedback?: boolean } = {}) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const toast = useToast()
@@ -1313,6 +1313,7 @@ export function MailClient() {
               onUnlinkCustomer={() => handleUnlinkEmail(selectedEmail.id)}
               onRestoreFromIgnored={() => handleUnlinkEmail(selectedEmail.id)}
               isCreatingServiceCase={isCreatingServiceCase}
+              showClassificationFeedback={showClassificationFeedback}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-gray-400">

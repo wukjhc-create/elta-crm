@@ -17,7 +17,7 @@ Prod, read-only 2026-11-26:
 | Koblet til kunde | 30 (25,6 %) — alle automatisk | 272 (27,2 %) — 267 automatisk, 4 manuelt |
 | Koblet til sag | **0** | **0** |
 | Uidentificeret / ignoreret | 58 (49,6 %) / 29 | 398 (39,8 %) / 272 |
-| Median tid til kobling | 15,6 t | 17,1 t (mail-sync kører én gang i døgnet) |
+| Median tid til kobling | 15,6 t | 17,1 t — **forkert tolket første gang:** mail-sync kører hvert 5. min siden 2026-11-22 (Vercel Pro); siden da er medianen 2,2 min til mailen er i CRM og 2,4 min til kobling. De høje tal stammer fra før omlægningen (se MAIL_SYNC_FREQUENCY_REVIEW.md) |
 | Kunder oprettet | 11 — **alle** auto-oprettet fra mail | 126 — 113 auto (89,7 %), 15 uden rigtig e-mail |
 | Henvendelser (Stage A) | 49 — **0 behandlet**, 0 tildelt | samme |
 | Stage A-forslag | 109 — **0 afgjort** (77 proposed, 32 blocked) | samme |
@@ -78,6 +78,29 @@ Output: kun antal, andele og regel-id'er (diagnose: kun nøgleord og flag). Stag
 "Andel korrekt klassificerede" kræver et menneskeligt facit. Shadow giver i dag enighed med eksisterende automatik. Næste
 skridt (kræver godkendelse): vis klassifikationen som skjult chip for admin i Henvendelser/mail med "korrekt / forkert"
 (gemmes i audit), så korrekthed kan måles på rigtige afgørelser — stadig uden driftskonsekvens.
+
+## C0 — fulde målepunktsliste (Henrik 2026-11-26)
+`npx tsx scripts/prod-phase-c-shadow.ts metrics [--since YYYY-MM-DD]` (staging: `cli.ts phase-c-shadow metrics`) viser alle
+19 målepunkter. Hvert punkt er enten MÅLT med kilde eller markeret **IKKE MÅLBAR** med hvad der mangler — der opfindes
+aldrig tal, og estimeret tidsbesparelse vises aldrig som målt. Ikke målbare i dag: andel korrekt/forkert (kræver C1a-
+feedback), faktisk undgåede dubletoprettelser (kræver C4), manuelle handlinger og aktivt tidsforbrug pr. henvendelse
+(ingen måling i UI), faktisk og estimeret tidsbesparelse (kræver før/efter-måling hhv. godkendte antagelser).
+Brug `--since 2026-11-22` for tidsmålinger (5-min-sync).
+
+## C1a — klassifikationsfeedback (staging; prod kræver særskilt godkendelse)
+- Flag `CLASSIFICATION_FEEDBACK_ENABLED` (standard FRA, kun 'true'). Gate: flag + `settings.manage` (standard kun admin).
+- Mailvisningen (`/dashboard/mail`) får en diskret, lukket boks "Klassifikation (test — påvirker intet)". Først ved åbning
+  beregnes C1-klassifikationen for mailen (samme kontekst-kerne som shadow — `src/lib/classification/inquiry-context.ts`,
+  paritet bevist `cli.ts c1a-parity`): de fire dimensioner, begrundelse, regler, version og tidligere vurderinger.
+- Vurdering: Korrekt · Delvist korrekt · Forkert · Kan ikke vurderes; ved delvist/forkert angives den korrekte værdi pr.
+  dimension (+ valgfri kort note). Serveren klassificerer selv mailen igen ved indsendelse; klientens værdier bruges ikke.
+- **Lagring uden migration:** én række i `audit_logs` (action `classification_feedback`, entity `incoming_email`,
+  metadata: version, forudsagt, regler, tvivl, vurdering, rettelse, note) via `insertAuditRow` — samme mønster som K5-
+  forslag og Henvendelser. Adskilt fra driften: intet skrives i incoming_emails, conversations, kunder eller sager
+  (statisk test + UI-test U271 sammenligner mailens og henvendelsens tilstand før/efter). Læsning af audit_logs: kun admin
+  (RLS 00019) + egne rækker. En dedikeret tabel kan komme senere (egen migrations-præflight), hvis audit-sporet ikke rækker.
+- Tests: `scripts/classification-feedback-test.ts` (32: validering, flag, gate, kun-læsning, kun-audit, mailflowet
+  importerer ikke klassifikatoren), `cli.ts c1a-parity` (63/63 enkelt-mail = bulk), UI U271 (gruppe `classification`).
 
 ## Tests
 - `npx tsx scripts/inquiry-classifier-test.ts` — 108 fixtures (alle dimensioner, tvivl → ukendt, forklaring, determinisme,

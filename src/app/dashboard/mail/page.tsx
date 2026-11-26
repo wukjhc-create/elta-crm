@@ -3,6 +3,8 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { MailClient } from './mail-client'
 import { getProposalsCount } from '@/lib/actions/proposals'
+import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
+import { classificationFeedbackEnabled } from '@/lib/classification/feature-flag'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,8 +13,19 @@ export const metadata: Metadata = {
   description: 'Indgående emails fra fælles postkasse med automatisk kundekobling',
 }
 
+/** C1a: klassifikationsboksen kun med flag + settings.manage (standard kun admin; afgjort på serveren) */
+async function showClassificationFeedback(): Promise<boolean> {
+  if (!classificationFeedbackEnabled()) return false
+  try {
+    return (await getAuthenticatedClientWithRole()).hasPermission('settings.manage')
+  } catch {
+    return false
+  }
+}
+
 export default async function MailPage() {
   const proposalsCount = await getProposalsCount().catch(() => 0)
+  const classificationFeedback = await showClassificationFeedback()
 
   return (
     <Suspense
@@ -44,7 +57,7 @@ export default async function MailPage() {
           </Link>
         </div>
       )}
-      <MailClient />
+      <MailClient showClassificationFeedback={classificationFeedback} />
     </Suspense>
   )
 }

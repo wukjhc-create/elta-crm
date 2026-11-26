@@ -190,6 +190,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   economy: ['U266', 'U264', 'U191', 'U145', 'U127', 'U123', 'U120', 'U116', 'U99', 'U94', 'U92', 'U91', 'U89', 'U88', 'U81', 'U78', 'U12', 'U15', 'U16', 'U17', 'U18', 'U19', 'U26', 'U28', 'U29', 'U31', 'U32', 'U33', 'U35', 'U36', 'U37', 'U38', 'U39', 'U46', 'U49'],
   reception: ['U267', 'U268'],
   parties: ['U270'], // parter fase B (00255 på staging; UI_PARTIES_UI_ENABLED=false = som prod)
+  classification: ['U271'], // C1a klassifikationsfeedback (kode-only; UI_CLASSIFICATION_FEEDBACK_ENABLED=false = som prod)
   'portal-security': ['U269', 'U10', 'U180', 'U256'], // portal-sikkerhedsreview 2026-11-18 (00252 på staging)
   'pilot-sim': ['U240', 'U241', 'U242', 'U243', 'U244', 'U245', 'U246', 'U247', 'U248', 'U249', 'U250', 'U251', 'U252', 'U253', 'U254'],
   'portal-mail': ['U215', 'U211', 'U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -328,6 +329,8 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     RECEPTION_WEBCHAT_ENABLED: process.env.UI_RECEPTION_WEBCHAT_ENABLED ?? 'true',
     // 00255 (staging): parter fase B — paneler på kundekort og sag (U270). UI_PARTIES_UI_ENABLED=false → som prod (FRA)
     PARTIES_UI_ENABLED: process.env.UI_PARTIES_UI_ENABLED ?? 'true',
+    // C1a (kode-only): klassifikationsboks i mailvisningen for admin (U271). UI_CLASSIFICATION_FEEDBACK_ENABLED=false → som prod (FRA)
+    CLASSIFICATION_FEEDBACK_ENABLED: process.env.UI_CLASSIFICATION_FEEDBACK_ENABLED ?? 'true',
     // staging-harness: misbrugsværnets HMAC-nøgle genereres pr. kørsel (ingen hemmelighed i repo); uden den er chatten FRA
     RECEPTION_WEBCHAT_RATE_SECRET: `harness-${randomBytes(24).toString('hex')}`,
     // `next dev` genstarter ved 80 % af heap-grænsen, og efter en genstart fejler resten af kørslen (O1).
@@ -6709,6 +6712,79 @@ ${m.text()}`) })
           if (endCustId) await c.admin.from('customers').delete().eq('id', endCustId)
         }
         out.push({ id: `U270 parter fase B (flag ${flagOn ? 'TIL' : 'FRA'}): ${flagOn ? 'registrér kunde, sagsdeltager + standardrolle (én/flere muligheder, skift, manuel, nulstilling), ny partner, dublet-dialog, salg read-only' : 'paneler findes ikke'}`, ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + diag })
+      }
+      // U271 C1a KLASSIFIKATIONSFEEDBACK (kode-only). Med CLASSIFICATION_FEEDBACK_ENABLED (harness-standard): admin åbner en
+      // leverandørmail (grossist-domæne + ordrebekræftelse), ser de fire dimensioner + regler, vurderer "Forkert" med rettet
+      // henvendelsestype → audit-række med forudsagt/rettet; mailen (kobling/status/sag) og henvendelser er UÆNDREDE; salg ser
+      // ingen boks. UI_CLASSIFICATION_FEEDBACK_ENABLED=false (= prod): heller ikke admin ser boksen.
+      if (want('U271')) {
+        const r: Record<string, boolean> = {}
+        const flagOn = (process.env.UI_CLASSIFICATION_FEEDBACK_ENABLED ?? 'true') === 'true'
+        let emailId: string | null = null
+        let diag = ''
+        try {
+          const em = await c.admin.from('incoming_emails').insert([{ sender_email: `ordre-u271-${stamp}@ao.dk`, sender_name: 'Harness Grossist',
+            subject: `Ordrebekræftelse U271-${stamp}`, body_text: 'Tak for din ordre. Varerne afsendes i morgen.', link_status: 'unidentified',
+            received_at: new Date().toISOString(), is_archived: false, graph_message_id: `harness-u271-${stamp}` }]).select('id')
+          emailId = (em.data?.[0] as { id?: string } | undefined)?.id ?? null
+          if (em.error) diag += ` seed:${em.error.message}`
+          r.seed = !!emailId
+          const snap = async () => {
+            const e = (await c.admin.from('incoming_emails').select('customer_id, link_status, linked_by, service_case_id, is_archived').eq('id', emailId!).maybeSingle()).data
+            const conv = (await c.admin.from('conversation_items').select('id', { count: 'exact', head: true }).eq('source_table', 'incoming_emails').eq('source_id', emailId!)).count
+            return JSON.stringify({ e, conv })
+          }
+          const before = emailId ? await snap() : ''
+          const a = await login(adminUser)
+          try {
+            await gotoSafe(a.page, `${base}/dashboard/mail?emailId=${emailId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await a.page.waitForTimeout(1500)
+            if (!flagOn) {
+              r.admin_ingen_boks_flag_fra = (await a.page.getByTestId('classification-feedback').count()) === 0
+            } else {
+              await a.page.getByTestId('classification-feedback-toggle').click({ timeout: 60_000 })
+              await a.page.getByTestId('classification-values').waitFor({ timeout: 60_000 })
+              r.afsender_leverandoer = (await a.page.getByTestId('classification-senderType').getAttribute('data-value')) === 'supplier'
+              r.type_ordrebekraeftelse = (await a.page.getByTestId('classification-inquiryType').getAttribute('data-value')) === 'order_confirmation'
+              r.handling_match_indkoeb = (await a.page.getByTestId('classification-proposedAction').getAttribute('data-value')) === 'match_to_purchase'
+              const txt = await a.page.getByTestId('classification-feedback').innerText()
+              r.regler_vist = txt.includes('supplier_known_wholesaler_domain') && txt.includes('order_confirmation_subject')
+              r.begrundelse_vist = txt.includes('Begrundelse')
+              await a.page.getByTestId('classification-verdict-wrong').click()
+              await a.page.getByTestId('classification-correct-inquiryType').selectOption('invoice')
+              await a.page.getByTestId('classification-feedback-note').fill('harness')
+              await a.page.getByTestId('classification-feedback-save').click()
+              r.gemt_vist = await a.page.getByTestId('classification-feedback-saved').waitFor({ timeout: 30_000 }).then(() => true).catch(() => false)
+              const fb = (await c.admin.from('audit_logs').select('user_id, entity_type, metadata').eq('action', 'classification_feedback').eq('entity_id', emailId!)).data as Array<{ user_id: string; entity_type: string; metadata: Record<string, unknown> }> | null
+              const m = fb?.[0]?.metadata as { verdict?: string; corrected?: Record<string, string>; predicted?: Record<string, string>; version?: string } | undefined
+              r.feedback_gemt = (fb ?? []).length === 1 && fb![0].user_id === adminUser.id && fb![0].entity_type === 'incoming_email'
+              r.feedback_indhold = m?.verdict === 'wrong' && m?.corrected?.inquiryType === 'invoice' && Object.keys(m?.corrected ?? {}).length === 1
+                && m?.predicted?.inquiryType === 'order_confirmation' && m?.version === 'c1-v1'
+              await gotoSafe(a.page, `${base}/dashboard/mail?emailId=${emailId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+              await a.page.getByTestId('classification-feedback-toggle').click({ timeout: 60_000 })
+              r.tidligere_vurdering_vist = await a.page.getByTestId('classification-previous').waitFor({ timeout: 60_000 }).then(async () =>
+                (await a.page.getByTestId('classification-previous').innerText()).includes('Forkert (dig)')).catch(() => false)
+            }
+          } finally { await a.ctx.close().catch(() => {}) }
+          r.mail_og_henvendelse_uaendret = (await snap()) === before
+          if (flagOn) {
+            const s = await login(salg)
+            try {
+              await gotoSafe(s.page, `${base}/dashboard/mail?emailId=${emailId}`, { waitUntil: 'networkidle', timeout: 180_000 })
+              await s.page.waitForTimeout(2000)
+              r.salg_ingen_boks = (await s.page.getByTestId('classification-feedback').count()) === 0
+            } finally { await s.ctx.close().catch(() => {}) }
+          }
+        } catch (e) {
+          diag += ` fejl:${String(e).slice(0, 160)}`
+          r.ingen_undtagelse = false
+        } finally {
+          if (emailId) {
+            await c.admin.from('audit_logs').delete().eq('action', 'classification_feedback').eq('entity_id', emailId)
+            await c.admin.from('incoming_emails').delete().eq('id', emailId)
+          }
+        }
+        out.push({ id: `U271 klassifikationsfeedback (flag ${flagOn ? 'TIL' : 'FRA'}): ${flagOn ? 'fire dimensioner + regler, "Forkert" med rettelse → audit, mail uændret, salg uden boks' : 'ingen boks'}`, ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + diag })
       }
       // U268 KOMMUNIKATIONS-HUB FASE 3A (00250 på staging): mail + portal ind via den RIGTIGE kanal-adapter (flag kun i kaldet),
       // Henvendelser-visninger (Nye/Ikke tildelt/Venter på ELTA) og kanalfilter, én tråd (svar i samme mail-tråd), vedhæftnings-

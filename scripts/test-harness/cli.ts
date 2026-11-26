@@ -3104,15 +3104,50 @@ Total inkl. moms 11.718,75
     const mode = process.argv[3]
     const i = process.argv.indexOf('--since')
     const since = i > 0 ? process.argv[i + 1] : '2026-01-01'
-    if ((mode !== 'baseline' && mode !== 'shadow') || !/^\d{4}-\d{2}-\d{2}$/.test(since ?? '')) { log('brug: phase-c-shadow baseline|shadow [--since YYYY-MM-DD]'); process.exitCode = 2; return }
+    if ((mode !== 'baseline' && mode !== 'shadow' && mode !== 'metrics') || !/^\d{4}-\d{2}-\d{2}$/.test(since ?? '')) { log('brug: phase-c-shadow baseline|shadow|metrics [--since YYYY-MM-DD]'); process.exitCode = 2; return }
     if (mode === 'baseline') {
       const B = await import('./phase-c-baseline-core')
       for (const l of B.baselineReport((await stagingSql(B.baselineSql(since)))[0].j)) log(l)
+    } else if (mode === 'metrics') {
+      const B = await import('./phase-c-baseline-core')
+      const S = await import('./inquiry-shadow-core')
+      const rows = S.classifyAll((await stagingSql(S.SHADOW_DATA_SQL))[0].j, { since })
+      for (const l of B.metricsReport((await stagingSql(B.baselineSql(since)))[0].j, S.shadowCounts(rows))) log(l)
     } else {
       const S = await import('./inquiry-shadow-core')
       const rows = S.classifyAll((await stagingSql(S.SHADOW_DATA_SQL))[0].j, { since })
       for (const l of S.shadowReport(rows)) log(l)
     }
+    return
+  }
+  if (SUB === 'c1a-parity') {
+    // C1a (STAGING, read-only): loaderen for ÉN mail (lib/classification/load-email-classification, service-role som i
+    // server-handlingen) skal give PRÆCIS samme klassifikation som bulk-shadow (classifyAll over alle data). [N=60]
+    const n = Math.min(500, Math.max(1, Number(process.argv[3]) || 60))
+    const S = await import('./inquiry-shadow-core')
+    const { loadEmailClassification } = await import('../../src/lib/classification/load-email-classification')
+    const d = (await stagingSql(S.SHADOW_DATA_SQL))[0].j
+    // De N nyeste + ALLE mails bulk klassificerer som noget andet end ukendt (kunde/leverandør/formular/faktura …)
+    const all = S.classifyAll(d)
+    const allIds = [...d.emails].sort((x: { received_at: string }, y: { received_at: string }) => Date.parse(x.received_at) - Date.parse(y.received_at)).map((e: { id: string }) => e.id)
+    const interesting = all.map((r, i) => ({ r, id: allIds[i] })).filter((x) => x.r.result.senderType !== 'unknown' || x.r.result.inquiryType !== 'unknown').map((x) => x.id)
+    const ids = [...new Set([...[...allIds].reverse().slice(0, n), ...interesting])]
+    log(`udvalg: ${ids.length} mails (${interesting.length} ikke-ukendte)`)
+    // classifyAll returnerer i modtagelsesrækkefølge (samme sortering som her) — par række ↔ id ud fra den
+    const bulkRows = S.classifyAll(d, { onlyIds: ids })
+    const sortedIds = [...d.emails].sort((x: { received_at: string }, y: { received_at: string }) => Date.parse(x.received_at) - Date.parse(y.received_at)).map((e: { id: string }) => e.id).filter((id: string) => ids.includes(id))
+    const bulkById = new Map<string, string>()
+    bulkRows.forEach((r, i) => bulkById.set(sortedIds[i], JSON.stringify([r.result.senderType, r.result.inquiryType, r.result.caseReference, r.result.proposedAction, r.result.rules])))
+    let same = 0
+    const diffs: string[] = []
+    for (const id of ids) {
+      const one = await loadEmailClassification(admin, id)
+      const key = one.ok ? JSON.stringify([one.classification.senderType, one.classification.inquiryType, one.classification.caseReference, one.classification.proposedAction, one.classification.rules]) : `fejl:${one.error}`
+      if (key === bulkById.get(id)) same++; else diffs.push(`${id.slice(0, 8)}: bulk=${bulkById.get(id)} enkelt=${key}`)
+    }
+    for (const x of diffs.slice(0, 5)) log(`DIFF ${x}`)
+    log(diffs.length ? `❌ paritet ${same}/${ids.length}` : `✅ paritet ${same}/${ids.length} — enkelt-mail-loader = bulk-shadow`)
+    process.exitCode = diffs.length ? 1 : 0
     return
   }
   if (SUB === 'verify-00255') {
