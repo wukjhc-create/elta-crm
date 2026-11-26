@@ -1,7 +1,9 @@
 # Parter — Fase B præflight (2026-11-25)
 
-Status: **Godkendt af Henrik 2026-11-25 og implementeret** (kode + 00255). Udrulning: A kode med `PARTIES_UI_ENABLED` FRA →
-B inert-verifikation → C 00255 → D post-verifikation → E STOP. **F: flaget tændes kun efter Henriks særskilte godkendelse.**
+Status: **GENNEMFØRT og AKTIV i Production 2026-11-26** (Henrik: funktionelt godkendt). Kode 50776519 + 00255 i prod;
+`PARTIES_UI_ENABLED=true` (Vercel, KUN Production, type Config) skal forblive TIL. Udrulning: A kode med flaget FRA →
+B inert-verifikation → C 00255 → D post-verifikation → E STOP → F flag TIL efter Henriks særskilte godkendelse (se §13).
+Løbende verifikation: `prod-verify-00255 post --expect active`; kontrolleret prod-smoke: `PARTY_PHASE_B_PROD_SMOKE.md`.
 Prod-rollback må IKKE køres som test — kun rollback-only (transaktion uden commit) i `scripts/prod-00255-dryrun.ts`;
 `docs/runbooks/sql/00255_rollback.sql` køres kun ved en egentlig rollback-beslutning.
 
@@ -222,3 +224,32 @@ Efter deploy:
 - D: `prod-verify-00255 post` 7/7, `prod-verify-00254 post` 8/8, `prod-db-audit` 0/0/0 (efter at auditens auth-regex lærte
   `user_has_permission(`/`_party_require_user(`), Stage A 0/0, portaleksponering 15/3/0, 0 offentliggørelser.
 - E: STOP. F (flag ON) afventer Henriks særskilte godkendelse.
+- F 2026-11-26 (Henriks godkendelse): første "flag sat" virkede ikke — variablen var aldrig gemt i Vercel-projektet (hverken
+  projekt- eller shared-variabel) og Production kørte stadig 04:44-deployet af `5b19b5db`. Rettet i Vercel-UI: oprettet
+  `PARTIES_UI_ENABLED=true`, type Config, KUN Production → redeploy af den aktuelle Production-deployment (main `5b19b5db`,
+  2FA af Henrik) → Ready/Production på `elta-crm.vercel.app`. Lære: tjek altid i Vercel at variablen er gemt OG at et
+  nyt Production-deploy er Ready, før panelerne testes (et flag virker først i et deploy bygget/startet efter det er gemt).
+- F read-only før skrivning: Stage A 0/0, `prod-db-audit` 0/0/0, portal 15/3/0, `prod-verify-00255 post` 7/7, 0 offentlig-
+  gørelser, 0 fejl/advarsler i `system_health_log` (6 t), nyt snapshot.
+- F UI-smoke (admin, i den indbyggede browser, testkunde C000008 / testsag SVC-01006 — Henrik bekræftede intern testkunde):
+  kundekort "Parter & relationer" vist → "Registrér som part" (Person, relation Kunde); sag "Sagsdeltagere" vist → "Fra
+  sagen" (rolle sat manuelt til Kunde; standard var Samarbejdspartner, se TECH-PARTY-ROLE-1) → "Ny part" med navnevariant →
+  dublet-dialogen viste den eksisterende part → annulleret uden "Opret alligevel".
+- F verifikation: `prod-party-activation-check verify` 7/7 — præcis 1 part (admin), 1 register-relation "customer", 1
+  deltager (Kunde, aktiv), 2 audit (`party_created`, `case_participant_added`, aktør admin), dublet-forsøg 0 rækker, 0
+  ændrede/slettede eksisterende rækker i 13 overvågede tabeller. Montør rollback-only 4/4 (sag/kunde uden for scope → ser
+  0; alle 8 RPC'er 42501; direkte INSERT 42501). Salg ikke testet i prod (ingen salg-testprofil; rolleændring forbudt) →
+  staging-bevis gælder (probe 50/50, app 20/20, U270). Efter: Stage A 0/0, db-audit 0/0/0, portal 15/3/0, 0 offentlig-
+  gørelser, 0 Phase B-serverfejl.
+- Afslutning 2026-11-26: `prod-verify-00255` understøtter nu inert OG aktiv drift (`--expect inert|active`; aktiv = fuld
+  integritets-/audit-/dublet-/reference-kontrol, ikke "vilkårligt antal rækker"): prod aktiv 20/20, staging inert 12/12
+  (`cli.ts verify-00255 --expect inert`), fixture-test 60/60 (`scripts/verify-00255-core-test.ts`).
+- Testdata BEHOLDES som interne smoke-testdata: C000008 / SVC-01006 + 1 part, 1 relation, 1 deltager, 2 audit-rækker.
+
+## 14. Kendte begrænsninger efter aktivering
+- F-1 er stadig HÅRD blokering: ingen offentliggørelser/portaludvidelse (0 `external_publications`), ingen fase C.
+- Salg er ikke prøvet i prod (mangler salg-testprofil — TECH-TEST-SALES-1); staging-beviserne gælder.
+- "Fra sagen" forvælger rollen Samarbejdspartner i stedet for registerets standardrolle, når der kun er én valgmulighed
+  (TECH-PARTY-ROLE-1, ikke rettet). Kontrollér rollen før "Tilføj".
+- Konsolfejl React #418/#419 + én HTTP 400 set én gang i prod-sessionen (ikke reproduceret på Phase B-siderne) →
+  TECH-HYDRATION-1 / TECH-HTTP400-1.

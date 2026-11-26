@@ -1,6 +1,9 @@
 # Kommunikation: parter, relationer og publikum (audience)
 
-Fase B (00255, intern partsforvaltning via RPC'er) i STAGING og PROD 2026-11-26, UI-flag FRA — se `PARTY_AUDIENCE_PHASE_B_PREFLIGHT.md`.
+Fase B (00255, intern partsforvaltning via RPC'er) er GENNEMFØRT og AKTIV i PROD fra 2026-11-26: `PARTIES_UI_ENABLED=true`
+(kun Production) — panelerne "Parter & relationer" og "Sagsdeltagere" er i brug. Offentliggørelse/portaludvidelse og Stage A-
+klassifikation (punkt 4's resterende dele) er IKKE startet; F-1 er stadig hård blokering. Se `PARTY_AUDIENCE_PHASE_B_PREFLIGHT.md`
+§13–14 og smoke-runbooken `PARTY_PHASE_B_PROD_SMOKE.md`.
 Status 2026-11-23 (prod-præflight 2026-11-25: se `PARTY_AUDIENCE_00254_PROD_PREFLIGHT.md` — rollback-only 61/61, fund P-1
 rettet i migrationen, F-6/D-1 tilføjet, F-1 er HÅRD blokering for portaludvidelse):
 - **Leverandør-/kunde-integritetsværn (S2)** er i PROD (main `380adb71`, kode-only) — afsnit 2.

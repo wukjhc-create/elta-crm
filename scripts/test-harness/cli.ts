@@ -3099,6 +3099,24 @@ Total inkl. moms 11.718,75
     process.exitCode = failed ? 2 : 0
     return
   }
+  if (SUB === 'verify-00255') {
+    // Samme read-only tjek som scripts/prod-verify-00255.ts post, mod STAGING. [--expect inert|active]
+    const V = await import('./verify-00255-core')
+    const i = process.argv.indexOf('--expect')
+    const exp = i > 0 ? process.argv[i + 1] : undefined
+    if (exp !== undefined && exp !== 'inert' && exp !== 'active') { log('brug: verify-00255 [--expect inert|active]'); process.exitCode = 2; return }
+    const st = (await stagingSql(V.STATE_00255_SQL))[0].j
+    const acl = (await stagingSql(V.ACL_00255_SQL))[0].j
+    const detected = V.detectMode(st)
+    log(`driftstilstand: detekteret=${detected}${exp ? ` · forventet=${exp}` : ''} · ${JSON.stringify({ parties: st.parties, rels: st.rels, participants: st.participants, party_audit: st.party_audit, pubs: st.pubs })}`)
+    const checks = V.evaluatePost00255(st, acl, (exp ?? detected) as 'inert' | 'active')
+    if (exp) checks.unshift({ id: `driftstilstand = forventet (${exp})`, ok: detected === exp, note: `detekteret=${detected}` })
+    for (const c of checks) log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.id}${c.note ? ` — ${c.note}` : ''}`)
+    const failed = checks.filter((c) => !c.ok).length
+    log(failed ? `❌ ${failed} af ${checks.length}` : `✅ ${checks.length} tjek — 00255 staging (${exp ?? detected})`)
+    process.exitCode = failed ? 1 : 0
+    return
+  }
   if (SUB === 'party-00255-app') {
     const { runParty00255App } = await import('./party-00255-app')
     process.exitCode = await runParty00255App(admin, runtime, log)

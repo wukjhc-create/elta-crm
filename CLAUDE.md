@@ -466,8 +466,9 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   service_role, via `lib/parties/audience.ts`). Prøver: `cli.ts party-00254-probe|party-00254-app|party-00254-rollback-proof`,
   `scripts/party-audience-test.ts`; prod read-only `scripts/prod-verify-00254.ts pre|post`. Runbook
   docs/runbooks/COMMUNICATION_PARTY_AUDIENCE_MODEL.md
-- 2026-11-26: 00255 parter fase B er i STAGING og PROD (prod 2026-11-26 efter Henriks godkendelse; kode 50776519 med
-  `PARTIES_UI_ENABLED` FRA = inert; aktivering af flaget kræver SÆRSKILT godkendelse). Al skrivning i parties/
+- 2026-11-26: 00255 parter fase B er i STAGING og PROD (prod 2026-11-26 efter Henriks godkendelse; kode 50776519).
+  **Fase B GENNEMFØRT og AKTIV i prod 2026-11-26**: `PARTIES_UI_ENABLED=true` i Vercel KUN for Production (type Config) — skal
+  forblive TIL; staging/Preview har flaget FRA. Al skrivning i parties/
   party_relationships/case_participants går via 8 SECURITY DEFINER-RPC'er (`create_party`, `update_party`,
   `ensure_register_party`, `set/end_party_relationship`, `add_case_participant[_for_register]`, `end_case_participant`);
   INGEN rolle (heller ikke admin) har direkte INSERT/UPDATE — brug aldrig `.from('parties').insert()` (F-6: id kommer som
@@ -478,3 +479,11 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   prod `scripts/prod-00255-dryrun.ts` (rollback-only), `scripts/prod-verify-00255.ts pre|post`. Prod-rollback
   (`docs/runbooks/sql/00255_rollback.sql`) KUN ved egentlig beslutning — aldrig som test. F-1 stadig HÅRD blokering.
   Runbook docs/runbooks/PARTY_AUDIENCE_PHASE_B_PREFLIGHT.md
+  - Drift: `prod-verify-00255.ts post --expect active` (inert|active; aktiv = integritet/audit/dubletter/referencer/portal, ikke
+    "vilkårligt antal rækker"; logik `scripts/test-harness/verify-00255-core.ts`, fixture `scripts/verify-00255-core-test.ts`,
+    staging `cli.ts verify-00255 --expect inert`). Kontrolleret prod-smoke: `scripts/prod-party-activation-check.ts
+    snapshot|verify|montor C000008 SVC-01006` — runbook docs/runbooks/PARTY_PHASE_B_PROD_SMOKE.md. C000008 / SVC-01006 og
+    deres partsdata (1 part, 1 relation, 1 deltager, 2 audit) er faste interne smoke-testdata — slettes ikke.
+  - Et Vercel-flag virker først efter at variablen er GEMT og et nyt Production-deploy er Ready (2026-11-26: første "flag sat"
+    var aldrig gemt). Kendt gæld: TECH-PARTY-ROLE-1 ("Fra sagen" forvælger Samarbejdspartner), TECH-HYDRATION-1, TECH-HTTP400-1,
+    TECH-RATE-1, TECH-TEST-SALES-1, TECH-LEASE-1 (docs/AUTONOMOUS_BACKLOG.md). Fase C er IKKE startet.

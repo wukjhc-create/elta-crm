@@ -19,6 +19,35 @@ Supabase (Authentication → Sign In / Providers). Derefter (read-only): `disabl
 oprettelse · invitation/onboarding virker stadig (admin-genererede links påvirkes ikke af signup-flaget). Først da: P1 CLOSED.
 Status: **MANUAL_BLOCKER (Henrik)** — arbejdet fortsætter andetsteds
 
+## Teknisk gæld efter Phase B-aktivering (registreret 2026-11-26, Henrik: separate opgaver, ingen UI-/runtime-ændring uden godkendelse)
+
+### TECH-PARTY-ROLE-1 — "Fra sagen" forvælger Samarbejdspartner — `TODO` (årsag fundet, ikke rettet)
+- Fund (prod-smoke): "Fra sagen" på SVC-01006 viste rollen Samarbejdspartner, skønt eneste valg var sagens kunde.
+- Årsag: `components/modules/parties/case-participants-panel.tsx` initialiserer `role` til `'cooperation_partner'`;
+  registerets `defaultRole` (fra `caseRegisterOptions` i `orders/[id]/order-detail-client.tsx`: kunde → `customer`,
+  slutkunde → `end_customer` osv.) sættes KUN i select'ens `onChange`. Med én valgmulighed (eller når den forvalgte bruges)
+  udløses onChange aldrig → rollen bliver ved Samarbejdspartner (eller den sidst valgte rolle, da `role` deles af alle
+  tilføj-tilstande og ikke nulstilles).
+- Forslag: sæt `role` til den valgte (eller første) muligheds `defaultRole`, når "Fra sagen" åbnes; tilføj U270-trin der
+  tilføjer uden at røre rollen og forventer Kunde. Kræver Henriks godkendelse (UI-ændring).
+
+### TECH-HYDRATION-1 — React #418/#419 i prod-konsollen — `TODO`
+- Set én gang 2026-11-26 i den indbyggede browser (efter login, før Phase B-siderne blev testet); IKKE gentaget ved tre friske
+  indlæsninger af kundekort/sag/kundeliste. #418 = hydrerings-tekstmismatch, #419 = server-render faldt tilbage til klient.
+- Opgave: reproducér (login → dashboard; dato/tid-tekst uden `timeZone: 'Europe/Copenhagen'` er mistænkt), find komponenten.
+
+### TECH-HTTP400-1 — én HTTP 400 i prod-konsollen — `TODO`
+- Samme session som TECH-HYDRATION-1; ressourcen blev ikke fanget. Opgave: reproducér med netværkslog, identificér endpoint.
+
+### TECH-RATE-1 — admin-profil uden timepris og kostpris — `TODO`
+- `prod-pilot-session-check` 2026-11-26: "P3 (admin) — mangler timepris; mangler kostpris" (0 åbne AO). Ikke Phase B.
+- Opgave: Henrik afgør om profilen skal have satser (dataændring i prod kræver godkendelse) eller undtages i tjekket.
+
+### TECH-TEST-SALES-1 — ingen Production-testprofil for salg — `TODO`
+- Salg-adfærd i Phase B er kun bevist på staging (probe 50/50, app 20/20, U270). Rolleændring på rigtige profiler er forbudt.
+- Opgave: forslag til en dedikeret intern salg-testprofil i prod (invitation af Henrik, minimale rettigheder, kun testdata)
+  + rollback-only/UI-smoke mod C000008 / SVC-01006. Kræver godkendelse.
+
 ## TECH-LEASE-1 — ustabil `sync-lease-concurrency-staging` (registreret 2026-11-26, Henrik: separat opgave, ikke Phase B)
 - Fund: 1 FAIL ud af 4 kørsler på staging 2026-11-25 (de 3 andre 5/5); den fejlende linje blev ikke gemt.
 - Kendt afgrænsning: testen kalder kun `sync_lease_acquire`/`sync_lease_release` + `src/lib/services/sync-lease.ts`; ingen
