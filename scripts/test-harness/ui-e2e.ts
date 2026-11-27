@@ -6794,6 +6794,7 @@ ${m.text()}`) })
               await gotoSafe(a.page, `${base}/dashboard/orders/${sag!.id}?tab=kommunikation`, { waitUntil: 'networkidle', timeout: 180_000 })
               r.vist_paa_sagen = await a.page.getByTestId('timeline-events').waitFor({ timeout: 90_000 }).then(async () => (await a.page.getByTestId('timeline-events').innerText()).includes(`U272-${stamp}`)).catch(() => false)
               r.sagsfilter = (await a.page.getByTestId('timeline-filters').count()) === 1
+              r.ingen_kildefejl_paa_sagen = !(await a.page.getByTestId('customer-communication-timeline').innerText()).includes('kunne ikke læses')
               await a.page.getByTestId('timeline-events').scrollIntoViewIfNeeded().catch(() => {})
               await a.page.screenshot({ path: join(shots, 'phase-c-3-sag-kommunikation.png') }).catch(() => {})
               // Afslut ét sted
@@ -6876,6 +6877,15 @@ ${m.text()}`) })
             await box.getByTestId('coordinator-panel').waitFor({ timeout: 120_000 })
             // Telefonen i signaturen matcher den eksisterende kunde → sandsynlig kunde (ikke verificeret)
             r.telefon_giver_sandsynlig = (await box.getByTestId('coordinator-identity').getAttribute('data-level')) === 'probable'
+            // Husk afsender (fase B-RPC'er, parties.manage): e-mailen bekræftes på kundens part → næste gang verificeret
+            await box.getByTestId('coordinator-remember-email').click({ timeout: 30_000 })
+            await box.getByTestId('coordinator-msg').waitFor({ timeout: 60_000 })
+            const pty = ((await c.admin.from('parties').select('id, verified_emails').eq('customer_id', ex!.id)).data ?? []) as Array<{ id: string; verified_emails: string[] }>
+            r.husk_afsender_gemt = pty.length === 1 && pty[0].verified_emails.includes(`ny-u275-${stamp}@harness.test`)
+            if (pty[0]) coordCleanup.unshift(async () => { await c.admin.from('party_relationships').delete().eq('party_id', pty[0].id); await c.admin.from('audit_logs').delete().eq('entity_id', pty[0].id); await c.admin.from('parties').delete().eq('id', pty[0].id) })
+            await gotoSafe(a.page, `${base}/dashboard/mail?emailId=${m.id}`, { waitUntil: 'networkidle', timeout: 180_000 })
+            await box.getByTestId('coordinator-identity').waitFor({ timeout: 120_000 })
+            r.husket_nu_verificeret = (await box.getByTestId('coordinator-identity').getAttribute('data-level')) === 'verified'
             // Ukendt afsender uden telefon i mailen: opret kunde med dubletkontrol (medarbejderen taster telefonen)
             const m2 = await seedMail('U275-dublet', { sender_email: `andet-u275-${stamp}@harness.test`, sender_name: 'U275 Kontakt', body_text: 'Fejl på anlægget, kom venligst.' })
             await gotoSafe(a.page, `${base}/dashboard/mail?emailId=${m2.id}`, { waitUntil: 'networkidle', timeout: 180_000 })
