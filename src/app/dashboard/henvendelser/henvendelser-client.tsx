@@ -89,7 +89,7 @@ const ACTION_GROUPS: Array<{ key: string; title: string; states: string[]; cls: 
 
 const href = (view: HenvendelseView, channel: HenvendelseChannel | null) => `/dashboard/henvendelser?filter=${view}${channel ? `&channel=${channel}` : ''}`
 
-export function HenvendelserClient(props: { filter: HenvendelseView; channel: HenvendelseChannel | null; rows: HenvendelseRow[]; error: string | null; canManage: boolean; canSimulate: boolean; uploadLinks: boolean; backfill: boolean }) {
+export function HenvendelserClient(props: { filter: HenvendelseView; channel: HenvendelseChannel | null; rows: HenvendelseRow[]; error: string | null; canManage: boolean; canSimulate: boolean; uploadLinks: boolean; backfill: boolean; coordinator?: boolean }) {
   const router = useRouter()
   const [openId, setOpenId] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
@@ -181,7 +181,7 @@ export function HenvendelserClient(props: { filter: HenvendelseView; channel: He
             </tbody>
           </table>
         </div>
-        {open && <DetailPanel key={open.id} row={open} canManage={props.canManage} uploadLinks={props.uploadLinks} onChanged={() => router.refresh()} />}
+        {open && <DetailPanel key={open.id} row={open} canManage={props.canManage} uploadLinks={props.uploadLinks} coordinator={!!props.coordinator} onChanged={() => router.refresh()} />}
       </div>
     </div>
   )
@@ -191,7 +191,9 @@ type ThreadEntry =
   | { kind: 'item'; at: string; item: HenvendelseDetail['items'][number] }
   | { kind: 'event'; at: string; text: string; byUser: boolean }
 
-function DetailPanel({ row, canManage, uploadLinks, onChanged }: { row: HenvendelseRow; canManage: boolean; uploadLinks: boolean; onChanged: () => void }) {
+function DetailPanel({ row, canManage, uploadLinks, onChanged, coordinator = false }: { row: HenvendelseRow; canManage: boolean; uploadLinks: boolean; onChanged: () => void; coordinator?: boolean }) {
+  // Phase C (COORDINATOR_ENABLED): log-poster (append_communication) er revisionsspor, ikke beslutninger — skjult som standard
+  const [showNoise, setShowNoise] = useState(false)
   const [detail, setDetail] = useState<HenvendelseDetail | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
@@ -326,10 +328,18 @@ function DetailPanel({ row, canManage, uploadLinks, onChanged }: { row: Henvende
         <>
           <section className="space-y-1">
             <h3 className="font-medium">AI-forslag og handlinger</h3>
+            {coordinator && row.channel === 'email' && (
+              <p className="text-xs" data-testid="henvendelse-to-queue"><a href="/dashboard/arbejdsko" className="text-blue-700 hover:underline">Behandl i arbejdskøen</a> — kunde, sag og afslutning ét sted (mailen afsluttes samtidig).</p>
+            )}
+            {coordinator && detail.actions.some((a) => a.type === 'append_communication') && (
+              <button className="text-xs text-gray-500 hover:underline" onClick={() => setShowNoise((x) => !x)} data-testid="toggle-noise">
+                {showNoise ? 'Skjul' : 'Vis'} {detail.actions.filter((a) => a.type === 'append_communication').length} logposter (revisionsspor)
+              </button>
+            )}
             {detail.actions.length === 0 && <p className="text-gray-500">Ingen.</p>}
             <div className="space-y-2" data-testid="action-list">
               {ACTION_GROUPS.map((g) => {
-                const list = detail.actions.filter((a) => g.states.includes(a.state))
+                const list = detail.actions.filter((a) => g.states.includes(a.state) && (!coordinator || showNoise || a.type !== 'append_communication'))
                 if (!list.length) return null
                 return (
                   <div key={g.key} className={`rounded border p-2 ${g.cls}`} data-testid={`action-group-${g.key}`}>

@@ -6,6 +6,7 @@
  * Ingen ekstern afsendelse (SMS/mail/opkald) findes her. Kunde-/sagsforslag oprettes IKKE automatisk — createServiceCase
  * sender en bekræftelsesmail til kunden og kaldes derfor aldrig af receptionisten (et menneske bruger den normale formular).
  */
+import { archiveMailsForConversation } from '@/lib/coordinator/handled-sync'
 import { revalidatePath } from 'next/cache'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { permissionDeniedText } from '@/lib/auth/permission-text'
@@ -283,6 +284,8 @@ export async function markHenvendelseHandled(id: string): Promise<R<null>> {
   if (u.error) return { success: false, error: dbErr(u.error, 'Kunne ikke afslutte. Intet er ændret.') }
   if (!(u.data ?? []).length) return { success: false, error: 'Henvendelsen er allerede afsluttet eller skjult for dig.' }
   await audit(ctx.userId, id, 'conversation_handled', 'Henvendelse afsluttet')
+  // Phase C (D2, kun med COORDINATOR_ENABLED): henvendelsens mails arkiveres, så den ikke skal afsluttes igen i mail-modulet
+  await archiveMailsForConversation(ctx.supabase, ctx.userId, id, ctx.hasPermission('inbox.view'))
   revalidatePath('/dashboard/henvendelser')
   return { success: true, data: null }
 }

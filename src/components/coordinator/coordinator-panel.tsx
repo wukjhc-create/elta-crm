@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Check, X, UserCheck, Archive, RotateCcw, ExternalLink, ChevronDown, ChevronRight, Mail, Phone, MapPin, Briefcase } from 'lucide-react'
 import {
-  completeQueueItemAction, decideCoordinatorSuggestionAction, getCoordinatorViewAction, rememberSenderAction, reopenQueueItemAction,
+  completeQueueItemAction, createCallbackFromQueueAction, decideCoordinatorSuggestionAction, getCoordinatorViewAction, rememberSenderAction, reopenQueueItemAction,
 } from '@/lib/actions/coordinator'
 import type { CoordinatorView } from '@/lib/coordinator/view'
 import { SUGGESTION_LABELS, CATEGORY_LABELS, PRIORITY_LABELS, type Suggestion } from '@/lib/coordinator/suggestions'
@@ -65,6 +65,14 @@ export function CoordinatorPanel({ emailId, canManageConversations, canRemember,
     setBusy(false)
     if (!r.success) { setError(r.error); return }
     setMsg(r.data.conversationClosed ? 'Afsluttet — henvendelsen er lukket og mailen arkiveret.' : 'Afsluttet — mailen er arkiveret.')
+    await load(); onChanged?.()
+  }
+  async function callback() {
+    setBusy(true); setMsg(null)
+    const r = await createCallbackFromQueueAction(emailId)
+    setBusy(false)
+    if (!r.success) { setError(r.error); return }
+    setMsg(r.data.existing ? 'Der findes allerede et åbent tilbagekald til kunden.' : 'Tilbagekald oprettet i opkaldskøen.')
     await load(); onChanged?.()
   }
   async function reopen() {
@@ -174,6 +182,13 @@ export function CoordinatorPanel({ emailId, canManageConversations, canRemember,
               })}
             </ul>
           )}
+        </section>
+      )}
+
+      {!done && view.conversation?.callbackRequested && (
+        <section className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 p-3" data-testid="coordinator-callback">
+          <span className="text-amber-900">Kunden ønsker at blive ringet op{view.linked.human ? '' : ' — kobl kunden først'}</span>
+          <button disabled={busy || !canManageConversations} onClick={() => void callback()} className="rounded-md border border-amber-400 bg-white px-3 py-1.5 hover:bg-amber-100 disabled:opacity-50" data-testid="coordinator-create-callback">Opret tilbagekald</button>
         </section>
       )}
 

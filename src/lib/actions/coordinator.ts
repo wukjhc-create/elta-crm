@@ -28,7 +28,7 @@ import {
   archiveEmail, createLeadFromEmailAction, linkEmailToCase, linkEmailToCustomer, markEmailAsRead, unarchiveEmail,
 } from '@/lib/actions/incoming-emails'
 import { createServiceCaseFromEmail } from '@/lib/actions/service-cases'
-import { markHenvendelseHandled, setHenvendelseStatus } from '@/lib/actions/henvendelser'
+import { createCallbackFromHenvendelse, markHenvendelseHandled, setHenvendelseStatus } from '@/lib/actions/henvendelser'
 import { ensureRegisterPartyAction, updatePartyAction } from '@/lib/actions/parties'
 import { partiesUiEnabled } from '@/lib/parties/feature-flag'
 
@@ -280,4 +280,24 @@ export async function completeLowRiskBatchAction(emailIds: string[]): Promise<R<
     if (r.success) completed++; else skipped++
   }
   return { success: true, data: { completed, skipped } }
+}
+
+/**
+ * Stage A: et tilbagekald som Stage A foreslog (eller blokerede ved lav sikkerhed) oprettes med ét klik fra køen.
+ * Kræver at kunden er koblet af en medarbejder (manuel mailkobling bekræfter henvendelsens kunde via 00250-triggeren).
+ * Genbruger createCallbackFromHenvendelse (idempotent: højst ét åbent tilbagekald pr. kunde). Den blokerede række
+ * forbliver låst som revisionsspor.
+ */
+export async function createCallbackFromQueueAction(emailId: string): Promise<R<{ existing: boolean }>> {
+  if (!isId(emailId)) return { success: false, error: 'Ugyldig mail' }
+  const g = await requireCoordinatorCtx(); if ('error' in g) return { success: false, error: g.error as string }
+  const conv = await loadConversationForEmail(g.ctx.supabase, emailId)
+  if (!conv) return { success: false, error: 'Mailen har ingen henvendelse at oprette tilbagekald fra' }
+  if (conv.customerMatchState !== 'confirmed') return { success: false, error: 'Kobl mailen til kunden først (godkend kundeforslaget) — så kan tilbagekaldet oprettes' }
+  const r = await createCallbackFromHenvendelse(conv.id)
+  if (!r.success) return { success: false, error: r.error }
+  await insertAuditRow({ user_id: g.ctx.userId, entity_type: 'incoming_email', entity_id: emailId, action: 'coordinator_callback_created',
+    action_description: r.data.existing ? 'Tilbagekald fandtes allerede' : 'Tilbagekald oprettet fra arbejdskøen', metadata: { conversation_id: conv.id, existing: r.data.existing } })
+  revalidatePath('/dashboard/arbejdsko')
+  return { success: true, data: r.data }
 }

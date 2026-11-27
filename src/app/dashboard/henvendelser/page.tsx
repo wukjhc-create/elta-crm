@@ -5,6 +5,7 @@ import { listHenvendelser } from '@/lib/actions/henvendelser'
 import { parseHenvendelseQuery } from '@/lib/reception/henvendelser-views'
 import { backfillEnabled, uploadLinksEnabled } from '@/lib/reception/flags'
 import { HenvendelserClient } from './henvendelser-client'
+import { coordinatorEnabled } from '@/lib/coordinator/feature-flag'
 
 export const metadata: Metadata = { title: 'Henvendelser' }
 export const dynamic = 'force-dynamic'
@@ -30,6 +31,7 @@ export default async function HenvendelserPage({ searchParams }: { searchParams:
       canSimulate={perms.has('conversations.manage') && perms.has('conversations.view_unmatched')}
       uploadLinks={uploadLinksEnabled()}
       backfill={backfillEnabled()}
+      coordinator={coordinatorEnabled()}
     />
   )
 }

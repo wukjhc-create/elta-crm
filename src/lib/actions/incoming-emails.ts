@@ -431,8 +431,20 @@ export async function archiveEmail(id: string): Promise<MailActionResult> {
     .select('id')
 
   if (error || !(data ?? []).length) { if (error) logger.error('archiveEmail failed', { error, entityId: id }); return { success: false, error: 'Kunne ikke arkivere mailen' } }
+  await syncConversationAfterMailDone(id)
   revalidatePath('/dashboard/mail')
   return { success: true }
+}
+
+/** Phase C (D2, kun med COORDINATOR_ENABLED): færdig mail → luk Stage A-henvendelsen når alle dens mails er færdige */
+async function syncConversationAfterMailDone(emailId: string): Promise<void> {
+  const { coordinatorEnabled } = await import('@/lib/coordinator/feature-flag')
+  if (!coordinatorEnabled()) return
+  try {
+    const ctx = await getAuthenticatedClientWithRole()
+    const { closeConversationIfMailsDone } = await import('@/lib/coordinator/handled-sync')
+    await closeConversationIfMailsDone(ctx.supabase, ctx.userId, emailId, ctx.hasPermission('conversations.manage'))
+  } catch { /* best effort — arkiveringen er gennemført */ }
 }
 
 /** N63: arkivér flere mails (fx alle viste uidentificerede) — ikke-destruktivt, kan gendannes fra "Arkiveret". */
@@ -501,6 +513,7 @@ export async function ignoreIncomingEmail(emailId: string): Promise<MailActionRe
     logger.error('ignoreIncomingEmail failed', { error: err, entityId: emailId })
     return { success: false, error: 'Mailen kunne ikke markeres som ignoreret' }
   }
+  await syncConversationAfterMailDone(emailId)
   revalidatePath('/dashboard/mail')
   return { success: true }
 }
