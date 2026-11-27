@@ -19,7 +19,9 @@ export const FEEDBACK_VERDICT_LABELS: Record<FeedbackVerdict, string> = {
 
 export const FEEDBACK_ACTION = 'classification_feedback'
 export const FEEDBACK_ENTITY_TYPE = 'incoming_email'
-export const FEEDBACK_NOTE_MAX = 500
+export const FEEDBACK_NOTE_MAX = 200
+/** Metadata-skema for feedback-rækken. 2 = revision/supersedes + redigeret note (C1a-hærdning 2026-11-27). */
+export const FEEDBACK_SCHEMA = 2
 
 export interface CorrectedClassification {
   senderType?: SenderType
@@ -54,7 +56,7 @@ export function validateFeedback(input: FeedbackInput, predicted: InquiryClassif
   if (!UUID.test(String(input.emailId ?? ''))) return { ok: false, error: 'Ugyldig mail' }
   const verdict = input.verdict as FeedbackVerdict
   if (!(FEEDBACK_VERDICTS as readonly string[]).includes(verdict)) return { ok: false, error: 'Vælg en vurdering' }
-  const note = input.note == null ? null : String(input.note).trim().slice(0, FEEDBACK_NOTE_MAX) || null
+  const note = input.note == null ? null : redactFeedbackNote(String(input.note)).slice(0, FEEDBACK_NOTE_MAX).trim() || null
   const raw = input.corrected ?? {}
   if (typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, error: 'Ugyldig rettelse' }
   const corrected: CorrectedClassification = {}
@@ -73,4 +75,28 @@ export function validateFeedback(input: FeedbackInput, predicted: InquiryClassif
   if (!changed) return { ok: false, error: 'Angiv den korrekte klassifikation for mindst én dimension' }
   if (verdict === 'partial' && changed === Object.keys(DIMS).length) return { ok: false, error: 'Alle fire dimensioner er rettet — vælg "Forkert"' }
   return { ok: true, verdict, corrected, note }
+}
+
+/**
+ * Noten er fri tekst og må ikke blive et sted for personoplysninger eller mailindhold. Før lagring erstattes e-mail-
+ * adresser og lange talrækker (telefon, CPR, konto — mindst 8 cifre, evt. med mellemrum/bindestreger) med pladsholdere,
+ * og noten afkortes til FEEDBACK_NOTE_MAX. Korte numre som SVC-01006 bevares.
+ */
+export function redactFeedbackNote(raw: string): string {
+  return raw
+    .replace(/\s+/g, ' ')
+    .replace(/[^\s@<>()"',;]+@[^\s@<>()"',;]+\.[a-z]{2,}/gi, '[e-mail]')
+    .replace(/\+?\d[\d \-]{5,}\d/g, (m) => (m.replace(/\D/g, '').length >= 8 ? '[tal]' : m))
+    .trim()
+}
+
+/** Identisk med brugerens seneste vurdering på samme mail og klassifikationsversion → ingen ny række (gentaget klik/fane). */
+export function isSameFeedback(
+  last: { version?: unknown; verdict?: unknown; corrected?: unknown; note?: unknown } | null | undefined,
+  next: { version: string; verdict: FeedbackVerdict; corrected: CorrectedClassification; note: string | null },
+): boolean {
+  if (!last) return false
+  const norm = (c: unknown) => JSON.stringify(Object.entries((c ?? {}) as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)))
+  return last.version === next.version && last.verdict === next.verdict && norm(last.corrected) === norm(next.corrected)
+    && (last.note ?? null) === next.note
 }

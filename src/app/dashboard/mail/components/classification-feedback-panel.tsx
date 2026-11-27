@@ -34,7 +34,7 @@ export function ClassificationFeedbackPanel({ emailId }: { emailId: string }) {
   const [verdict, setVerdict] = useState<FeedbackVerdict | null>(null)
   const [corrected, setCorrected] = useState<Partial<Record<Dim, string>>>({})
   const [note, setNote] = useState('')
-  const [saved, setSaved] = useState(false)
+  const [saved, setSaved] = useState<null | { unchanged: boolean; revision: number }>(null)
 
   async function toggle() {
     const next = !open
@@ -53,7 +53,16 @@ export function ClassificationFeedbackPanel({ emailId }: { emailId: string }) {
     const r = await submitClassificationFeedbackAction({ emailId, verdict, corrected: verdict === 'partial' || verdict === 'wrong' ? corrected : {}, note })
     setBusy(false)
     if (!r.success) { setError(r.error); return }
-    setError(null); setSaved(true)
+    setError(null); setSaved({ unchanged: r.data.unchanged, revision: r.data.revision })
+  }
+
+  /** Ret en gemt vurdering: hent klassifikation + tidligere vurderinger igen og vis formularen (ny række, revision + 1). */
+  async function reopen() {
+    setBusy(true)
+    const r = await getEmailClassificationAction(emailId)
+    setBusy(false)
+    if (!r.success) { setError(r.error); return }
+    setView(r.data); setSaved(null); setError(null)
   }
 
   const c = view?.classification
@@ -87,11 +96,18 @@ export function ClassificationFeedbackPanel({ emailId }: { emailId: string }) {
               </div>
               <p className="text-gray-500">Regler: <span className="font-mono">{c.rules.map((r) => `${r.dimension}:${r.rule}`).join(', ')}</span> · {c.version}</p>
               {view.previous.length > 0 && (
-                <p className="text-gray-500" data-testid="classification-previous">Tidligere vurderinger: {view.previous.map((p) => `${FEEDBACK_VERDICT_LABELS[p.verdict] ?? p.verdict}${p.mine ? ' (dig)' : ''}`).join(', ')}</p>
+                <p className="text-gray-500" data-testid="classification-previous">Tidligere vurderinger: {view.previous.map((p) => `${FEEDBACK_VERDICT_LABELS[p.verdict] ?? p.verdict}${p.mine ? ' (dig)' : ''}${p.isCorrection ? ` · rettelse ${p.revision}` : ''}${p.version !== c.version ? ` · ${p.version}` : ''}`).join(', ')}</p>
               )}
               {saved ? (
-                <p className="text-emerald-700" data-testid="classification-feedback-saved">Tak — vurderingen er gemt (påvirker ikke mailen).</p>
-              ) : (
+                <p className="text-emerald-700" data-testid="classification-feedback-saved" data-unchanged={saved.unchanged ? 'true' : 'false'} data-revision={saved.revision}>
+                  {saved.unchanged ? 'Uændret — samme vurdering er allerede gemt.' : saved.revision > 1 ? `Tak — din rettelse er gemt (vurdering nr. ${saved.revision}; påvirker ikke mailen).` : 'Tak — vurderingen er gemt (påvirker ikke mailen).'}
+                </p>
+              ) : null}
+              {saved && (
+                <button type="button" disabled={busy} onClick={() => void reopen()} data-testid="classification-feedback-revise"
+                  className="rounded border border-gray-300 px-2 py-0.5 hover:bg-white">Ret vurdering</button>
+              )}
+              {saved ? null : (
                 <div className="space-y-2">
                   <div className="flex flex-wrap gap-1">
                     {FEEDBACK_VERDICTS.map((v) => (
@@ -115,7 +131,7 @@ export function ClassificationFeedbackPanel({ emailId }: { emailId: string }) {
                     </div>
                   )}
                   {verdict && (
-                    <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={FEEDBACK_NOTE_MAX} placeholder="Kort note (valgfri — ingen persondata)"
+                    <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={FEEDBACK_NOTE_MAX} placeholder="Kort note (valgfri — ingen navne, e-mails eller numre)"
                       className="w-full rounded border px-2 py-0.5" data-testid="classification-feedback-note" />
                   )}
                   <button type="button" disabled={!verdict || busy} onClick={() => void save()} data-testid="classification-feedback-save"

@@ -9,7 +9,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { classifyInquiry } from '../src/lib/classification/inquiry-classifier'
-import { validateFeedback, FEEDBACK_VERDICTS } from '../src/lib/classification/feedback'
+import { validateFeedback, FEEDBACK_VERDICTS, redactFeedbackNote, isSameFeedback, FEEDBACK_NOTE_MAX } from '../src/lib/classification/feedback'
 import { classificationFeedbackEnabled } from '../src/lib/classification/feature-flag'
 
 let pass = 0, fail = 0
@@ -37,7 +37,24 @@ ok('ukendt dimension afvises', !v('wrong', { priority: 'high' }).ok)
 ok('ukendt vurdering afvises', !v('maybe').ok)
 ok('ugyldigt mail-id afvises', !validateFeedback({ emailId: 'x', verdict: 'correct' }, pred).ok)
 const n = v('correct', undefined, '  ' + 'x'.repeat(900))
-ok('note trimmes og afkortes til 500', n.ok && (n as { note: string }).note.length === 500)
+ok('note trimmes og afkortes til 200', FEEDBACK_NOTE_MAX === 200 && n.ok && (n as { note: string }).note.length === 200)
+// --- Personoplysninger i noten (hærdning 2026-11-27)
+ok('e-mail i note erstattes', redactFeedbackNote('skriv til Hans.Jensen@firma.dk om det') === 'skriv til [e-mail] om det')
+ok('telefon med mellemrum erstattes', redactFeedbackNote('ring 12 34 56 78 i dag') === 'ring [tal] i dag')
+ok('+45-nummer erstattes', redactFeedbackNote('tlf +4512345678') === 'tlf [tal]')
+ok('CPR erstattes', redactFeedbackNote('cpr 010203-1234') === 'cpr [tal]')
+ok('sagsnummer bevares', redactFeedbackNote('hører til SVC-01006') === 'hører til SVC-01006')
+ok('kort tal bevares', redactFeedbackNote('postnr 8000, 2 stk') === 'postnr 8000, 2 stk')
+ok('linjeskift/whitespace samles', redactFeedbackNote(' a\n\n b ') === 'a b')
+const rn = v('correct', undefined, 'kunde ring 87654321 / a@b.dk')
+ok('validateFeedback gemmer kun redigeret note', rn.ok && (rn as { note: string }).note === 'kunde ring [tal] / [e-mail]')
+// --- Gentagne indsendelser
+const base = { version: 'c1-v1', verdict: 'wrong' as const, corrected: { inquiryType: 'invoice' as const }, note: null }
+ok('identisk seneste vurdering → samme', isSameFeedback({ version: 'c1-v1', verdict: 'wrong', corrected: { inquiryType: 'invoice' }, note: null }, base))
+ok('anden rettelse → ny række', !isSameFeedback({ version: 'c1-v1', verdict: 'wrong', corrected: { inquiryType: 'service_request' }, note: null }, base))
+ok('anden version → ny række', !isSameFeedback({ version: 'c1-v0', verdict: 'wrong', corrected: { inquiryType: 'invoice' }, note: null }, base))
+ok('anden note → ny række', !isSameFeedback({ version: 'c1-v1', verdict: 'wrong', corrected: { inquiryType: 'invoice' }, note: 'x' }, base))
+ok('ingen tidligere → ny række', !isSameFeedback(null, base))
 ok('tom note → null', (v('correct', undefined, '   ') as { note: string | null }).note === null)
 ok('fire vurderinger', FEEDBACK_VERDICTS.join() === 'correct,partial,wrong,cannot_assess')
 
@@ -64,6 +81,12 @@ ok('begge eksporterede handlinger er gatet', ['getEmailClassificationAction', 's
 ok('gate: flag først, derefter settings.manage', /if \(!classificationFeedbackEnabled\(\)\)[\s\S]{0,200}hasPermission\('settings\.manage'\)/.test(action))
 ok('indsendelse klassificerer selv (klientens forudsigelse bruges ikke)', /submitClassificationFeedbackAction[\s\S]*loadEmailClassification\(db, input\.emailId\)[\s\S]*validateFeedback\(input, c\.classification\)/.test(action))
 ok('ingen skrivning i drifttabeller fra C1a', ![action, loader].some((s) => /from\('(incoming_emails|conversations|conversation_actions|customers|service_cases)'\)\.(insert|update|upsert|delete)/.test(s)))
+
+ok('gentagelse: seneste egen vurdering læses (bruger + mail) før indsættelse', /\.eq\('entity_id', input\.emailId\)\.eq\('user_id', g\.userId\)[\s\S]{0,200}limit\(1\)[\s\S]*isSameFeedback\([\s\S]*insertAuditRow\(/.test(action))
+ok('rettelse kan identificeres: revision + supersedes i metadata', /revision,\n\s*supersedes: last\?\.id \?\? null/.test(action))
+ok('metadata har skema, version og forudsigelse — intet mailindhold', /schema: FEEDBACK_SCHEMA,\n\s*version: p\.version/.test(action) && !/subject|body_|from_email|sender_|entity_name|user_email|user_name/.test(action.slice(action.indexOf('insertAuditRow({'))))
+const core = read('scripts/test-harness/phase-c-baseline-core.ts')
+ok('C0 tæller kun seneste vurdering pr. mail og bruger + versioner/dimensioner', /DISTINCT ON \(entity_id, user_id\)/.test(core) && /'by_version'/.test(core) && /'dim_corrected'/.test(core) && /'corrections'/.test(core))
 
 // --- UI bag serverens afgørelse
 const page = read('src/app/dashboard/mail/page.tsx')

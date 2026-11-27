@@ -7,6 +7,12 @@
  * kræver et menneskeligt facit — shadow-rapporten (C1) giver enighed med eksisterende arbejdsgange indtil da.
  */
 
+/** Seneste C1a-vurdering pr. (mail, bruger) — tidligere vurderinger er erstattet af rettelsen og tælles ikke i andele. */
+function latestFeedback(s: string): string {
+  return `(SELECT DISTINCT ON (entity_id, user_id) entity_id, user_id, metadata FROM public.audit_logs
+      WHERE action = 'classification_feedback' AND created_at >= ${s} ORDER BY entity_id, user_id, created_at DESC)`
+}
+
 export function baselineSql(sinceIso: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(sinceIso)) throw new Error('since skal være YYYY-MM-DD')
   const s = `'${sinceIso}'::timestamptz`
@@ -48,8 +54,15 @@ export function baselineSql(sinceIso: string): string {
       WHERE coalesce(trim(email), '') <> '' AND lower(email) NOT LIKE '%@elta-crm.local' GROUP BY 1 HAVING count(*) > 1) d),
   'case_proposals', (SELECT count(*) FROM public.conversation_actions WHERE action_type = 'create_case_proposal' AND created_at >= ${s}),
   'feedback', (SELECT coalesce(json_object_agg(v, n), '{}'::json) FROM (
-      SELECT coalesce(metadata->>'verdict', '?') v, count(*) n FROM public.audit_logs
-      WHERE action = 'classification_feedback' AND created_at >= ${s} GROUP BY 1) f),
+      SELECT coalesce(metadata->>'verdict', '?') v, count(*) n FROM ${latestFeedback(s)} lf GROUP BY 1) f),
+  'feedback_detail', json_build_object(
+      'rows', (SELECT count(*) FROM public.audit_logs WHERE action = 'classification_feedback' AND created_at >= ${s}),
+      'corrections', (SELECT count(*) FROM public.audit_logs WHERE action = 'classification_feedback' AND created_at >= ${s} AND metadata->>'supersedes' IS NOT NULL),
+      'mails', (SELECT count(DISTINCT entity_id) FROM ${latestFeedback(s)} lf),
+      'by_version', (SELECT coalesce(json_object_agg(v, n), '{}'::json) FROM (SELECT coalesce(metadata->>'version', '?') v, count(*) n FROM ${latestFeedback(s)} lf GROUP BY 1) x),
+      'dim_corrected', (SELECT coalesce(json_object_agg(k, n), '{}'::json) FROM (
+          SELECT k, count(*) n FROM ${latestFeedback(s)} lf, jsonb_object_keys(coalesce(lf.metadata->'corrected', '{}'::jsonb)) k
+          WHERE lf.metadata->>'verdict' IN ('partial', 'wrong') GROUP BY 1) x)),
   'forslag', (SELECT json_build_object(
       'total', count(*),
       'decided', count(decided_at),
@@ -93,6 +106,7 @@ export function metricsReport(j: J, sh: ShadowCounts): string[] {
   const m = j.mails, hv = j.henvendelser, f = j.forslag
   const st = (f.by_state ?? {}) as Record<string, number>
   const fb = (j.feedback ?? {}) as Record<string, number>
+  const fd = (j.feedback_detail ?? {}) as { rows?: number; corrections?: number; mails?: number; by_version?: Record<string, number>; dim_corrected?: Record<string, number> }
   const fbTotal = Object.values(fb).reduce((a, b) => a + Number(b), 0)
   const assessed = Number(fb.correct ?? 0) + Number(fb.partial ?? 0) + Number(fb.wrong ?? 0)
   const NM = (why: string) => `IKKE MÅLBAR — ${why}`
@@ -100,7 +114,7 @@ export function metricsReport(j: J, sh: ShadowCounts): string[] {
     ['Antal modtagne henvendelser', `${m.total} mails (kontakt@ ${m.kontakt}, ordre@ ${m.ordre}) · ${hv.created} henvendelser i Stage A`],
     ['Antal behandlede henvendelser', `${hv.handled} markeret behandlet i Henvendelser (mails i mail-indbakken lukker ikke henvendelsen — se Stage A-undersøgelsen)`],
     ['Andel korrekt klassificerede', assessed ? `${pct(Number(fb.correct ?? 0), assessed)} (n=${assessed} vurderet i C1a-feedback)` : NM('kræver C1a-feedback (0 vurderinger)')],
-    ['Andel forkert klassificerede', assessed ? `forkert ${pct(Number(fb.wrong ?? 0), assessed)} · delvist ${pct(Number(fb.partial ?? 0), assessed)}` : NM('kræver C1a-feedback (0 vurderinger)')],
+    ['Andel forkert klassificerede', assessed ? `forkert ${pct(Number(fb.wrong ?? 0), assessed)} · delvist ${pct(Number(fb.partial ?? 0), assessed)} · rettet pr. dimension ${JSON.stringify(fd.dim_corrected ?? {})} · versioner ${JSON.stringify(fd.by_version ?? {})} · ${Number(fd.corrections ?? 0)} rettelser af tidligere feedback (kun seneste vurdering pr. mail og bruger tæller)` : NM('kræver C1a-feedback (0 vurderinger)')],
     ['Andel ukendte henvendelser', `${pct(sh.inquiry.unknown ?? 0, sh.total)} ukendt henvendelsestype · ${pct(sh.sender.unknown ?? 0, sh.total)} ukendt afsender (C1-shadow, ${sh.total} mails)`],
     ['Genkendte eksisterende kunder', `${sh.sender.existing_customer ?? 0} mails (deterministisk, C1-shadow)`],
     ['Genkendte leverandører', `${sh.sender.supplier ?? 0} mails (C1-shadow)`],
@@ -117,5 +131,5 @@ export function metricsReport(j: J, sh: ShadowCounts): string[] {
     ['Faktisk målt tidsbesparelse', NM('kræver aktivt tidsforbrug før/efter (ingen måling endnu)')],
     ['Estimeret tidsbesparelse', NM('ikke beregnet — kræver godkendte antagelser (min. pr. manuel handling); vises altid adskilt fra målt')],
   ]
-  return [`MÅLEPUNKTER fra ${String(j.since).slice(0, 10)} (${j.days} dage) · C1a-feedback i alt ${fbTotal}`, ...rows.map(([k, v]) => `  ${k.padEnd(38)} ${v}`)]
+  return [`MÅLEPUNKTER fra ${String(j.since).slice(0, 10)} (${j.days} dage) · C1a-feedback: ${fbTotal} gældende vurderinger på ${Number(fd.mails ?? 0)} mails (${Number(fd.rows ?? 0)} rækker inkl. rettelser)`, ...rows.map(([k, v]) => `  ${k.padEnd(38)} ${v}`)]
 }
