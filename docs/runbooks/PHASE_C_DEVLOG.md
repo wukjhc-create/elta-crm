@@ -75,6 +75,8 @@ Ved kontekst-komprimering: læs denne fil først, derefter "Næste delopgave".
   sags-/tilbudsnumre). C0 + køvindue `96ff1f11` (prod read-only: 689 åbne uarkiverede mails → COORDINATOR_QUEUE_DAYS=30).
 - Hoveddokument: `PHASE_C_INTELLIGENT_CRM.md` (moduler, sikkerhed, rettigheder, flag, UX/Outlook, roadmap, udrulning, rollback)
 
-## Næste delopgave
-UI-harness U272/U274/U275 (flag TIL) + U272 flag FRA → regression (reception, parties, classification, portal-security,
-smoke) med flag TIL → statiske suiter → slutrapport. Testdata ryddes af testene selv.
+- 2026-11-27: UI U272/U274/U275 PASS (flag TIL og FRA), regression 30 UI-tests PASS, fund rettet (ef930ca8), Husk afsender
+  UI-testet (ac4246f7). Se PHASE_C_INTELLIGENT_CRM.md §11.
+
+## Status: AFLEVERET — afventer Henriks Production-godkendelse
+Næste skridt kun efter godkendelse: udrulningsplan PHASE_C_INTELLIGENT_CRM.md §9.

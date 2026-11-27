@@ -127,3 +127,26 @@ bærer referencen automatisk. Ikke implementeret (ændrer eksisterende kommunika
 - `MAIL_CUSTOMER_AUTOCREATE_MODE` tom/`auto` → automatisk kundeoprettelse som i dag.
 - Data: koblinger/arkiveringer medarbejderne har lavet er almindelige manuelle handlinger (kan fjernes/genåbnes i UI).
   Ingen migration at rulle tilbage. Kode-rollback = revert af merge-commit.
+
+## 11. Testresultater (2026-11-27, staging + rene)
+| Suite | Resultat |
+|---|---|
+| `scripts/coordinator-identity-test.ts` (C2) | 29/29 |
+| `scripts/coordinator-suggestions-test.ts` (C3 + signaler) | 26/26 |
+| `scripts/coordinator-dedupe-timeline-test.ts` (C4 + C5) | 27/27 |
+| `scripts/coordinator-ai-test.ts` (C6 værn, falsk udbyder, prompt-injection) | 27/27 |
+| `scripts/classification-feedback-test.ts` (C1a) / `inquiry-classifier-test.ts` (C1) | 50/50 · 108/108 |
+| `scripts/party-phase-b-test.ts` / `participant-role-default-test.ts` / `party-audience-test.ts` | 45/45 · 20/20 · 66/66 |
+| Øvrige statiske (server-only, videresendt, mail-load, pilot, handover, offer-case-type, telefoni) | alle bestået |
+| `cli.ts coordinator-probe` (staging, read-only) | skema 21/21, 0 fejl, C1-paritet 30/30–40/40, invarianter OK, kø 3 s |
+| UI flag TIL | U272 (hel brugerrejse), U274 (delt e-mail, videresendt, salg/montør uden adgang), U275 (dubletkontrol, Husk afsender) PASS |
+| UI flag FRA (= prod) | U272 (ingen kø/menu/boks/fane), U270, U271 PASS |
+| Regression flag TIL | U267 U268 (Stage A), U270 (parter), U271 (C1a), U10 U11 U15 U20 U114 U37 U52 U70 (smoke), U269 U180 (portal-sikkerhed), mail/portal U215 U211 U203 U201 U200 U199 U198 U195 U194 U193 U190 U181 U144 U143 U142 — alle PASS |
+| `next build` (harness, staging-env) | OK |
+| Gates | tsc · check:rbac · check:rls-matrix = 0 ved hver commit |
+
+Fund under test (rettet): AI godtog sagsnummer fra selve mailen (injektion) → kun kendte numre; sagstidslinjen brugte
+`case_id` på `case_participants` (rigtigt: `service_case_id`) → skematjek indført; U275-timing (genberegning efter blur).
+Ikke testet i UI: C6 mod rigtig OpenAI (bevidst — ingen omkostning/dataflow; værnet er testet med falsk udbyder),
+`MAIL_CUSTOMER_AUTOCREATE_MODE=suggest` ende-til-ende (kræver AI-kørsel i mail-sync; vagten er statisk testet: additiv),
+lavrisiko-batch i UI (server-genberegning testet via kode, ingen UI-test).

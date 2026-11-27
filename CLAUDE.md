@@ -500,3 +500,11 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   + `settings.manage`; feedback = `audit_logs` action `classification_feedback` (ingen migration; rører aldrig mailflowet);
   kontekst-kerne `src/lib/classification/inquiry-context.ts` (shadow og C1a identiske, `cli.ts c1a-parity`). Stage A:
   0/111 forslag afgjort — se docs/runbooks/STAGE_A_USAGE_REVIEW.md. C2/C3: docs/runbooks/PHASE_C2_C3_PREFLIGHT.md
+- 2026-11-27: Phase C udviklingspakke (branch `claude-phase-c-intelligent`, IKKE i prod; C1a `cbc9116b` er i prod inert):
+  C2 afsender (`lib/coordinator/identity.ts`), C3 forslag, C4 dubletkontrol (`lib/actions/customer-dedupe.ts`), C5 tidslinje
+  (kunde + sagsfane), C6 AI (`lib/coordinator/ai-assist.ts`), C7 arbejdskø `/dashboard/arbejdsko`, Stage A ét behandlingssted
+  (`lib/coordinator/handled-sync.ts`). Flag (standard FRA): COORDINATOR_ENABLED, COORDINATOR_AI_ENABLED,
+  MAIL_CUSTOMER_AUTOCREATE_MODE (auto|suggest), COORDINATOR_QUEUE_DAYS (30). Ingen migration; afgørelser i audit_logs
+  (`coordinator_*`, `customer_duplicate_avoided`, `customer_created_with_check`). Identitet beregnes med service-role, men
+  alt vist filtreres med brugerens klient. Probe `cli.ts coordinator-probe [N]` (skema+paritet+invarianter), UI U272/U274/U275
+  (gruppe coordinator). Runbook docs/runbooks/PHASE_C_INTELLIGENT_CRM.md, log PHASE_C_DEVLOG.md
