@@ -63,6 +63,27 @@ export function baselineSql(sinceIso: string): string {
       'dim_corrected', (SELECT coalesce(json_object_agg(k, n), '{}'::json) FROM (
           SELECT k, count(*) n FROM ${latestFeedback(s)} lf, jsonb_object_keys(coalesce(lf.metadata->'corrected', '{}'::jsonb)) k
           WHERE lf.metadata->>'verdict' IN ('partial', 'wrong') GROUP BY 1) x)),
+  'coordinator', (SELECT json_build_object(
+      'decisions', count(*) FILTER (WHERE action = 'coordinator_decision'),
+      'accepted', count(*) FILTER (WHERE action = 'coordinator_decision' AND metadata->>'decision' = 'accept'),
+      'changed', count(*) FILTER (WHERE action = 'coordinator_decision' AND metadata->>'decision' = 'change'),
+      'rejected', count(*) FILTER (WHERE action = 'coordinator_decision' AND metadata->>'decision' = 'reject'),
+      'case_suggested', count(*) FILTER (WHERE action = 'coordinator_decision' AND coalesce(metadata->'suggested'->>'case_id', '') <> ''),
+      'case_links_done', count(*) FILTER (WHERE action = 'coordinator_decision' AND metadata->>'result' = 'executed' AND coalesce(metadata->'chosen'->>'case_id', '') <> ''),
+      'duplicates_avoided', count(*) FILTER (WHERE action = 'customer_duplicate_avoided'),
+      'created_with_check', count(*) FILTER (WHERE action = 'customer_created_with_check'),
+      'created_despite_strong', count(*) FILTER (WHERE action = 'customer_created_with_check' AND (metadata->>'strong_candidates')::int > 0),
+      'completed', count(*) FILTER (WHERE action = 'coordinator_completed'),
+      'completed_outlook', count(*) FILTER (WHERE action = 'coordinator_completed' AND metadata->>'reason' = 'answered_outlook'),
+      'ai_runs', count(*) FILTER (WHERE action = 'coordinator_ai_assist'),
+      'ai_rejected', count(*) FILTER (WHERE action = 'coordinator_ai_assist' AND metadata->>'error' = 'schema_invalid'),
+      'user_actions', count(*) FILTER (WHERE action IN ('coordinator_decision', 'coordinator_completed', 'coordinator_callback_created', 'coordinator_sender_remembered', 'customer_duplicate_avoided', 'customer_created_with_check', 'coordinator_reopened')),
+      'median_min_to_completion', (SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM a.created_at - e.received_at) / 60)
+          FROM public.audit_logs a JOIN public.incoming_emails e ON e.id = a.entity_id
+          WHERE a.action = 'coordinator_completed' AND a.created_at >= ${s}))
+    FROM public.audit_logs WHERE created_at >= ${s} AND (action LIKE 'coordinator_%' OR action IN ('customer_duplicate_avoided', 'customer_created_with_check'))),
+  'open_inbound', (SELECT count(*) FROM public.incoming_emails WHERE is_archived = false AND coalesce(link_status::text, '') <> 'ignored'
+      AND (is_forwarded OR sender_email !~* '@([a-z0-9-]+\.)*eltasolar\.dk$')),
   'forslag', (SELECT json_build_object(
       'total', count(*),
       'decided', count(decided_at),
@@ -110,9 +131,11 @@ export function metricsReport(j: J, sh: ShadowCounts): string[] {
   const fbTotal = Object.values(fb).reduce((a, b) => a + Number(b), 0)
   const assessed = Number(fb.correct ?? 0) + Number(fb.partial ?? 0) + Number(fb.wrong ?? 0)
   const NM = (why: string) => `IKKE MÅLBAR — ${why}`
+  const co = (j.coordinator ?? {}) as Record<string, number | null>
+  const cn = (k: string) => Number(co[k] ?? 0)
   const rows: Array<[string, string]> = [
     ['Antal modtagne henvendelser', `${m.total} mails (kontakt@ ${m.kontakt}, ordre@ ${m.ordre}) · ${hv.created} henvendelser i Stage A`],
-    ['Antal behandlede henvendelser', `${hv.handled} markeret behandlet i Henvendelser (mails i mail-indbakken lukker ikke henvendelsen — se Stage A-undersøgelsen)`],
+    ['Antal behandlede henvendelser', `${hv.handled} markeret behandlet i Henvendelser · ${cn('completed')} afsluttet i arbejdskøen (heraf ${cn('completed_outlook')} besvaret i Outlook/CRM) · ${Number(j.open_inbound ?? 0)} åbne indgående mails nu`],
     ['Andel korrekt klassificerede', assessed ? `${pct(Number(fb.correct ?? 0), assessed)} (n=${assessed} vurderet i C1a-feedback)` : NM('kræver C1a-feedback (0 vurderinger)')],
     ['Andel forkert klassificerede', assessed ? `forkert ${pct(Number(fb.wrong ?? 0), assessed)} · delvist ${pct(Number(fb.partial ?? 0), assessed)} · rettet pr. dimension ${JSON.stringify(fd.dim_corrected ?? {})} · versioner ${JSON.stringify(fd.by_version ?? {})} · ${Number(fd.corrections ?? 0)} rettelser af tidligere feedback (kun seneste vurdering pr. mail og bruger tæller)` : NM('kræver C1a-feedback (0 vurderinger)')],
     ['Andel ukendte henvendelser', `${pct(sh.inquiry.unknown ?? 0, sh.total)} ukendt henvendelsestype · ${pct(sh.sender.unknown ?? 0, sh.total)} ukendt afsender (C1-shadow, ${sh.total} mails)`],
@@ -120,14 +143,16 @@ export function metricsReport(j: J, sh: ShadowCounts): string[] {
     ['Genkendte leverandører', `${sh.sender.supplier ?? 0} mails (C1-shadow)`],
     ['Genkendte samarbejdspartnere', `${sh.sender.cooperation_partner ?? 0} mails (C1-shadow; kun 1 part med relation i prod)`],
     ['Potentielle dubletkunder', `${j.dup_email_groups.groups} e-mailadresser deles af ${j.dup_email_groups.customers} kunder (hele registret) · ${sh.multiCustomerEmail} mails i perioden matcher flere kunder`],
-    ['Faktisk undgåede dubletoprettelser', NM('ingen dublet-forebyggelse i drift endnu (C4); tælles først når den findes')],
-    ['Mails koblet til eksisterende sager', `${m.linked_case}`],
+    ['Faktisk undgåede dubletoprettelser', cn('created_with_check') + cn('duplicates_avoided') ? `${cn('duplicates_avoided')} gange valgt eksisterende kunde blandt viste dubletter · ${cn('created_with_check')} nye kunder efter kontrol (${cn('created_despite_strong')} trods stærkt match, med begrundelse)` : NM('C4-flowet er ikke brugt i perioden (kræver COORDINATOR_ENABLED)')],
+    ['Mails koblet til eksisterende sager', `${m.linked_case} i alt · ${cn('case_links_done')} gennemført via arbejdskøens forslag`],
+    ['Forslag til sagskoblinger', `${cn('case_suggested')} afgjorte forslag med en sag (forslag der blot vises, logges ikke)`],
     ['Forslag til nye sager', `${j.case_proposals} Stage A-sagsforslag · ${sh.action.create_service_case_proposal ?? 0} servicesag-forslag i C1-shadow (ikke vist for nogen)`],
-    ['Manuelle handlinger pr. henvendelse', NM('handlinger logges ikke pr. henvendelse (kun manuelle koblinger: ' + m.linked_manual + ')')],
+    ['Manuelle handlinger pr. henvendelse', cn('completed') ? `${(cn('user_actions') / cn('completed')).toFixed(1)} registrerede CRM-handlinger pr. afsluttet post (arbejdskøen; handlinger i Outlook tælles ikke)` : NM('ingen poster afsluttet i arbejdskøen endnu (manuelle koblinger i alt: ' + m.linked_manual + ')')],
     ['Aktivt tidsforbrug pr. henvendelse', NM('kræver tidsmåling i brugerfladen (ingen data)')],
-    ['Tid fra modtagelse til behandling', `${hv.handled ? h(hv.median_h_to_handled) : NM('0 behandlede henvendelser')} · mail ind i CRM median ${j.delay_insert_med_min == null ? '—' : `${Math.round(j.delay_insert_med_min)} min`} · til kundekobling median ${h(m.median_h_to_link_all)}`],
-    ['Accepterede og afviste forslag', `accepteret/udført ${Number(st.approved ?? 0) + Number(st.executed ?? 0)} · afvist ${Number(st.rejected ?? 0)}`],
-    ['Uafgjorte forslag', `${Number(st.proposed ?? 0)} afventer · ${Number(st.blocked ?? 0)} blokeret (kan ikke afgøres i UI)`],
+    ['Tid fra modtagelse til behandling', `arbejdskø: ${co.median_min_to_completion == null ? NM('ingen afsluttede') : `median ${Math.round(Number(co.median_min_to_completion))} min`} · henvendelser: ${hv.handled ? h(hv.median_h_to_handled) : NM('0 behandlede henvendelser')} · mail ind i CRM median ${j.delay_insert_med_min == null ? '—' : `${Math.round(j.delay_insert_med_min)} min`} · til kundekobling median ${h(m.median_h_to_link_all)}`],
+    ['Accepterede og afviste forslag', `arbejdskø: accepteret ${cn('accepted')} · ændret/korrigeret ${cn('changed')} · afvist ${cn('rejected')} · Stage A: accepteret/udført ${Number(st.approved ?? 0) + Number(st.executed ?? 0)} · afvist ${Number(st.rejected ?? 0)}`],
+    ['Uafgjorte forslag', `Stage A: ${Number(st.proposed ?? 0)} afventer · ${Number(st.blocked ?? 0)} blokeret (kan oprettes fra arbejdskøen, når den er slået til) · arbejdskø: ${Number(j.open_inbound ?? 0)} åbne poster`],
+    ['AI-assistent (C6)', cn('ai_runs') ? `${cn('ai_runs')} kørsler · ${cn('ai_rejected')} svar afvist af kontrollen` : NM('ikke brugt i perioden (COORDINATOR_AI_ENABLED)')],
     ['Faktisk målt tidsbesparelse', NM('kræver aktivt tidsforbrug før/efter (ingen måling endnu)')],
     ['Estimeret tidsbesparelse', NM('ikke beregnet — kræver godkendte antagelser (min. pr. manuel handling); vises altid adskilt fra målt')],
   ]

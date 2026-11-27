@@ -21,3 +21,9 @@ export function mailCustomerAutoCreateMode(): AutoCreateMode {
 
 export const COORDINATOR_DISABLED_TEXT = 'Arbejdskøen og forslag er ikke slået til i dette miljø'
 export const COORDINATOR_AI_DISABLED_TEXT = 'AI-assistenten er ikke slået til i dette miljø'
+
+/** Arbejdskøens tidsvindue i dage (COORDINATOR_QUEUE_DAYS, standard 30, 1–365). Ældre åbne mails vises som efterslæb. */
+export function coordinatorQueueDays(): number {
+  const n = Number(process.env.COORDINATOR_QUEUE_DAYS)
+  return Number.isFinite(n) && n >= 1 && n <= 365 ? Math.floor(n) : 30
+}

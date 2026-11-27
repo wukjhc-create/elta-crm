@@ -109,6 +109,9 @@ export function WorkQueueClient({ canAssign }: { canAssign: boolean }) {
       {msg && <p className="rounded-md border border-blue-200 bg-blue-50 p-2 text-sm text-blue-900" role="status" data-testid="queue-msg">{msg}</p>}
       {error && <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert" data-testid="queue-error">{error}</p>}
       {data?.truncated && <p className="text-xs text-gray-500">Viser de nyeste {data.items.length} — brug søgning for ældre.</p>}
+      {!!data?.backlog && !appliedSearch && (
+        <p className="text-xs text-gray-500" data-testid="queue-backlog">Køen viser de seneste {data.windowDays} dage. {data.backlog} ældre åbne mails ligger som efterslæb — find dem med søgning eller i Mail.</p>
+      )}
 
       <div className={`grid gap-4 ${open ? 'xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]' : ''}`}>
         <div className="overflow-hidden rounded-lg border bg-white">

@@ -8,6 +8,7 @@
  * Henvendelser bruger, så en henvendelse aldrig skal afsluttes to steder.
  */
 import { loadRegistry } from './load-identity'
+import { coordinatorQueueDays } from './feature-flag'
 import { buildCoordinatorViews, type CoordinatorView } from './view'
 import { QUEUE_CATEGORIES, type QueueCategory, type QueuePriority, type SuggestionKind } from './suggestions'
 import type { IdentityLevel, SenderKind } from './identity'
@@ -44,6 +45,9 @@ export interface QueueResult {
   counts: { total: number; byCategory: Record<QueueCategory, number>; mine: number; unassigned: number; needsApproval: number; answered: number }
   truncated: boolean
   errors: number
+  /** Åbne mails ældre end køens tidsvindue (efterslæb — behandles i mail-modulet eller med søgning) */
+  backlog: number
+  windowDays: number
 }
 
 const PRIO_RANK: Record<QueuePriority, number> = { urgent: 0, high: 1, normal: 2, low: 3 }
@@ -65,9 +69,14 @@ export function itemFromView(v: CoordinatorView, read: boolean): QueueItem {
 
 export async function buildQueue(userDb: Db, adminDb: Db, userId: string, opts: { search?: string | null } = {}): Promise<QueueResult> {
   // Sendte mails (afsender = ELTA) hører ikke til køen — men videresendte kundemails fra en medarbejder gør
+  const windowDays = coordinatorQueueDays()
+  const since = new Date(Date.now() - windowDays * 86_400_000).toISOString()
   const mails = await userDb.from('incoming_emails').select('id, subject, sender_email, sender_name, received_at, is_read')
     .eq('is_archived', false).neq('link_status', 'ignored').or('is_forwarded.eq.true,sender_email.not.ilike.*@eltasolar.dk')
+    .gte('received_at', opts.search ? '1970-01-01T00:00:00Z' : since)
     .order('received_at', { ascending: false }).limit(300)
+  const older = await userDb.from('incoming_emails').select('id', { count: 'exact', head: true })
+    .eq('is_archived', false).neq('link_status', 'ignored').or('is_forwarded.eq.true,sender_email.not.ilike.*@eltasolar.dk').lt('received_at', since)
   const term = (opts.search ?? '').trim().toLowerCase().slice(0, 80)
   const all = ((mails.data ?? []) as Array<{ id: string; is_read: boolean | null; subject: string | null; sender_email: string | null; sender_name: string | null }>)
   const rows = term ? all.filter((r) => [r.subject, r.sender_email, r.sender_name].some((x) => (x ?? '').toLowerCase().includes(term))) : all
@@ -105,7 +114,7 @@ export async function buildQueue(userDb: Db, adminDb: Db, userId: string, opts: 
   const byCategory = Object.fromEntries(QUEUE_CATEGORIES.map((k) => [k, 0])) as Record<QueueCategory, number>
   for (const it of items) byCategory[it.category]++
   return {
-    items, truncated, errors,
+    items, truncated, errors, backlog: older.count ?? 0, windowDays,
     counts: { total: items.length, byCategory, mine: items.filter((i) => i.assignedProfileId === userId).length,
       unassigned: items.filter((i) => !i.assignedProfileId).length, needsApproval: items.filter((i) => i.needsApproval).length,
       answered: items.filter((i) => !!i.answeredAt).length },
@@ -114,8 +123,9 @@ export async function buildQueue(userDb: Db, adminDb: Db, userId: string, opts: 
 
 /** Tæller til sidebaren: kun billige HEAD-tællinger (ingen identitetsberegning) */
 export async function countOpenQueue(userDb: Db): Promise<number> {
+  const since = new Date(Date.now() - coordinatorQueueDays() * 86_400_000).toISOString()
   const m = await userDb.from('incoming_emails').select('id', { count: 'exact', head: true })
-    .eq('is_archived', false).neq('link_status', 'ignored').or('is_forwarded.eq.true,sender_email.not.ilike.*@eltasolar.dk')
+    .eq('is_archived', false).neq('link_status', 'ignored').or('is_forwarded.eq.true,sender_email.not.ilike.*@eltasolar.dk').gte('received_at', since)
   const c = await userDb.from('conversations').select('id', { count: 'exact', head: true }).neq('channel', 'email').not('status', 'in', '(handled,spam)')
   return (m.count ?? 0) + (c.count ?? 0)
 }
