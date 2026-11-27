@@ -30,6 +30,8 @@ export interface CoordinatorView {
   conversation: ViewConversation | null
   status: { archived: boolean; ignored: boolean; handled: boolean; answeredAt: string | null; reliableSignal: boolean }
   form: CoordinatorContext['form']
+  /** C6: AI-assistent tilgængelig (sættes af server-handlingen ud fra COORDINATOR_AI_ENABLED) */
+  aiEnabled?: boolean
   /** Kun admin (settings.manage) */
   technical: null | { identityVersion: string; suggestionVersion: string; codes: string[]; evidence: Array<{ id: string; level: string; evidence: string[] }>; conflicts: string[]; classification: unknown }
 }

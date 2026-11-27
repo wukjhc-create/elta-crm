@@ -51,7 +51,8 @@ export async function getCoordinatorViewAction(emailId: string): Promise<R<Coord
   if (!isId(emailId)) return { success: false, error: 'Ugyldig mail' }
   const g = await requireCoordinatorCtx(); if ('error' in g) return { success: false, error: g.error as string }
   const r = await buildCoordinatorView(g.ctx.supabase, createAdminClient(), emailId, { technical: g.ctx.hasPermission('settings.manage') })
-  return r.ok ? { success: true, data: r.view } : { success: false, error: r.error }
+  const { coordinatorAiEnabled } = await import('@/lib/coordinator/feature-flag')
+  return r.ok ? { success: true, data: { ...r.view, aiEnabled: coordinatorAiEnabled() } } : { success: false, error: r.error }
 }
 
 export interface DecisionInput {
@@ -300,4 +301,41 @@ export async function createCallbackFromQueueAction(emailId: string): Promise<R<
     action_description: r.data.existing ? 'Tilbagekald fandtes allerede' : 'Tilbagekald oprettet fra arbejdskøen', metadata: { conversation_id: conv.id, existing: r.data.existing } })
   revalidatePath('/dashboard/arbejdsko')
   return { success: true, data: r.data }
+}
+
+/**
+ * C6 AI-assistent (COORDINATOR_AI_ENABLED). Opsummering og forslag til medarbejderen — udfører og sender intet.
+ * Tråden læses med brugerens EGEN klient (kun mails brugeren selv kan se). Audit indeholder kun model/udfald, aldrig tekst.
+ */
+export async function getAiAssistAction(emailId: string): Promise<R<import('@/lib/coordinator/ai-assist').AiAssistOutput & { model: string; version: string }>> {
+  if (!isId(emailId)) return { success: false, error: 'Ugyldig mail' }
+  const g = await requireCoordinatorCtx(); if ('error' in g) return { success: false, error: g.error as string }
+  const { coordinatorAiEnabled, COORDINATOR_AI_DISABLED_TEXT } = await import('@/lib/coordinator/feature-flag')
+  if (!coordinatorAiEnabled()) return { success: false, error: COORDINATOR_AI_DISABLED_TEXT }
+  const v = await buildCoordinatorView(g.ctx.supabase, createAdminClient(), emailId, { technical: false })
+  if (!v.ok) return { success: false, error: v.error }
+  const view = v.view
+  const me = await g.ctx.supabase.from('incoming_emails').select('conversation_id').eq('id', emailId).maybeSingle()
+  const threadId = (me.data as { conversation_id: string | null } | null)?.conversation_id ?? null
+  const q = g.ctx.supabase.from('incoming_emails').select('id, sender_email, received_at, body_text, body_html, body_preview').order('received_at', { ascending: true }).limit(8)
+  const t = threadId ? await q.eq('conversation_id', threadId) : await q.eq('id', emailId)
+  const thread = ((t.data ?? []) as Array<{ sender_email: string | null; received_at: string; body_text: string | null; body_html: string | null; body_preview: string | null }>).map((m) => ({
+    from: m.sender_email ?? 'ukendt', at: m.received_at,
+    body: (m.body_text?.trim() ? m.body_text : (m.body_html ?? '').replace(/<[^>]*>/g, ' ') || m.body_preview || '').slice(0, 6000),
+  }))
+  const focus = view.linked.customerId ?? view.suggestions.primary.customerId
+  const { runAiAssist, AI_ASSIST_VERSION } = await import('@/lib/coordinator/ai-assist')
+  const r = await runAiAssist({
+    subject: view.subject, thread, senderKind: view.identity.kind, senderLevel: view.identity.levelText,
+    customerName: focus ? view.customers[focus]?.name ?? null : null,
+    openCases: view.cases.filter((c) => c.open && (!focus || c.customerId === focus)).slice(0, 8).map((c) => ({ caseNumber: c.caseNumber, title: c.title })),
+    knownOfferNumbers: [], deterministicSuggestion: view.suggestions.primary.reasons[0] ?? view.suggestions.primary.kind, inquiryType: view.suggestions.category,
+  })
+  await insertAuditRow({ user_id: g.ctx.userId, entity_type: 'incoming_email', entity_id: emailId, action: 'coordinator_ai_assist',
+    action_description: r.ok ? 'AI-assistent brugt' : 'AI-assistent fejlede', metadata: { version: AI_ASSIST_VERSION, ok: r.ok, model: r.ok ? r.model : null, error: r.ok ? null : r.error.code } })
+  if (!r.ok) {
+    const { aiErrorText } = await import('@/lib/ai/ai-client')
+    return { success: false, error: r.error.code === 'schema_invalid' ? 'AI-svaret blev afvist af kontrollen (fx opfundne numre) — prøv igen eller behandl manuelt' : aiErrorText(r.error) }
+  }
+  return { success: true, data: { ...r.data, model: r.model, version: AI_ASSIST_VERSION } }
 }

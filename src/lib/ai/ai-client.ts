@@ -10,7 +10,7 @@
  */
 import { logger } from '@/lib/utils/logger'
 
-export type AiTask = 'mail_assistant' | 'reception_classify' | 'reception_webchat_reply'
+export type AiTask = 'mail_assistant' | 'reception_classify' | 'reception_webchat_reply' | 'coordinator_assist'
 
 interface TaskConfig { model: string; temperature: number; maxTokens: number; timeoutMs: number; json: boolean }
 
@@ -20,6 +20,8 @@ export const AI_TASKS: Record<AiTask, TaskConfig> = {
   reception_classify: { model: 'gpt-4o-mini', temperature: 0, maxTokens: 300, timeoutMs: 8_000, json: true },
   // Fase 3A web-chat (STAGING): må kun omformulere et deterministisk svar ud fra vidensbasen; efterkontrolleres
   reception_webchat_reply: { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 300, timeoutMs: 8_000, json: true },
+  // Phase C6 (STAGING, COORDINATOR_AI_ENABLED): opsummering/forslag til medarbejderen; efterkontrolleres mod kendte fakta
+  coordinator_assist: { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 900, timeoutMs: 20_000, json: true },
 }
 
 export type AiErrorCode =

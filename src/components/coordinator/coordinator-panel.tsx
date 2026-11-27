@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Check, X, UserCheck, Archive, RotateCcw, ExternalLink, ChevronDown, ChevronRight, Mail, Phone, MapPin, Briefcase } from 'lucide-react'
 import {
-  completeQueueItemAction, createCallbackFromQueueAction, decideCoordinatorSuggestionAction, getCoordinatorViewAction, rememberSenderAction, reopenQueueItemAction,
+  completeQueueItemAction, createCallbackFromQueueAction, decideCoordinatorSuggestionAction, getAiAssistAction, getCoordinatorViewAction, rememberSenderAction, reopenQueueItemAction,
 } from '@/lib/actions/coordinator'
 import type { CoordinatorView } from '@/lib/coordinator/view'
 import { SUGGESTION_LABELS, CATEGORY_LABELS, PRIORITY_LABELS, type Suggestion } from '@/lib/coordinator/suggestions'
@@ -41,6 +41,8 @@ export function CoordinatorPanel({ emailId, canManageConversations, canRemember,
   const [showAlt, setShowAlt] = useState(false)
   const [showTech, setShowTech] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [ai, setAi] = useState<null | Awaited<ReturnType<typeof getAiAssistAction>>>(null)
+  const [aiBusy, setAiBusy] = useState(false)
 
   const load = useCallback(async () => {
     const r = await getCoordinatorViewAction(emailId)
@@ -66,6 +68,9 @@ export function CoordinatorPanel({ emailId, canManageConversations, canRemember,
     if (!r.success) { setError(r.error); return }
     setMsg(r.data.conversationClosed ? 'Afsluttet — henvendelsen er lukket og mailen arkiveret.' : 'Afsluttet — mailen er arkiveret.')
     await load(); onChanged?.()
+  }
+  async function runAi() {
+    setAiBusy(true); setAi(await getAiAssistAction(emailId)); setAiBusy(false)
   }
   async function callback() {
     setBusy(true); setMsg(null)
@@ -226,6 +231,38 @@ export function CoordinatorPanel({ emailId, canManageConversations, canRemember,
               </ul>
             )}
           </div>
+        </section>
+      )}
+
+      {/* C6 AI-assistent — forslag til medarbejderen; udfører og sender intet */}
+      {view.aiEnabled && !done && (
+        <section className="rounded-md border border-violet-200 bg-violet-50/40 p-3" data-testid="coordinator-ai">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-medium uppercase tracking-wide text-violet-800">AI-assistent (forslag — kontrollér selv)</span>
+            <button disabled={aiBusy} onClick={() => void runAi()} className="rounded-md border border-violet-300 bg-white px-3 py-1 text-xs hover:bg-violet-50 disabled:opacity-50" data-testid="coordinator-ai-run">
+              {aiBusy ? 'Arbejder …' : ai ? 'Kør igen' : 'Opsummér og foreslå'}
+            </button>
+          </div>
+          {ai && !ai.success && <p className="mt-2 text-sm text-red-800" data-testid="coordinator-ai-error">{ai.error}</p>}
+          {ai && ai.success && (
+            <div className="mt-2 space-y-2 text-sm" data-testid="coordinator-ai-result">
+              <p><span className="font-medium">Resumé:</span> {ai.data.summary}</p>
+              {ai.data.problem && <p><span className="font-medium">Kundens problem:</span> {ai.data.problem}</p>}
+              <p><span className="font-medium">Foreslået prioritet:</span> {PRIORITY_LABELS[ai.data.priority]} <span className="text-xs text-gray-500">(køens prioritet ændres ikke automatisk)</span></p>
+              {ai.data.missingInformation.length > 0 && <div><span className="font-medium">Mangler:</span><ul className="list-disc pl-5">{ai.data.missingInformation.map((m, i) => <li key={i}>{m}</li>)}</ul></div>}
+              {ai.data.suggestedActions.length > 0 && <div><span className="font-medium">Forslag:</span><ul className="list-disc pl-5">{ai.data.suggestedActions.map((a, i) => <li key={i}>{a.reason || a.kind}</li>)}</ul></div>}
+              {ai.data.taskDescription && <p><span className="font-medium">Opgavetekst:</span> {ai.data.taskDescription}</p>}
+              {ai.data.caseSummary && <p><span className="font-medium">Sagsresumé:</span> {ai.data.caseSummary}</p>}
+              {ai.data.replyDraft && (
+                <div>
+                  <div className="flex items-center justify-between"><span className="font-medium">Svarudkast</span>
+                    <button onClick={() => void navigator.clipboard?.writeText(ai.data.replyDraft)} className="text-xs text-blue-700 hover:underline" data-testid="coordinator-ai-copy">Kopiér</button></div>
+                  <textarea readOnly value={ai.data.replyDraft} rows={5} className="mt-1 w-full rounded border bg-white p-2 text-sm" data-testid="coordinator-ai-draft" />
+                  <p className="text-xs text-gray-500">Sendes aldrig automatisk. Gennemse og send selv fra mailen eller Outlook.</p>
+                </div>
+              )}
+            </div>
+          )}
         </section>
       )}
 

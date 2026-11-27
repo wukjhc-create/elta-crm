@@ -16,13 +16,13 @@ Ved kontekst-komprimering: læs denne fil først, derefter "Næste delopgave".
 | # | Delopgave | Status |
 |---|---|---|
 | 0 | C1a hærdning (gentagelse, rettelser, note-redigering, C0) | ✅ 71910605 |
-| 1 | Arkitekturkortlægning (mail, Stage A, kunde/sag, parter, AI) | i gang |
-| 2 | C2 identifikationsmotor (ren kerne + loader) + tests | |
-| 3 | C3 kunde-/sagsforslag + udførelse via eksisterende koblingsstier, audit, idempotens | |
-| 4 | C4 dubletkontrol + erstatningsflow for auto-kundeoprettelse (flag) + read-only dubletrapport | |
-| 5 | C7 arbejdskø (samler mail + henvendelse + forslag; tællere, filtre, prioritet, ansvarlig, status) | |
-| 6 | Stage A-forbedringer (støj, blokerede tilbagekald, ét behandlingssted, statussync) | |
-| 7 | C5 kommunikationsoverblik på kunde/sag | |
+| 1 | Arkitekturkortlægning (mail, Stage A, kunde/sag, parter, AI) | ✅ |
+| 2 | C2 identifikationsmotor (ren kerne + loader) + tests | ✅ f36930ce (bulk f06bd168) |
+| 3 | C3 kunde-/sagsforslag + udførelse via eksisterende koblingsstier, audit, idempotens | ✅ f36930ce |
+| 4 | C4 dubletkontrol + erstatningsflow for auto-kundeoprettelse (flag) + read-only dubletrapport | ✅ f36930ce/f06bd168 (rapport-UI mangler) |
+| 5 | C7 arbejdskø (samler mail + henvendelse + forslag; tællere, filtre, prioritet, ansvarlig, status) | ✅ f36930ce |
+| 6 | Stage A-forbedringer (støj, blokerede tilbagekald, ét behandlingssted, statussync) | ✅ 0ad2cdd4 |
+| 7 | C5 kommunikationsoverblik på kunde/sag | ✅ f6f5a43b |
 | 8 | C6 AI-assistent (genbrug eksisterende integration; prompt-injection-værn) | |
 | 9 | C0 udvidede målepunkter | |
 | 10 | Samlet brugerrejse-test, regression, build, docs, prod-udrulningsplan | |
@@ -61,7 +61,15 @@ Ved kontekst-komprimering: læs denne fil først, derefter "Næste delopgave".
   MAIL_CUSTOMER_AUTOCREATE_MODE = auto (standard, som i dag) | suggest (C4-erstatning: ingen auto-oprettelse; forslag i køen).
 - D5 Identitet beregnes med service-role, men kandidater/sager vises KUN hvis brugerens egen klient kan læse dem.
 
+## Testresultater (løbende)
+- Rene: identitet 29/29, forslag+signaler 26/26, dubletter+tidslinje 27/27, C1a 50/50, C1 108/108
+- Staging `cli.ts coordinator-probe 40`: 0 fejl, paritet C1 40/40, invarianter OK, kø 80 poster 3,5 s (før bulk 35 s)
+
 ## Kendte fejl / blockers
+- Tildeling (ansvarlig) findes kun for poster med Stage A-henvendelse (conversations.assigned_profile_id); mails uden
+  henvendelse kan ikke tildeles uden migration (mangler kolonne). Stage A indtager alle egnede kundemails, så det er få.
+- Sidebar-tælleren tæller åbne mails (HEAD) og kan være lidt højere end listen (mails hvis henvendelse er håndteret
+  men mailen ikke arkiveret tælles; listen skjuler dem).
 
 ## Næste delopgave
-1 → 2
+8 C6 AI-assistent → 9 C0-målepunkter → UI-harness (U272+ flag TIL/FRA, brugerrejse) → regression → build → docs/plan
