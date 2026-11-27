@@ -100,9 +100,14 @@ const flow = [...walk('src/lib/services'), ...walk('src/lib/reception'), ...walk
 const importers = flow.filter((f) => /lib\/classification\//.test(f.s)).map((f) => f.p)
 ok('sync/linker/intelligence/Stage A/API importerer ikke lib/classification', importers.length === 0, importers.join(', '))
 const allImporters = walk('src').filter((p) => !p.replace(/\\/g, '/').includes('src/lib/classification/')).filter((p) => /lib\/classification\//.test(readFileSync(p, 'utf8'))).map((p) => p.replace(/\\/g, '/').replace(/^.*src\//, 'src/')).sort()
-ok('kun C1a-filerne bruger lib/classification', JSON.stringify(allImporters) === JSON.stringify([
+// Phase C (2026-11-27): koordinator-modulerne (C2/C3, bag COORDINATOR_ENABLED) læser også klassifikationen — stadig ikke mailflowet
+ok('kun C1a- og koordinator-filerne bruger lib/classification', JSON.stringify(allImporters) === JSON.stringify([
   'src/app/dashboard/mail/components/classification-feedback-panel.tsx', 'src/app/dashboard/mail/page.tsx', 'src/lib/actions/classification-feedback.ts',
+  'src/lib/coordinator/identity-signals.ts', 'src/lib/coordinator/load-identity.ts', 'src/lib/coordinator/suggestions.ts',
 ]), allImporters.join(', '))
+// Mailflowet (services/reception/api) må kun importere koordinatorens FLAG (C4-tilstand), aldrig motoren
+const coordImporters = flow.filter((f) => /lib\/coordinator\/(?!feature-flag)/.test(f.s)).map((f) => f.p)
+ok('mailflowet importerer kun koordinatorens flag, ikke motoren', coordImporters.length === 0, coordImporters.join(', '))
 
 console.log(fail ? `❌ ${fail} fejl, ${pass} ok` : `✅ ${pass} tjek — C1a klassifikationsfeedback (rene/statiske)`)
 process.exitCode = fail ? 1 : 0

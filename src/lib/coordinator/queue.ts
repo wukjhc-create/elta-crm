@@ -8,7 +8,7 @@
  * Henvendelser bruger, så en henvendelse aldrig skal afsluttes to steder.
  */
 import { loadRegistry } from './load-identity'
-import { buildCoordinatorView, type CoordinatorView } from './view'
+import { buildCoordinatorViews, type CoordinatorView } from './view'
 import { QUEUE_CATEGORIES, type QueueCategory, type QueuePriority, type SuggestionKind } from './suggestions'
 import type { IdentityLevel, SenderKind } from './identity'
 
@@ -48,13 +48,6 @@ export interface QueueResult {
 
 const PRIO_RANK: Record<QueuePriority, number> = { urgent: 0, high: 1, normal: 2, low: 3 }
 
-async function mapLimit<T, U>(items: T[], n: number, fn: (t: T) => Promise<U>): Promise<U[]> {
-  const out: U[] = new Array(items.length)
-  let i = 0
-  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) { const k = i++; out[k] = await fn(items[k]) } }))
-  return out
-}
-
 export function itemFromView(v: CoordinatorView, read: boolean): QueueItem {
   const s = v.suggestions
   const cust = v.linked.customerId ? v.customers[v.linked.customerId]?.name ?? null : null
@@ -82,13 +75,15 @@ export async function buildQueue(userDb: Db, adminDb: Db, userId: string, opts: 
   const list = rows.slice(0, QUEUE_LIMIT)
   const registry = list.length ? await loadRegistry(adminDb) : undefined
   let errors = 0
-  const items: QueueItem[] = (await mapLimit(list, 6, async (r) => {
-    const v = await buildCoordinatorView(userDb, adminDb, r.id, { technical: false, registry, skipAccessCheck: true })
-    if (!v.ok) { errors++; return null }
+  const views = list.length ? await buildCoordinatorViews(userDb, adminDb, list.map((r) => r.id), { technical: false, registry, skipAccessCheck: true }) : new Map()
+  const items: QueueItem[] = []
+  for (const r of list) {
+    const v = views.get(r.id)
+    if (!v) { errors++; continue }
     // Behandlet via henvendelsen (men mailen ikke arkiveret) → også færdig her (D2)
-    if (v.view.status.handled) return null
-    return itemFromView(v.view, !!r.is_read)
-  })).filter((x): x is QueueItem => !!x)
+    if (v.status.handled) continue
+    items.push(itemFromView(v, !!r.is_read))
+  }
 
   // Henvendelser fra andre kanaler (web-chat, telefon, portal) uden mail
   if (!term) {

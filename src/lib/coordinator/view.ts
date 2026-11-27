@@ -4,7 +4,7 @@
  * Beregner med service-role (load-identity), men ALT der vises filtreres gennem brugerens egen klient (RLS-scope, D5):
  * kandidat-kunder og sager brugeren ikke kan læse fjernes. Tekniske koder/regler returneres kun til admin (settings.manage).
  */
-import { loadCoordinatorContext, type CoordinatorContext, type Registry } from './load-identity'
+import { loadCoordinatorContexts, type CoordinatorContext, type Registry } from './load-identity'
 import { buildSuggestions, type Suggestion, type SuggestionSet, type CaseOption } from './suggestions'
 import { LEVEL_TEXT, type IdentityLevel, type SenderKind } from './identity'
 
@@ -57,25 +57,73 @@ export async function loadConversationForEmail(userDb: Db, emailId: string): Pro
   }
 }
 
-export async function buildCoordinatorView(userDb: Db, adminDb: Db, emailId: string, opts: { technical: boolean; registry?: Registry; skipAccessCheck?: boolean }): Promise<ViewResult> {
-  // Adgang til selve mailen: brugerens egen klient (00246-scope)
-  if (!opts.skipAccessCheck) {
-    const own = await userDb.from('incoming_emails').select('id').eq('id', emailId).maybeSingle()
-    if (own.error || !own.data) return { ok: false, error: 'Mailen findes ikke eller du har ikke adgang' }
+async function idsVisible(userDb: Db, table: string, ids: string[]): Promise<Set<string>> {
+  const out = new Set<string>()
+  for (let i = 0; i < ids.length; i += 150) {
+    const r = await userDb.from(table).select('id').in('id', ids.slice(i, i + 150))
+    for (const x of (r.data ?? []) as Array<{ id: string }>) out.add(x.id)
   }
-  const loaded = await loadCoordinatorContext(adminDb, emailId, opts.registry)
-  if (!loaded.ok) return loaded
-  const ctx = loaded.ctx
-  const conversation = await loadConversationForEmail(userDb, emailId)
+  return out
+}
 
-  // Synlighed (RLS) for kandidat-kunder og sager
-  const custIds = Object.keys(ctx.customersById)
-  const caseIds = ctx.cases.map((c) => c.id)
-  const visCust = new Set<string>()
-  const visCase = new Set<string>()
-  if (custIds.length) { const r = await userDb.from('customers').select('id').in('id', custIds); for (const x of (r.data ?? []) as Array<{ id: string }>) visCust.add(x.id) }
-  if (caseIds.length) { const r = await userDb.from('service_cases').select('id').in('id', caseIds); for (const x of (r.data ?? []) as Array<{ id: string }>) visCase.add(x.id) }
+/** Bulk: henvendelser (Stage A) for flere mails via brugerens klient */
+export async function loadConversationsForEmails(userDb: Db, emailIds: string[]): Promise<Map<string, ViewConversation>> {
+  const out = new Map<string, ViewConversation>()
+  const items: Array<{ conversation_id: string; source_id: string }> = []
+  for (let i = 0; i < emailIds.length; i += 150) {
+    const r = await userDb.from('conversation_items').select('conversation_id, source_id').eq('source_table', 'incoming_emails').in('source_id', emailIds.slice(i, i + 150))
+    items.push(...((r.data ?? []) as typeof items))
+  }
+  const convIds = [...new Set(items.map((x) => x.conversation_id))]
+  if (!convIds.length) return out
+  const convs = new Map<string, Record<string, unknown>>()
+  const acts: Array<{ conversation_id: string; action_type: string; state: string }> = []
+  for (let i = 0; i < convIds.length; i += 150) {
+    const part = convIds.slice(i, i + 150)
+    const c = await userDb.from('conversations').select('id, status, urgency, assigned_profile_id, handled_at, match_version, customer_match_state').in('id', part)
+    for (const x of (c.data ?? []) as Array<Record<string, unknown>>) convs.set(String(x.id), x)
+    const a = await userDb.from('conversation_actions').select('conversation_id, action_type, state').in('conversation_id', part).limit(5000)
+    acts.push(...((a.data ?? []) as typeof acts))
+  }
+  for (const it of items) {
+    const r = convs.get(it.conversation_id); if (!r) continue
+    const my = acts.filter((x) => x.conversation_id === it.conversation_id)
+    out.set(it.source_id, {
+      id: String(r.id), status: String(r.status), urgency: (r.urgency as string | null) ?? null, assignedProfileId: (r.assigned_profile_id as string | null) ?? null,
+      handledAt: (r.handled_at as string | null) ?? null, matchVersion: Number(r.match_version ?? 0), customerMatchState: (r.customer_match_state as string | null) ?? null,
+      callbackRequested: my.some((x) => x.action_type === 'create_callback' && (x.state === 'proposed' || x.state === 'blocked')),
+      noiseActions: my.filter((x) => x.action_type === 'append_communication').length,
+      openProposals: my.filter((x) => x.state === 'proposed' && x.action_type !== 'append_communication').length,
+    })
+  }
+  return out
+}
 
+/** Bulk: visninger for flere mails. Kun mails brugerens egen klient kan læse indgår (medmindre skipAccessCheck — kalderen har allerede læst dem med brugerens klient). */
+export async function buildCoordinatorViews(userDb: Db, adminDb: Db, emailIds: string[], opts: { technical: boolean; registry?: Registry; skipAccessCheck?: boolean }): Promise<Map<string, CoordinatorView>> {
+  const ids = opts.skipAccessCheck ? emailIds : [...await idsVisible(userDb, 'incoming_emails', emailIds)]
+  const ctxs = await loadCoordinatorContexts(adminDb, ids, opts.registry)
+  const convs = await loadConversationsForEmails(userDb, ids)
+  const allCust = new Set<string>(), allCase = new Set<string>()
+  for (const c of ctxs.values()) { for (const k of Object.keys(c.customersById)) allCust.add(k); for (const x of c.cases) allCase.add(x.id) }
+  const visCust = await idsVisible(userDb, 'customers', [...allCust])
+  const visCase = await idsVisible(userDb, 'service_cases', [...allCase])
+  const out = new Map<string, CoordinatorView>()
+  for (const [id, ctx] of ctxs) out.set(id, viewFromContext(id, ctx, convs.get(id) ?? null, visCust, visCase, opts.technical))
+  return out
+}
+
+export async function buildCoordinatorView(userDb: Db, adminDb: Db, emailId: string, opts: { technical: boolean; registry?: Registry; skipAccessCheck?: boolean }): Promise<ViewResult> {
+  try {
+    const m = await buildCoordinatorViews(userDb, adminDb, [emailId], opts)
+    const v = m.get(emailId)
+    return v ? { ok: true, view: v } : { ok: false, error: 'Mailen findes ikke eller du har ikke adgang' }
+  } catch {
+    return { ok: false, error: 'Forslag kunne ikke beregnes (læsefejl) — intet er ændret' }
+  }
+}
+
+function viewFromContext(emailId: string, ctx: CoordinatorContext, conversation: ViewConversation | null, visCust: Set<string>, visCase: Set<string>, technical: boolean): CoordinatorView {
   const identity = { ...ctx.identity }
   const visibleCand = (c: { customerId: string | null; type: string } | null) => !!c && (c.customerId ? visCust.has(c.customerId) : c.type !== 'customer')
   const hiddenCount = [identity.primary, ...identity.alternatives].filter((c) => c && c.customerId && !visCust.has(c.customerId)).length
@@ -104,8 +152,6 @@ export async function buildCoordinatorView(userDb: Db, adminDb: Db, emailId: str
 
   const handled = !!conversation?.handledAt || conversation?.status === 'handled'
   return {
-    ok: true,
-    view: {
       emailId, subject: ctx.email.subject, receivedAt: ctx.email.receivedAt,
       sender: { email: ctx.email.effectiveSender, name: ctx.email.senderName, forwardedBy: identity.forwardedBy, webForm: ctx.email.webForm },
       identity: { kind: identity.kind, level: identity.level, levelText: LEVEL_TEXT[identity.level], explanation, primaryLabel: identity.primary?.label ?? null },
@@ -116,12 +162,11 @@ export async function buildCoordinatorView(userDb: Db, adminDb: Db, emailId: str
       conversation,
       status: { archived: ctx.email.isArchived, ignored: ctx.email.linkStatus === 'ignored', handled, answeredAt: ctx.answeredAt, reliableSignal: handled || !!ctx.answeredAt || ctx.email.isArchived },
       form: ctx.form,
-      technical: opts.technical ? {
+      technical: technical ? {
         identityVersion: identity.version, suggestionVersion: suggestions.version,
         codes: [...suggestions.primary.codes, ...suggestions.alternatives.flatMap((a) => a.codes)],
         evidence: [identity.primary, ...identity.alternatives].filter(Boolean).map((c) => ({ id: c!.id, level: c!.level, evidence: c!.evidence })),
         conflicts: identity.conflicts, classification: ctx.classification,
       } : null,
-    },
   }
 }

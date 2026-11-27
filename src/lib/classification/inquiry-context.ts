@@ -30,6 +30,8 @@ export interface ShadowData {
 }
 
 export interface ShadowRow {
+  /** Mailens id (tilføjet Phase C — gør det muligt at parre rækker uden sortering) */
+  emailId: string
   mailbox: 'kontakt' | 'ordre' | 'andet'
   result: InquiryClassification
   /** Samme mail klassificeret UDEN registreret-faktura-signalet (til uafhængig faktura-måling) */
@@ -136,6 +138,7 @@ export function classifyAll(d: ShadowData, opts: { since?: string; onlyIds?: rea
     const result = classifyInquiry(ctx)
     const withoutRegistry = classifyInquiry({ ...ctx, invoiceRegistered: false }).inquiryType
     out.push({
+      emailId: e.id,
       mailbox: /kontakt@/.test(e.to_email) ? 'kontakt' : /ordre@/.test(e.to_email) ? 'ordre' : 'andet',
       result, invoiceTypeWithoutRegistry: withoutRegistry, matchedCustomerId: matched,
       diag: { terms: matchedSignalTerms({ subject: e.subject, body }, { forwarded: !!e.is_forwarded }), subjectInvoice: (ctx.textSignals ?? []).includes("subject_invoice"), hasAttachments: !!e.has_attachments, fwd: !!e.is_forwarded,

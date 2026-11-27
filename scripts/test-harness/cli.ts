@@ -3150,6 +3150,64 @@ Total inkl. moms 11.718,75
     process.exitCode = diffs.length ? 1 : 0
     return
   }
+  if (SUB === 'coordinator-probe') {
+    // Phase C2/C3/C7 (STAGING, read-only): kør identitet + forslag på de N nyeste mails og hele arbejdskøen med
+    // service-role; tæl fejl/fordelinger og mål tid (performance). Skriver intet. [N=60]
+    const n = Math.min(300, Math.max(1, Number(process.argv[3]) || 60))
+    const { loadRegistry } = await import('../../src/lib/coordinator/load-identity')
+    const { buildCoordinatorView } = await import('../../src/lib/coordinator/view')
+    const { buildQueue } = await import('../../src/lib/coordinator/queue')
+    const ids = ((await admin.from('incoming_emails').select('id').order('received_at', { ascending: false }).limit(n)).data ?? []).map((r: { id: string }) => r.id)
+    const t0 = Date.now()
+    const registry = await loadRegistry(admin)
+    log(`register: ${registry.customers.length} kunder, ${registry.contacts.length} kontakter, ${registry.partiesRaw.length} parter (${Date.now() - t0} ms)`)
+    const count = (m: Record<string, number>, k: string) => { m[k] = (m[k] ?? 0) + 1 }
+    const kinds: Record<string, number> = {}, levels: Record<string, number> = {}, cats: Record<string, number> = {}, sugg: Record<string, number> = {}
+    let errors = 0, maxMs = 0, sumMs = 0, verifiedWeak = 0, hiddenLeak = 0
+    for (const id of ids) {
+      const t = Date.now()
+      const v = await buildCoordinatorView(admin, admin, id, { technical: true, registry })
+      const ms = Date.now() - t; maxMs = Math.max(maxMs, ms); sumMs += ms
+      if (!v.ok) { errors++; log(`FEJL ${id.slice(0, 8)}: ${v.error}`); continue }
+      count(kinds, v.view.identity.kind); count(levels, v.view.identity.level); count(cats, v.view.suggestions.category); count(sugg, v.view.suggestions.primary.kind)
+      // Invariant: et verificeret match har altid mindst én stærk nøgle
+      const strong = ['verified_party_email', 'thread_human_link', 'email_human_customer', 'email_contact', 'employee_profile']
+      for (const e of v.view.technical?.evidence ?? []) if (e.level === 'verified' && !e.evidence.some((x) => strong.includes(x))) verifiedWeak++
+      // Invariant: forslag peger kun på kunder/sager i visningen
+      const s = v.view.suggestions
+      for (const x of [s.primary, ...s.alternatives]) if ((x.customerId && !v.view.customers[x.customerId]) || (x.caseId && !v.view.cases.some((c) => c.id === x.caseId))) hiddenLeak++
+    }
+    log(`mails: ${ids.length} · fejl ${errors} · gns ${Math.round(sumMs / Math.max(1, ids.length))} ms · max ${maxMs} ms (enkelt-mail-vej)`)
+    // Paritet: koordinatorens C1-klassifikation (bulk) = C1a-loaderen (enkelt mail)
+    const { loadEmailClassification } = await import('../../src/lib/classification/load-email-classification')
+    const { buildCoordinatorViews } = await import('../../src/lib/coordinator/view')
+    const tb = Date.now()
+    const bulk = await buildCoordinatorViews(admin, admin, ids, { technical: true, registry })
+    log(`bulk-vej: ${bulk.size} visninger på ${Date.now() - tb} ms`)
+    let par = 0; const pdiff: string[] = []
+    for (const id of ids) {
+      const one = await loadEmailClassification(admin, id)
+      const c = bulk.get(id)?.technical?.classification as { senderType: string; inquiryType: string; caseReference: string; proposedAction: string } | undefined
+      const a = one.ok ? [one.classification.senderType, one.classification.inquiryType, one.classification.caseReference, one.classification.proposedAction].join('/') : 'fejl'
+      const b = c ? [c.senderType, c.inquiryType, c.caseReference, c.proposedAction].join('/') : 'mangler'
+      if (a === b) par++; else pdiff.push(`${id.slice(0, 8)} c1a=${a} koordinator=${b}`)
+    }
+    for (const x of pdiff.slice(0, 5)) log(`PARITET-DIFF ${x}`)
+    log(`klassifikations-paritet: ${par}/${ids.length}`)
+    for (const v of [...bulk.values()].filter((x) => x.suggestions.category === 'existing_case').slice(0, 3))
+      log(`diag existing_case: linkedCase=${!!v.linked.serviceCaseId} done=${v.suggestions.alreadyDone} options=${v.suggestions.caseOptions.map((o) => `${o.level}:${o.reason}`).join('|')}`)
+    if (pdiff.length) errors++
+    log(`afsender: ${JSON.stringify(kinds)} · niveau: ${JSON.stringify(levels)}`)
+    log(`kategori: ${JSON.stringify(cats)} · forslag: ${JSON.stringify(sugg)}`)
+    const tq = Date.now()
+    const anyProfile = ((await admin.from('profiles').select('id').eq('role', 'admin').limit(1)).data ?? [])[0] as { id: string } | undefined
+    const q = await buildQueue(admin, admin, anyProfile?.id ?? '00000000-0000-0000-0000-000000000000')
+    log(`arbejdskø: ${q.items.length} poster (${Date.now() - tq} ms) · fejl ${q.errors} · ${JSON.stringify(q.counts.byCategory)}`)
+    const ok = errors === 0 && verifiedWeak === 0 && hiddenLeak === 0 && q.errors === 0
+    log(`${ok ? '✅' : '❌'} invarianter: verificeret-uden-stærk-nøgle=${verifiedWeak} · forslag-uden-mål=${hiddenLeak}`)
+    process.exitCode = ok ? 0 : 1
+    return
+  }
   if (SUB === 'verify-00255') {
     // Samme read-only tjek som scripts/prod-verify-00255.ts post, mod STAGING. [--expect inert|active]
     const V = await import('./verify-00255-core')

@@ -19,7 +19,7 @@ import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { insertAuditRow } from '@/lib/audit/insert-audit-row'
 import { coordinatorEnabled, COORDINATOR_DISABLED_TEXT } from '@/lib/coordinator/feature-flag'
-import { buildCoordinatorView, loadConversationForEmail, type CoordinatorView } from '@/lib/coordinator/view'
+import { buildCoordinatorView, buildCoordinatorViews, loadConversationForEmail, type CoordinatorView } from '@/lib/coordinator/view'
 import { SUGGESTION_KINDS, type SuggestionKind } from '@/lib/coordinator/suggestions'
 import { buildQueue, countOpenQueue, type QueueResult } from '@/lib/coordinator/queue'
 import { isFreeMailDomain, isNonCustomerDomain } from '@/lib/email/free-mail-domains'
@@ -270,11 +270,11 @@ export async function getWorkQueueCountAction(): Promise<number> {
 export async function completeLowRiskBatchAction(emailIds: string[]): Promise<R<{ completed: number; skipped: number }>> {
   const g = await requireCoordinatorCtx(); if ('error' in g) return { success: false, error: g.error as string }
   const ids = (Array.isArray(emailIds) ? emailIds : []).filter(isId).slice(0, 50)
-  const admin = createAdminClient()
+  const views = await buildCoordinatorViews(g.ctx.supabase, createAdminClient(), ids, { technical: false })
   let completed = 0, skipped = 0
   for (const id of ids) {
-    const v = await buildCoordinatorView(g.ctx.supabase, admin, id, { technical: false })
-    const safe = v.ok && v.view.suggestions.primary.kind === 'no_action' && (v.view.identity.kind === 'automated' || v.view.identity.kind === 'employee') && !v.view.conversation
+    const v = views.get(id)
+    const safe = !!v && v.suggestions.primary.kind === 'no_action' && (v.identity.kind === 'automated' || v.identity.kind === 'employee') && !v.conversation
     if (!safe) { skipped++; continue }
     const r = await completeQueueItemAction(id, { reason: 'not_relevant' })
     if (r.success) completed++; else skipped++

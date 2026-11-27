@@ -11,6 +11,7 @@
  * Used by email-sync-orchestrator after each email is inserted.
  */
 
+import { mailCustomerAutoCreateMode } from '@/lib/coordinator/feature-flag'
 import { redactForAi } from '@/lib/ai/redact-for-ai' // AI-4
 import { redactSubject, redactEmail } from '@/lib/utils/log-redact'
 import { pgQuote, escapeLike } from '@/lib/validations/postgrest-filter'
@@ -619,6 +620,14 @@ export async function findOrCreateCustomer(data: FindOrCreateInput): Promise<Fin
   // LC-2 (review 2026-10-17): mailen er allerede koblet (fx videresendt mail koblet til den oprindelige afsender) —
   // ingen ny kunde (blev forældreløs: koblingen ændres ikke, men kunden blev oprettet og brugte døgnloftet)
   if (data.matchOnly) return { customerId: null, created: false }
+
+  // Phase C4 (Henrik 2026-11-27): MAIL_CUSTOMER_AUTOCREATE_MODE='suggest' → ingen automatisk oprettelse; mailen forbliver
+  // ukoblet og vises i arbejdskøen som "opret kunde" med dubletkontrol (lib/actions/customer-dedupe). Standard 'auto' =
+  // uændret adfærd (prod). Eksisterende kunder matches stadig ovenfor.
+  if (mailCustomerAutoCreateMode() === 'suggest') {
+    console.log('SKIP: AUTO-CREATE DISABLED (suggest mode)')
+    return { customerId: null, created: false }
+  }
 
   // Mail-review 2026-10-09 (#4): loft over auto-oprettede kunder pr. døgn — en afsender kan ellers sende mange mails
   // med hver sit telefonnummer og fylde kundelisten. Mails over loftet forbliver ukoblede til manuel behandling.
