@@ -9,9 +9,11 @@ import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { userCanViewCustomer } from '@/lib/auth/customer-scope'
 import { permissionDeniedText } from '@/lib/auth/permission-text'
 import { composeTimeline, kindForNote, kindForTask, timelineSourceFailureState, type TimelineEvent, type TimelineEventInput } from '@/lib/timeline/compose'
+import { coordinatorEnabled } from '@/lib/coordinator/feature-flag'
+import { caseEvents, dedupeInquiries, markOutgoingEmails, offerEvents } from '@/lib/timeline/enhanced'
 
 export interface TimelineSourceState {
-  source: 'notes' | 'tasks' | 'documents' | 'emails' | 'planning' | 'calls' | 'inquiries'
+  source: 'notes' | 'tasks' | 'documents' | 'emails' | 'planning' | 'calls' | 'inquiries' | 'offers' | 'cases' | 'participants'
   /** unavailable = valgfri kilde findes ikke her (fx customer_notes før migrationen) — ingen advarsel, ikke en fejl */
   state: 'ok' | 'hidden' | 'error' | 'unavailable'
 }
@@ -21,6 +23,8 @@ export interface CustomerTimelineResult {
   error?: string
   events: TimelineEvent[]
   sources: TimelineSourceState[]
+  /** C5: udvidet overblik (filtre, udgående mails, tilbud, sager, ingen dobbeltvisning) — kun med COORDINATOR_ENABLED */
+  enhanced?: boolean
 }
 
 type Row = Record<string, unknown>
@@ -78,7 +82,14 @@ export async function getCustomerCommunicationTimeline(customerId: string): Prom
     read('planning', false, ctx.supabase.from('work_orders').select('id, title, status, scheduled_date, case_id, created_at').eq('customer_id', customerId).order('created_at', { ascending: false }).limit(40)),
   ])
 
-  return { ok: true, events: composeTimeline(inputs), sources }
+  if (!coordinatorEnabled()) return { ok: true, events: composeTimeline(inputs), sources }
+  // C5 (flag): tilbud og sager på kunden, udgående mails, og mail/henvendelse vises ikke dobbelt
+  await Promise.all([
+    read('offers', !ctx.hasPermission('offers.view'), ctx.supabase.from('offers').select('id, offer_number, title, status, created_at, sent_at').eq('customer_id', customerId).order('created_at', { ascending: false }).limit(40)),
+    read('cases', false, ctx.supabase.from('service_cases').select('id, case_number, title, status, created_at, closed_at').eq('customer_id', customerId).order('created_at', { ascending: false }).limit(40)),
+  ])
+  await markOutgoingEmails(ctx.supabase, inputs)
+  return { ok: true, events: composeTimeline(await dedupeInquiries(ctx.supabase, inputs)), sources, enhanced: true }
 }
 
 /** Bekræftet opkald → tidslinje (ingen numre, ingen lyd — kun retning, status og varighed) */
@@ -112,6 +123,8 @@ function mapRow(source: TimelineSourceState['source'], row: Row, customerId: str
   }
   const at = typeof row.scheduled_date === 'string' ? row.scheduled_date : typeof row.created_at === 'string' ? row.created_at : null
   if (source === 'calls') return mapCallRow(id, row, customerId)
+  if (source === 'offers') return offerEvents(row, customerId, null)
+  if (source === 'cases') return caseEvents(row, customerId)
   if (source === 'inquiries') return [{ sourceTable: 'conversations', sourceId: id, kind: 'inquiry', at: typeof row.last_at === 'string' ? row.last_at : null, title: typeof row.title === 'string' && row.title.trim() ? row.title : 'Henvendelse', summary: typeof row.ai_summary === 'string' ? clip(row.ai_summary) : null, customerId, caseId: typeof row.service_case_id === 'string' ? row.service_case_id : null }]
   return [{ sourceTable: 'work_orders', sourceId: id, kind: 'planning', at, title: typeof row.title === 'string' && row.title.trim() ? row.title : 'Planlagt arbejde', summary: typeof row.status === 'string' ? row.status : null, customerId, caseId: typeof row.case_id === 'string' ? row.case_id : null }]
 }

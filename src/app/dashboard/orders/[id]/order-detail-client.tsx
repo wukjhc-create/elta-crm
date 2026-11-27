@@ -1,5 +1,6 @@
 'use client'
 
+import { CaseCommunicationTimeline } from '@/components/timeline/customer-communication-timeline'
 import { CaseWarningNotes } from './case-warning-notes'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -58,6 +59,8 @@ const TABS = [
   { id: 'oevrige',      label: 'Øvrige omkostninger', ready: true },
   // Sprint 8D-1: Mails + Dokumenter pr. sag
   { id: 'mails',        label: 'Mails',              ready: true },
+  // Phase C5: samlet kommunikationsoverblik (kun med COORDINATOR_ENABLED)
+  { id: 'kommunikation', label: 'Kommunikation',     ready: true },
   { id: 'dokumenter',   label: 'Dokumenter',         ready: true },
   { id: 'oekonomi',     label: 'Økonomi',            ready: true },
   { id: 'opgaver',      label: 'Opgaver',            ready: true },
@@ -109,6 +112,7 @@ export function OrderDetailClient({
   canEditCase = false,
   canInspect = false,
   partiesEnabled = false,
+  communicationEnabled = false,
   materialPerms = { seePrices: false, add: false, edit: false, del: false, otherEdit: false, otherDel: false },
   canManageAllNotes = false,
   tabAccess = { workOrders: true, materials: true, otherCosts: true, allInvoices: false },
@@ -133,6 +137,8 @@ export function OrderDetailClient({
   canInspect?: boolean
   /** Parter fase B: PARTIES_UI_ENABLED (server) — standard FRA → panelet renderes ikke */
   partiesEnabled?: boolean
+  /** C5: fanen Kommunikation (COORDINATOR_ENABLED, afgjort på serveren) */
+  communicationEnabled?: boolean
   materialPerms?: { seePrices: boolean; add: boolean; edit: boolean; del: boolean; otherEdit?: boolean; otherDel?: boolean }
   /** Sprint Ø7.4 — cases.edit: må redigere/slette ALLE noter (ikke kun egne). */
   canManageAllNotes?: boolean
@@ -143,6 +149,7 @@ export function OrderDetailClient({
   // DE-1/2/9: én regel for fanelinjen, deeplinket (?tab=) og indholdet — ingen fane serveren afviser
   const isTabVisible = (id: string) =>
     (id !== 'oekonomi' || canSeeCost) &&
+    (id !== 'kommunikation' || communicationEnabled) &&
     // Fakturakladde: kladde-/stadieoversigten kræver invoices.create eller invoices.view.all (salg ser status på Overblik)
     (id !== 'fakturakladde' || canCreateInvoice || tabAccess.allInvoices) &&
     (id !== 'handlinger' || canEditCase) &&
@@ -367,6 +374,7 @@ export function OrderDetailClient({
           )}
           {active === 'handlinger' && canEditCase && <OrderActionsTab sag={sag} />}
           {active === 'opgaver' && <OrderTasksTab caseId={sag.id} canComplete={canAddNote} />}
+          {active === 'kommunikation' && communicationEnabled && <CaseCommunicationTimeline caseId={sag.id} />}
           {active === 'noter' && <OrderNotesTab caseId={sag.id} canAddNote={canAddNote} canManageAllNotes={canManageAllNotes} />}
           {active === 'aktivitet' && <OrderActivityTab caseId={sag.id} />}
         </div>

@@ -19,6 +19,24 @@ export type TimelineKind =
   | 'assistant'
   | 'planning'
   | 'inquiry'
+  // Phase C5 (COORDINATOR_ENABLED): udgående mail, tilbud, sagsforløb og sagsdeltagere
+  | 'email_out'
+  | 'offer'
+  | 'case'
+  | 'participant'
+
+/** Filtergrupper i kommunikationsoverblikket (C5) */
+export const TIMELINE_FILTERS = {
+  mail: ['email', 'email_out'],
+  calls: ['call', 'missed_call', 'voicemail', 'sms', 'phone_note'],
+  notes: ['note'],
+  tasks: ['task', 'assistant', 'planning'],
+  documents: ['document'],
+  offers: ['offer'],
+  cases: ['case', 'status', 'participant'],
+  inquiries: ['inquiry'],
+} as const satisfies Record<string, readonly TimelineKind[]>
+export type TimelineFilter = keyof typeof TIMELINE_FILTERS
 
 export interface TimelineEventInput {
   sourceTable: string

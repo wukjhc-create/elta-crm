@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { coordinatorEnabled } from '@/lib/coordinator/feature-flag'
 import { notFound } from 'next/navigation'
 import { getServiceCase } from '@/lib/actions/service-cases'
 import { getAuthenticatedClient } from '@/lib/actions/action-helpers'
@@ -152,6 +153,7 @@ export default async function OrderDetailPage({
       canEditCase={canManageAllNotes}
       canInspect={canInspect}
       partiesEnabled={partiesUiEnabled()}
+      communicationEnabled={coordinatorEnabled()}
       materialPerms={materialPerms}
       tabAccess={{
         workOrders: (await pageHasPermission('work_orders.view.all')) || (await pageHasPermission('work_orders.view.assigned')),
