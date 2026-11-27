@@ -71,5 +71,10 @@ Ved kontekst-komprimering: læs denne fil først, derefter "Næste delopgave".
 - Sidebar-tælleren tæller åbne mails (HEAD) og kan være lidt højere end listen (mails hvis henvendelse er håndteret
   men mailen ikke arkiveret tælles; listen skjuler dem).
 
+- 2026-11-27: C6 `857c4b92` (AI-værn: fund under test — sagsnummer fra selve mailen blev godtaget; rettet: kun KENDTE
+  sags-/tilbudsnumre). C0 + køvindue `96ff1f11` (prod read-only: 689 åbne uarkiverede mails → COORDINATOR_QUEUE_DAYS=30).
+- Hoveddokument: `PHASE_C_INTELLIGENT_CRM.md` (moduler, sikkerhed, rettigheder, flag, UX/Outlook, roadmap, udrulning, rollback)
+
 ## Næste delopgave
-8 C6 AI-assistent → 9 C0-målepunkter → UI-harness (U272+ flag TIL/FRA, brugerrejse) → regression → build → docs/plan
+UI-harness U272/U274/U275 (flag TIL) + U272 flag FRA → regression (reception, parties, classification, portal-security,
+smoke) med flag TIL → statiske suiter → slutrapport. Testdata ryddes af testene selv.

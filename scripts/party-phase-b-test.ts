@@ -91,8 +91,22 @@ async function main() {
   } catch { changed = ['<git fejlede>'] }
   const PROTECTED = [/^src\/lib\/actions\/(portal|partner-portal|fuldmagt)\.ts$/, /^src\/app\/(portal|partner)\//, /^src\/app\/api\/(portal|partner)\//, /^src\/lib\/reception\//,
     /^src\/lib\/services\/email-/, /^src\/lib\/email\/supplier-senders\.ts$/, /^src\/lib\/parties\/audience\.ts$/, /customer-documents/, /^supabase\/migrations\/00254_/]
-  const touched = changed.filter((f) => PROTECTED.some((re) => re.test(f)))
+  // Phase C (Henrik 2026-11-27): C4-erstatningsflowet kræver ÉN vagt i email-intelligence (MAIL_CUSTOMER_AUTOCREATE_MODE).
+  // Undtagelsen gælder kun den fil og kun hvis diffen udelukkende indfører den vagt — portal/partner/reception/dokumenter er
+  // fortsat beskyttede (F-1).
+  const PHASE_C_ALLOWED = 'src/lib/services/email-intelligence.ts'
+  const phaseCDiffOk = (() => {
+    if (!changed.includes(PHASE_C_ALLOWED)) return true
+    try {
+      const base = execFileSync('git', ['merge-base', 'HEAD', 'origin/main'], { encoding: 'utf8' }).trim()
+      const diff = execFileSync('git', ['diff', '-U0', base, '--', PHASE_C_ALLOWED], { encoding: 'utf8' })
+      const lines = diff.split('\n').filter((l) => /^[+-]/.test(l) && !/^(\+\+\+|---)/.test(l))
+      return lines.length > 0 && lines.every((l) => l.startsWith('+') && /mailCustomerAutoCreateMode|AUTO-CREATE DISABLED|Phase C4|ukoblet og vises i arbejdskøen|uændret adfærd|return \{ customerId: null, created: false \}|^\+\s*\}?\s*$|^\+\s*\/\//.test(l))
+    } catch { return false }
+  })()
+  const touched = changed.filter((f) => PROTECTED.some((re) => re.test(f)) && f !== PHASE_C_ALLOWED)
   ok('portal-/partner-/reception-/dokument-/00254-filer uændret i forhold til main', touched.length === 0, touched.join(', '))
+  ok('Phase C: email-intelligence ændret KUN med C4-suggest-vagten (additiv, ingen fjernede linjer)', phaseCDiffOk)
 
   // --- UI bag flaget
   const cust = read('src/app/dashboard/customers/[id]/customer-detail-client.tsx')

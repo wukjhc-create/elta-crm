@@ -191,6 +191,7 @@ export const UI_E2E_GROUPS: Record<string, string[]> = {
   reception: ['U267', 'U268'],
   parties: ['U270'], // parter fase B (00255 på staging; UI_PARTIES_UI_ENABLED=false = som prod)
   classification: ['U271'], // C1a klassifikationsfeedback (kode-only; UI_CLASSIFICATION_FEEDBACK_ENABLED=false = som prod)
+  coordinator: ['U272', 'U274', 'U275'], // Phase C2–C7 (kode-only; UI_COORDINATOR_ENABLED=false = som prod → U272 tjekker fravær)
   'portal-security': ['U269', 'U10', 'U180', 'U256'], // portal-sikkerhedsreview 2026-11-18 (00252 på staging)
   'pilot-sim': ['U240', 'U241', 'U242', 'U243', 'U244', 'U245', 'U246', 'U247', 'U248', 'U249', 'U250', 'U251', 'U252', 'U253', 'U254'],
   'portal-mail': ['U215', 'U211', 'U203', 'U201', 'U200', 'U199', 'U198', 'U195', 'U194', 'U193', 'U190', 'U181', 'U180', 'U144', 'U143', 'U142', 'U141', 'U140', 'U139', 'U138', 'U184', 'U137', 'U136', 'U135', 'U134', 'U133', 'U132', 'U130', 'U129', 'U124', 'U122', 'U121', 'U113', 'U98', 'U10', 'U22', 'U23', 'U25', 'U41', 'U50', 'U52', 'U53', 'U56', 'U61', 'U64', 'U65', 'U68', 'U69'],
@@ -331,6 +332,10 @@ export async function runUiE2e(c: { admin: SupabaseClient; stagingRef: string; p
     PARTIES_UI_ENABLED: process.env.UI_PARTIES_UI_ENABLED ?? 'true',
     // C1a (kode-only): klassifikationsboks i mailvisningen for admin (U271). UI_CLASSIFICATION_FEEDBACK_ENABLED=false → som prod (FRA)
     CLASSIFICATION_FEEDBACK_ENABLED: process.env.UI_CLASSIFICATION_FEEDBACK_ENABLED ?? 'true',
+    // Phase C (kode-only): arbejdskø, forslag, C5-tidslinje, Stage A-sammenhæng (U272–U275). UI_COORDINATOR_ENABLED=false → som prod
+    COORDINATOR_ENABLED: process.env.UI_COORDINATOR_ENABLED ?? 'true',
+    // C6 AI: standard FRA i harness (ingen AI-kald/omkostning); værnet testes med falsk udbyder (scripts/coordinator-ai-test.ts)
+    COORDINATOR_AI_ENABLED: process.env.UI_COORDINATOR_AI_ENABLED ?? 'false',
     // staging-harness: misbrugsværnets HMAC-nøgle genereres pr. kørsel (ingen hemmelighed i repo); uden den er chatten FRA
     RECEPTION_WEBCHAT_RATE_SECRET: `harness-${randomBytes(24).toString('hex')}`,
     // `next dev` genstarter ved 80 % af heap-grænsen, og efter en genstart fejler resten af kørslen (O1).
@@ -6713,6 +6718,184 @@ ${m.text()}`) })
         }
         out.push({ id: `U270 parter fase B (flag ${flagOn ? 'TIL' : 'FRA'}): ${flagOn ? 'registrér kunde, sagsdeltager + standardrolle (én/flere muligheder, skift, manuel, nulstilling), ny partner, dublet-dialog, salg read-only' : 'paneler findes ikke'}`, ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + diag })
       }
+      // U272–U275 PHASE C KOORDINATOR (kode-only, COORDINATOR_ENABLED). Flag TIL (harness-standard): den fulde brugerrejse
+      // mail → klassifikation → afsender → kunde+sag foreslået → godkend → kobling udført → vises på sagen → afslut →
+      // audit (U272); tvetydig/videresendt/rettigheder (U274); dubletkontrol ved ny kunde (U275). UI_COORDINATOR_ENABLED=false
+      // (= prod): ingen arbejdskø, ingen menupunkt, ingen forslagsboks, ingen sagsfane (U273).
+      const coordOn = (process.env.UI_COORDINATOR_ENABLED ?? 'true') === 'true'
+      const coordCleanup: Array<() => Promise<unknown>> = []
+      const seedCustomer = async (tag: string, extra: Record<string, unknown> = {}) => {
+        const r = await c.admin.from('customers').insert([{ customer_number: `${tag}-${stamp}`, company_name: `[HARNESS] ${tag} ${stamp}`, contact_person: `${tag} Kontakt`,
+          email: `${tag.toLowerCase()}-${stamp}@harness.test`, created_by: adminUser.id, created_at: new Date(Date.now() - 86_400_000).toISOString(), ...extra }]).select('id, email')
+        const row = r.data?.[0] as { id: string; email: string } | undefined
+        if (row) coordCleanup.push(() => c.admin.from('customers').delete().eq('id', row.id))
+        return row ?? null
+      }
+      const seedMail = async (tag: string, o: Record<string, unknown>) => {
+        const r = await c.admin.from('incoming_emails').insert([{ subject: `${tag} ${stamp}`, body_text: 'Hej', link_status: 'unidentified', received_at: new Date().toISOString(),
+          is_archived: false, is_read: false, graph_message_id: `harness-${tag.toLowerCase()}-${stamp}-${Math.random().toString(36).slice(2, 8)}`, to_email: 'kontakt@eltasolar.dk', ...o }]).select('id')
+        const id = (r.data?.[0] as { id?: string } | undefined)?.id ?? null
+        if (id) coordCleanup.unshift(async () => { await c.admin.from('audit_logs').delete().eq('entity_id', id); await c.admin.from('incoming_emails').delete().eq('id', id) })
+        return { id, err: r.error?.message ?? '' }
+      }
+      if (want('U272') || want('U273')) {
+        const r: Record<string, boolean> = {}
+        let diag = ''
+        try {
+          const cust = await seedCustomer('U272')
+          const sc = cust ? await c.admin.from('service_cases').insert([{ title: `[HARNESS] U272 inverter ${stamp}`, customer_id: cust.id, status: 'in_progress', priority: 'medium', source: 'manual', created_by: adminUser.id }]).select('id, case_number') : null
+          const sag = (sc?.data?.[0] as { id: string; case_number: string } | undefined) ?? null
+          if (sag) coordCleanup.unshift(() => c.admin.from('service_cases').delete().eq('id', sag.id))
+          const m = cust && sag ? await seedMail('U272', { sender_email: cust.email, sender_name: 'U272 Kontakt', subject: `Fejl på anlægget ${sag.case_number} U272-${stamp}`, body_text: 'Hej\nInverteren viser fejl igen. Kan I komme forbi?\nMvh' }) : { id: null, err: 'seed' }
+          r.seed = !!m.id
+          if (!m.id) diag += ` seed:${m.err}`
+          const a = await login(adminUser)
+          try {
+            if (!coordOn) {
+              await gotoSafe(a.page, `${base}/dashboard/arbejdsko`, { waitUntil: 'networkidle', timeout: 180_000 })
+              r.ingen_koe_flag_fra = (await a.page.getByTestId('work-queue-page').count()) === 0
+              r.intet_menupunkt = (await a.page.locator('a[href="/dashboard/arbejdsko"]').count()) === 0
+              await gotoSafe(a.page, `${base}/dashboard/mail?emailId=${m.id}`, { waitUntil: 'networkidle', timeout: 180_000 })
+              await a.page.waitForTimeout(1500)
+              r.ingen_forslagsboks = (await a.page.getByTestId('mail-coordinator').count()) === 0
+              await gotoSafe(a.page, `${base}/dashboard/orders/${sag!.id}?tab=kommunikation`, { waitUntil: 'networkidle', timeout: 180_000 })
+              r.ingen_sagsfane = (await a.page.getByRole('button', { name: 'Kommunikation', exact: true }).count()) === 0
+            } else {
+              await gotoSafe(a.page, `${base}/dashboard/arbejdsko`, { waitUntil: 'networkidle', timeout: 180_000 })
+              r.menupunkt = (await a.page.locator('a[href="/dashboard/arbejdsko"]').count()) > 0
+              const item = a.page.locator(`[data-testid="queue-item"][data-email-id="${m.id}"]`)
+              r.i_koen = await item.waitFor({ timeout: 120_000 }).then(() => true).catch(() => false)
+              r.taellere = (await a.page.getByTestId('queue-counters').count()) === 1
+              await item.click()
+              const panel = a.page.getByTestId('coordinator-panel')
+              await panel.waitFor({ timeout: 120_000 })
+              r.afsender_kunde_verificeret = (await a.page.getByTestId('coordinator-identity').getAttribute('data-kind')) === 'customer' && (await a.page.getByTestId('coordinator-identity').getAttribute('data-level')) === 'verified'
+              r.forslag_kobl_kunde_og_sag = (await a.page.getByTestId('coordinator-suggestion-kind').innerText()).includes('Kobl til kunde')
+                && (await a.page.getByTestId('coordinator-suggestion-reasons').innerText()).includes(sag!.case_number)
+              r.ingen_regel_id_i_visning = !/(email_human_customer|customer_verified|c3-v1|sender:)/.test(await panel.innerText())
+              r.sag_vist = (await a.page.getByTestId('coordinator-cases').innerText().catch(() => '')).includes(sag!.case_number)
+              await a.page.getByTestId('coordinator-accept').click()
+              r.udfoert_vist = await a.page.getByTestId('coordinator-msg').waitFor({ timeout: 60_000 }).then(async () => (await a.page.getByTestId('coordinator-msg').innerText()).includes('Udført')).catch(() => false)
+              const after = (await c.admin.from('incoming_emails').select('customer_id, linked_by, service_case_id, is_archived').eq('id', m.id!).maybeSingle()).data as { customer_id: string; linked_by: string; service_case_id: string; is_archived: boolean } | null
+              r.koblet_kunde_og_sag = after?.customer_id === cust!.id && after?.linked_by === 'manual' && after?.service_case_id === sag!.id && after?.is_archived === false
+              const aud = ((await c.admin.from('audit_logs').select('metadata, user_id').eq('entity_id', m.id!).eq('action', 'coordinator_decision')).data ?? []) as Array<{ metadata: Record<string, unknown>; user_id: string }>
+              r.audit_afgoerelse = aud.length === 1 && aud[0].user_id === adminUser.id && aud[0].metadata.decision === 'accept' && aud[0].metadata.result === 'executed'
+                && !JSON.stringify(aud[0].metadata).includes('Inverteren')
+              // Idempotens: efter genindlæsning er forslaget udført (ingen Godkend-knap), og der er stadig én afgørelse
+              await gotoSafe(a.page, `${base}/dashboard/arbejdsko`, { waitUntil: 'networkidle', timeout: 180_000 })
+              await item.click({ timeout: 120_000 })
+              await panel.waitFor({ timeout: 120_000 })
+              await a.page.waitForTimeout(800)
+              r.idempotent_ingen_godkend = (await a.page.getByTestId('coordinator-accept').count()) === 0
+              // Kommunikationen vises på sagen
+              await gotoSafe(a.page, `${base}/dashboard/orders/${sag!.id}?tab=kommunikation`, { waitUntil: 'networkidle', timeout: 180_000 })
+              r.vist_paa_sagen = await a.page.getByTestId('timeline-events').waitFor({ timeout: 90_000 }).then(async () => (await a.page.getByTestId('timeline-events').innerText()).includes(`U272-${stamp}`)).catch(() => false)
+              r.sagsfilter = (await a.page.getByTestId('timeline-filters').count()) === 1
+              // Afslut ét sted
+              await gotoSafe(a.page, `${base}/dashboard/arbejdsko`, { waitUntil: 'networkidle', timeout: 180_000 })
+              await item.click({ timeout: 120_000 })
+              await a.page.getByTestId('coordinator-complete').click({ timeout: 60_000 })
+              r.afsluttet_vist = await a.page.getByTestId('coordinator-msg').waitFor({ timeout: 60_000 }).then(async () => (await a.page.getByTestId('coordinator-msg').innerText()).includes('Afsluttet')).catch(() => false)
+              const done = (await c.admin.from('incoming_emails').select('is_archived, is_read').eq('id', m.id!).maybeSingle()).data as { is_archived: boolean; is_read: boolean } | null
+              r.mail_arkiveret = !!done?.is_archived && !!done?.is_read
+              r.audit_afsluttet = ((await c.admin.from('audit_logs').select('id').eq('entity_id', m.id!).eq('action', 'coordinator_completed')).data ?? []).length === 1
+              await gotoSafe(a.page, `${base}/dashboard/arbejdsko`, { waitUntil: 'networkidle', timeout: 180_000 })
+              await a.page.getByTestId('queue-list').waitFor({ timeout: 120_000 })
+              r.ude_af_koeen = (await item.count()) === 0
+              // Samme status i mail-modulet: mailen står som arkiveret (genåbn muligt)
+              await gotoSafe(a.page, `${base}/dashboard/mail?emailId=${m.id}`, { waitUntil: 'networkidle', timeout: 180_000 })
+              r.mail_viser_faerdig = await a.page.getByTestId('coordinator-status').waitFor({ timeout: 90_000 }).then(async () => (await a.page.getByTestId('coordinator-status').getAttribute('data-done')) === 'true').catch(() => false)
+            }
+          } finally { await a.ctx.close().catch(() => {}) }
+        } catch (e) { diag += ` fejl:${String(e).slice(0, 200)}`; r.ingen_undtagelse = false }
+        out.push({ id: `U272/U273 koordinator brugerrejse (flag ${coordOn ? 'TIL' : 'FRA'}): ${coordOn ? 'kø → afsender verificeret → kunde+sag foreslået → godkend → koblet → på sagen → afslut ét sted → audit' : 'ingen kø, menu, forslagsboks eller sagsfane'}`, ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + diag })
+      }
+      if (want('U274') && coordOn) {
+        const r: Record<string, boolean> = {}
+        let diag = ''
+        try {
+          const shared = `delt-u274-${stamp}@harness.test`
+          const c1 = await seedCustomer('U274A', { email: shared })
+          const c2 = await seedCustomer('U274B', { email: shared })
+          const amb = await seedMail('U274-delt', { sender_email: shared, body_text: 'Hej, vi har et spørgsmål til jeres faktura.' })
+          const own = await seedCustomer('U274C')
+          const fwd = own ? await seedMail('U274-fwd', { sender_email: `medarbejder-${stamp}@eltasolar.dk`, is_forwarded: true, original_sender_email: own.email, body_text: 'Videresendt besked' }) : { id: null }
+          r.seed = !!(c1 && c2 && amb.id && fwd.id)
+          const a = await login(adminUser)
+          try {
+            await gotoSafe(a.page, `${base}/dashboard/mail?emailId=${amb.id}`, { waitUntil: 'networkidle', timeout: 180_000 })
+            const box = a.page.getByTestId('mail-coordinator')
+            await box.getByTestId('coordinator-panel').waitFor({ timeout: 120_000 })
+            r.tvetydig_vaelg_mellem = (await box.getByTestId('coordinator-panel').getAttribute('data-suggestion')) === 'choose_between'
+            r.tvetydig_to_alternativer = (await box.locator('[data-testid="coordinator-alternative"][data-kind="link_customer"]').count()) === 2
+            r.tvetydig_ingen_godkend = (await box.getByTestId('coordinator-accept').count()) === 0
+            r.tvetydig_ikke_kunde = (await box.getByTestId('coordinator-identity').getAttribute('data-kind')) !== 'customer'
+            // Vælg den ene (ændring) → kobles; audit 'change'
+            await box.locator('[data-testid="coordinator-alternative"][data-kind="link_customer"]').first().getByTestId('coordinator-choose').click()
+            await box.getByTestId('coordinator-msg').waitFor({ timeout: 60_000 })
+            const lk = (await c.admin.from('incoming_emails').select('customer_id, linked_by').eq('id', amb.id!).maybeSingle()).data as { customer_id: string; linked_by: string } | null
+            r.valgt_alternativ_koblet = !!lk && [c1!.id, c2!.id].includes(lk.customer_id) && lk.linked_by === 'manual'
+            r.audit_aendret = ((await c.admin.from('audit_logs').select('metadata').eq('entity_id', amb.id!).eq('action', 'coordinator_decision')).data ?? []).some((x) => (x as { metadata: Record<string, unknown> }).metadata.decision === 'change')
+            // Videresendt mail fra medarbejder: oprindelig afsender identificeres
+            await gotoSafe(a.page, `${base}/dashboard/mail?emailId=${fwd.id}`, { waitUntil: 'networkidle', timeout: 180_000 })
+            const box2 = a.page.getByTestId('mail-coordinator')
+            await box2.getByTestId('coordinator-identity').waitFor({ timeout: 120_000 })
+            r.videresendt_oprindelig_kunde = (await box2.getByTestId('coordinator-identity').getAttribute('data-kind')) === 'customer'
+              && (await box2.getByTestId('coordinator-identity').innerText()).includes('videresendt')
+          } finally { await a.ctx.close().catch(() => {}) }
+          // Rettigheder: salg og montør har ikke inbox.view → ingen arbejdskø
+          for (const [name, u] of [['salg', salg], ['montoer', montor]] as const) {
+            const s = await login(u)
+            try {
+              await gotoSafe(s.page, `${base}/dashboard/arbejdsko`, { waitUntil: 'networkidle', timeout: 180_000 })
+              r[`${name}_ingen_koe`] = (await s.page.getByTestId('work-queue-page').count()) === 0
+              r[`${name}_intet_menupunkt`] = (await s.page.locator('a[href="/dashboard/arbejdsko"]').count()) === 0
+            } finally { await s.ctx.close().catch(() => {}) }
+          }
+        } catch (e) { diag += ` fejl:${String(e).slice(0, 200)}`; r.ingen_undtagelse = false }
+        out.push({ id: 'U274 koordinator: delt e-mail → vælg mellem (ingen godkend), valgt alternativ kobles + audit "ændret", videresendt mail → oprindelig kunde, salg/montør uden kø', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + diag })
+      }
+      if (want('U275') && coordOn) {
+        const r: Record<string, boolean> = {}
+        let diag = ''
+        try {
+          const ex = await seedCustomer('U275', { phone: '+45 31 41 59 26' })
+          const m = await seedMail('U275-ny', { sender_email: `ny-u275-${stamp}@harness.test`, sender_name: 'Ny Person', body_text: 'Hej\nVores anlæg virker ikke, der er fejl på inverteren.\nRing på 31 41 59 26\nMvh Ny Person' })
+          r.seed = !!(ex && m.id)
+          const before = ((await c.admin.from('customers').select('id', { count: 'exact', head: true })).count) ?? 0
+          const a = await login(adminUser)
+          try {
+            await gotoSafe(a.page, `${base}/dashboard/mail?emailId=${m.id}`, { waitUntil: 'networkidle', timeout: 180_000 })
+            const box = a.page.getByTestId('mail-coordinator')
+            await box.getByTestId('coordinator-panel').waitFor({ timeout: 120_000 })
+            // Telefonen i signaturen matcher den eksisterende kunde → sandsynlig kunde (ikke verificeret)
+            r.telefon_giver_sandsynlig = (await box.getByTestId('coordinator-identity').getAttribute('data-level')) === 'probable'
+            // Ukendt afsender uden telefon i mailen: opret kunde med dubletkontrol (medarbejderen taster telefonen)
+            const m2 = await seedMail('U275-dublet', { sender_email: `andet-u275-${stamp}@harness.test`, sender_name: 'U275 Kontakt', body_text: 'Fejl på anlægget, kom venligst.' })
+            await gotoSafe(a.page, `${base}/dashboard/mail?emailId=${m2.id}`, { waitUntil: 'networkidle', timeout: 180_000 })
+            const box2 = a.page.getByTestId('mail-coordinator')
+            await box2.getByTestId('coordinator-create-customer').click({ timeout: 120_000 })
+            await box2.getByTestId('customer-dedupe').waitFor({ timeout: 60_000 })
+            await box2.getByTestId('dedupe-field-phone').fill('31415926')
+            await box2.getByTestId('dedupe-field-phone').blur()
+            const cand = box2.locator('[data-testid="dedupe-candidate"]')
+            // Kandidatlisten genberegnes efter blur (navnet matcher allerede) — vent til telefon-grundlaget er vist
+            r.dublet_vist = false
+            for (let i = 0; i < 30 && !r.dublet_vist; i++) {
+              r.dublet_vist = (await box2.getByTestId('dedupe-candidates').innerText().catch(() => '')).includes('samme telefonnummer')
+              if (!r.dublet_vist) await a.page.waitForTimeout(1000)
+            }
+            await cand.first().getByTestId('dedupe-use-existing').click()
+            await box2.getByTestId('coordinator-msg').waitFor({ timeout: 60_000 })
+            const lk = (await c.admin.from('incoming_emails').select('customer_id').eq('id', m2.id!).maybeSingle()).data as { customer_id: string } | null
+            r.koblet_til_eksisterende = lk?.customer_id === ex!.id
+            r.ingen_ny_kunde = (((await c.admin.from('customers').select('id', { count: 'exact', head: true })).count) ?? 0) === before
+            r.audit_undgaaet_dublet = ((await c.admin.from('audit_logs').select('metadata').eq('entity_id', m2.id!).eq('action', 'customer_duplicate_avoided')).data ?? []).length === 1
+          } finally { await a.ctx.close().catch(() => {}) }
+        } catch (e) { diag += ` fejl:${String(e).slice(0, 200)}`; r.ingen_undtagelse = false }
+        out.push({ id: 'U275 C4 dubletkontrol: telefon = sandsynlig kunde; opret kunde viser dublet (telefon) → brug eksisterende → koblet, ingen ny kunde, audit undgået dublet', ok: Object.values(r).every(Boolean), note: Object.entries(r).map(([k, v]) => `${k}=${v ? 'ja' : 'nej'}`).join(' ') + diag })
+      }
+      for (const f of coordCleanup) { try { await f() } catch { /* oprydning best effort */ } }
       // U271 C1a KLASSIFIKATIONSFEEDBACK (kode-only). Med CLASSIFICATION_FEEDBACK_ENABLED (harness-standard): admin åbner en
       // leverandørmail (grossist-domæne + ordrebekræftelse), ser de fire dimensioner + regler, vurderer "Forkert" med rettet
       // henvendelsestype → audit-række med forudsagt/rettet; mailen (kobling/status/sag) og henvendelser er UÆNDREDE; salg ser
