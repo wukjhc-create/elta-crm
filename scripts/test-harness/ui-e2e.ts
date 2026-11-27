@@ -6774,8 +6774,11 @@ ${m.text()}`) })
                 && (await a.page.getByTestId('coordinator-suggestion-reasons').innerText()).includes(sag!.case_number)
               r.ingen_regel_id_i_visning = !/(email_human_customer|customer_verified|c3-v1|sender:)/.test(await panel.innerText())
               r.sag_vist = (await a.page.getByTestId('coordinator-cases').innerText().catch(() => '')).includes(sag!.case_number)
+              await a.page.screenshot({ path: join(shots, 'phase-c-1-arbejdsko-forslag.png') }).catch(() => {})
               await a.page.getByTestId('coordinator-accept').click()
+              await a.page.waitForTimeout(300)
               r.udfoert_vist = await a.page.getByTestId('coordinator-msg').waitFor({ timeout: 60_000 }).then(async () => (await a.page.getByTestId('coordinator-msg').innerText()).includes('Udført')).catch(() => false)
+              await a.page.screenshot({ path: join(shots, 'phase-c-2-godkendt.png') }).catch(() => {})
               const after = (await c.admin.from('incoming_emails').select('customer_id, linked_by, service_case_id, is_archived').eq('id', m.id!).maybeSingle()).data as { customer_id: string; linked_by: string; service_case_id: string; is_archived: boolean } | null
               r.koblet_kunde_og_sag = after?.customer_id === cust!.id && after?.linked_by === 'manual' && after?.service_case_id === sag!.id && after?.is_archived === false
               const aud = ((await c.admin.from('audit_logs').select('metadata, user_id').eq('entity_id', m.id!).eq('action', 'coordinator_decision')).data ?? []) as Array<{ metadata: Record<string, unknown>; user_id: string }>
@@ -6791,6 +6794,8 @@ ${m.text()}`) })
               await gotoSafe(a.page, `${base}/dashboard/orders/${sag!.id}?tab=kommunikation`, { waitUntil: 'networkidle', timeout: 180_000 })
               r.vist_paa_sagen = await a.page.getByTestId('timeline-events').waitFor({ timeout: 90_000 }).then(async () => (await a.page.getByTestId('timeline-events').innerText()).includes(`U272-${stamp}`)).catch(() => false)
               r.sagsfilter = (await a.page.getByTestId('timeline-filters').count()) === 1
+              await a.page.getByTestId('timeline-events').scrollIntoViewIfNeeded().catch(() => {})
+              await a.page.screenshot({ path: join(shots, 'phase-c-3-sag-kommunikation.png') }).catch(() => {})
               // Afslut ét sted
               await gotoSafe(a.page, `${base}/dashboard/arbejdsko`, { waitUntil: 'networkidle', timeout: 180_000 })
               await item.click({ timeout: 120_000 })
@@ -6830,6 +6835,7 @@ ${m.text()}`) })
             r.tvetydig_to_alternativer = (await box.locator('[data-testid="coordinator-alternative"][data-kind="link_customer"]').count()) === 2
             r.tvetydig_ingen_godkend = (await box.getByTestId('coordinator-accept').count()) === 0
             r.tvetydig_ikke_kunde = (await box.getByTestId('coordinator-identity').getAttribute('data-kind')) !== 'customer'
+            await box.screenshot({ path: join(shots, 'phase-c-4-mail-delt-email.png') }).catch(() => {})
             // Vælg den ene (ændring) → kobles; audit 'change'
             await box.locator('[data-testid="coordinator-alternative"][data-kind="link_customer"]').first().getByTestId('coordinator-choose').click()
             await box.getByTestId('coordinator-msg').waitFor({ timeout: 60_000 })
@@ -6885,6 +6891,7 @@ ${m.text()}`) })
               r.dublet_vist = (await box2.getByTestId('dedupe-candidates').innerText().catch(() => '')).includes('samme telefonnummer')
               if (!r.dublet_vist) await a.page.waitForTimeout(1000)
             }
+            await box2.getByTestId('customer-dedupe').screenshot({ path: join(shots, 'phase-c-5-dubletkontrol.png') }).catch(() => {})
             await cand.first().getByTestId('dedupe-use-existing').click()
             await box2.getByTestId('coordinator-msg').waitFor({ timeout: 60_000 })
             const lk = (await c.admin.from('incoming_emails').select('customer_id').eq('id', m2.id!).maybeSingle()).data as { customer_id: string } | null

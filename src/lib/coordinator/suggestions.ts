@@ -98,7 +98,6 @@ export function buildSuggestions(input: SuggestionInput): SuggestionSet {
   const caseOptions = caseOptionsFor(custId, input)
   const verifiedCase = caseOptions.filter((o) => o.level === 'verified' && !o.warning)
   const alternatives: Suggestion[] = []
-  const reasonsFromIdentity = id.explanation.slice(0, 3)
   const mk = (kind: SuggestionKind, level: IdentityLevel, reasons: string[], codes: string[], customerId: string | null = null, caseId: string | null = null): Suggestion => ({ kind, level, customerId, caseId, reasons, codes })
 
   let primary: Suggestion
@@ -122,7 +121,8 @@ export function buildSuggestions(input: SuggestionInput): SuggestionSet {
     const name = primaryCand.label
     const withCase = verifiedCase.length === 1 ? verifiedCase[0] : null
     primary = mk('link_customer', primaryCand.level,
-      [`Kobl til ${name}${withCase ? ` og sag ${withCase.caseNumber}` : ''}`, ...reasonsFromIdentity.slice(1)],
+      // Begrundelsen for afsenderen står allerede i afsenderboksen — forslaget siger kun hvad der sker (og hvorfor sagen)
+      [`Kobl til ${name}${withCase ? ` og sag ${withCase.caseNumber}` : ''}`, ...(withCase ? [`Sagen: ${withCase.reason}`] : [])],
       ['customer_' + primaryCand.level, ...primaryCand.evidence], primaryCand.customerId, withCase?.caseId ?? null)
     if (!withCase && inquiry === 'service_request' && !caseOptions.length) alternatives.push(mk('create_service_case', 'probable', ['Opret servicesag til kunden'], ['service_no_open_case'], primaryCand.customerId))
   } else if (id.alternatives.length || (id.primary && id.primary.level === 'uncertain')) {

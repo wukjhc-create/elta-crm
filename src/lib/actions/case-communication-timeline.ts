@@ -58,9 +58,10 @@ export async function getCaseCommunicationTimeline(caseId: string): Promise<Cust
       (r) => [{ sourceTable: 'work_orders', sourceId: String(r.id), kind: 'planning', at: str(r.scheduled_date) ?? str(r.created_at), title: str(r.title)?.trim() || 'Planlagt arbejde', summary: str(r.status), customerId: owner, caseId }]),
     read('inquiries', !ctx.hasPermission('conversations.view'), () => db.from('conversations').select('id, title, ai_summary, last_at').eq('service_case_id', caseId).neq('status', 'spam').order('last_at', { ascending: false }).limit(40),
       (r) => [{ sourceTable: 'conversations', sourceId: String(r.id), kind: 'inquiry', at: str(r.last_at), title: str(r.title)?.trim() || 'Henvendelse', summary: clip(r.ai_summary), customerId: owner, caseId }]),
-    read('offers', !ctx.hasPermission('offers.view') || !sag.source_offer_id, () => db.from('offers').select('id, offer_number, title, status, created_at, sent_at').eq('id', sag.source_offer_id as string).limit(1),
+    // Sagen uden kildetilbud → kilden springes tavst over (ikke "skjult med din adgang")
+    !sag.source_offer_id ? Promise.resolve() : read('offers', !ctx.hasPermission('offers.view'), () => db.from('offers').select('id, offer_number, title, status, created_at, sent_at').eq('id', sag.source_offer_id as string).limit(1),
       (r) => offerEvents(r, owner, caseId)),
-    read('participants', !partiesUiEnabled(), () => db.from('case_participants').select('id, role, created_at, ended_at, parties(display_name)').eq('case_id', caseId).order('created_at', { ascending: false }).limit(40),
+    read('participants', !partiesUiEnabled(), () => db.from('case_participants').select('id, role, created_at, ended_at, parties(display_name)').eq('service_case_id', caseId).order('created_at', { ascending: false }).limit(40),
       (r) => { const p = r.parties as { display_name?: string } | null; return [{ sourceTable: 'case_participants', sourceId: String(r.id), kind: 'participant', at: str(r.created_at), title: `Sagsdeltager: ${p?.display_name ?? 'part'}`, summary: str(r.ended_at) ? 'Afsluttet' : null, customerId: owner, caseId }] }),
   ])
   inputs.push(...caseEvents(sag, owner))

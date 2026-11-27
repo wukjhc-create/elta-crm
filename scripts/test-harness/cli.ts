@@ -3154,6 +3154,30 @@ Total inkl. moms 11.718,75
     // Phase C2/C3/C7 (STAGING, read-only): kør identitet + forslag på de N nyeste mails og hele arbejdskøen med
     // service-role; tæl fejl/fordelinger og mål tid (performance). Skriver intet. [N=60]
     const n = Math.min(300, Math.max(1, Number(process.argv[3]) || 60))
+    // CLAUDE.md: kode skal matche FAKTISK skema — hvert kolonnesæt den nye kode læser, prøves mod staging
+    const SCHEMA: Array<[string, string]> = [
+      ['incoming_emails', 'id, received_at, to_email, sender_email, sender_name, original_sender_email, original_sender_name, is_forwarded, conversation_id, customer_id, linked_by, link_status, service_case_id, is_archived, is_read, subject, body_text, body_html, body_preview, has_attachments, attachment_urls'],
+      ['customers', 'id, customer_number, company_name, contact_person, email, phone, mobile, vat_number, billing_address, billing_postal_code, billing_city, tags, created_at, is_active'],
+      ['customer_contacts', 'id, customer_id, name, email, phone, mobile, created_at'],
+      ['parties', 'id, kind, display_name, customer_id, supplier_id, profile_id, verified_emails, verified_domains, vat_number, organisation_party_id'],
+      ['party_relationships', 'id, party_id, relationship, status'],
+      ['profiles', 'id, email, full_name, is_active'],
+      ['service_cases', 'id, case_number, customer_id, title, status, created_at, updated_at, closed_at, is_proposal, source_offer_id, source_email_id'],
+      ['suppliers', 'contact_email, website, is_active'], ['company_settings', 'company_phone, company_vat_number'],
+      ['email_intelligence_logs', 'email_id, classification, created_at'], ['incoming_invoices', 'source_email_id'],
+      ['offers', 'id, offer_number, customer_id, status, title, created_at, sent_at'],
+      ['conversation_items', 'conversation_id, source_table, source_id'],
+      ['conversations', 'id, status, urgency, assigned_profile_id, handled_at, match_version, customer_match_state, channel, title, intent, first_at, last_at, ai_summary, service_case_id, customer_id'],
+      ['conversation_actions', 'conversation_id, action_type, state'],
+      ['case_notes', 'id, content, created_at, case_id'], ['customer_tasks', 'id, title, description, created_at, auto_rule, service_case_id'],
+      ['customer_documents', 'id, title, document_type, created_at, service_case_id, source_email_id'],
+      ['work_orders', 'id, title, status, scheduled_date, created_at, case_id'],
+      ['case_participants', 'id, role, created_at, ended_at, service_case_id, parties(display_name)'],
+      ['audit_logs', 'id, user_id, entity_type, entity_id, action, action_description, metadata, created_at'],
+    ]
+    let schemaErr = 0
+    for (const [t, cols] of SCHEMA) { const r = await admin.from(t).select(cols).limit(1); if (r.error) { schemaErr++; log(`SKEMA-FEJL ${t}: ${r.error.message}`) } }
+    log(`skema: ${SCHEMA.length - schemaErr}/${SCHEMA.length} kolonnesæt findes`)
     const { loadRegistry } = await import('../../src/lib/coordinator/load-identity')
     const { buildCoordinatorView } = await import('../../src/lib/coordinator/view')
     const { buildQueue } = await import('../../src/lib/coordinator/queue')
@@ -3203,7 +3227,7 @@ Total inkl. moms 11.718,75
     const anyProfile = ((await admin.from('profiles').select('id').eq('role', 'admin').limit(1)).data ?? [])[0] as { id: string } | undefined
     const q = await buildQueue(admin, admin, anyProfile?.id ?? '00000000-0000-0000-0000-000000000000')
     log(`arbejdskø: ${q.items.length} poster (${Date.now() - tq} ms) · fejl ${q.errors} · ${JSON.stringify(q.counts.byCategory)}`)
-    const ok = errors === 0 && verifiedWeak === 0 && hiddenLeak === 0 && q.errors === 0
+    const ok = errors === 0 && verifiedWeak === 0 && hiddenLeak === 0 && q.errors === 0 && schemaErr === 0
     log(`${ok ? '✅' : '❌'} invarianter: verificeret-uden-stærk-nøgle=${verifiedWeak} · forslag-uden-mål=${hiddenLeak}`)
     process.exitCode = ok ? 0 : 1
     return
