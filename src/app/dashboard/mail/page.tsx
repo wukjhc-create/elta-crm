@@ -5,6 +5,7 @@ import { MailClient } from './mail-client'
 import { getProposalsCount } from '@/lib/actions/proposals'
 import { getAuthenticatedClientWithRole } from '@/lib/actions/action-helpers'
 import { classificationFeedbackEnabled } from '@/lib/classification/feature-flag'
+import { coordinatorEnabled } from '@/lib/coordinator/feature-flag'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,9 +24,22 @@ async function showClassificationFeedback(): Promise<boolean> {
   }
 }
 
+/** C2/C3: forslagsboksen i mailvisningen kun med COORDINATOR_ENABLED (afgjort på serveren) */
+async function coordinatorProps(): Promise<{ show: boolean; canManageConversations: boolean; canRemember: boolean }> {
+  if (!coordinatorEnabled()) return { show: false, canManageConversations: false, canRemember: false }
+  try {
+    const ctx = await getAuthenticatedClientWithRole()
+    const { partiesUiEnabled } = await import('@/lib/parties/feature-flag')
+    return { show: ctx.hasPermission('inbox.view'), canManageConversations: ctx.hasPermission('conversations.manage'), canRemember: ctx.hasPermission('parties.manage') && partiesUiEnabled() }
+  } catch {
+    return { show: false, canManageConversations: false, canRemember: false }
+  }
+}
+
 export default async function MailPage() {
   const proposalsCount = await getProposalsCount().catch(() => 0)
   const classificationFeedback = await showClassificationFeedback()
+  const coordinator = await coordinatorProps()
 
   return (
     <Suspense
@@ -57,7 +71,7 @@ export default async function MailPage() {
           </Link>
         </div>
       )}
-      <MailClient showClassificationFeedback={classificationFeedback} />
+      <MailClient showClassificationFeedback={classificationFeedback} coordinator={coordinator} />
     </Suspense>
   )
 }

@@ -6,6 +6,7 @@ import { CommandPalette } from '@/components/layout/command-palette'
 import { TaskReminderOverlay } from '@/components/layout/task-reminder-overlay'
 import { BottomNav } from '@/components/layout/bottom-nav'
 import { NotificationsProvider } from '@/components/layout/notifications-provider'
+import { coordinatorEnabled } from '@/lib/coordinator/feature-flag'
 
 export default async function DashboardLayout({
   children,
@@ -24,7 +25,7 @@ export default async function DashboardLayout({
         <CommandPalette />
         {/* Sidebar — hidden on mobile */}
         <div className="hidden md:flex">
-          <Sidebar />
+          <Sidebar coordinatorEnabled={coordinatorEnabled()} />
         </div>
 
         {/* Main content */}

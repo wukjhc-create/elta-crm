@@ -2,6 +2,7 @@
 
 import { CreateLeadFromMailButton } from './create-lead-from-mail-button'
 import { WebInquiryCard } from './web-inquiry-card'
+import { CoordinatorPanel } from '@/components/coordinator/coordinator-panel'
 import { ClassificationFeedbackPanel } from './classification-feedback-panel'
 import { useState, useEffect } from 'react'
 import {
@@ -60,6 +61,8 @@ interface MailDetailProps {
   isCreatingServiceCase?: boolean
   /** C1a: vis klassifikationsboksen (server har afgjort flag + admin) */
   showClassificationFeedback?: boolean
+  /** C2/C3 forslagsboks (COORDINATOR_ENABLED) */
+  coordinator?: { show: boolean; canManageConversations: boolean; canRemember: boolean }
 }
 
 // =====================================================
@@ -119,6 +122,7 @@ export function MailDetail({
   onRestoreFromIgnored,
   isCreatingServiceCase,
   showClassificationFeedback,
+  coordinator,
 }: MailDetailProps) {
   const [portalAccess, setPortalAccess] = useState<{ hasPortal: boolean } | null>(null)
   const [isBackfilling, setIsBackfilling] = useState(false)
@@ -687,6 +691,11 @@ export function MailDetail({
       {/* EMAIL BODY                                     */}
       {/* ============================================== */}
       <div className="flex-1 overflow-y-auto p-5">
+        {coordinator?.show && (
+          <div className="mb-3" data-testid="mail-coordinator">
+            <CoordinatorPanel emailId={email.id} canManageConversations={coordinator.canManageConversations} canRemember={coordinator.canRemember} compact />
+          </div>
+        )}
         {showClassificationFeedback && <ClassificationFeedbackPanel emailId={email.id} />}
         <div className="mb-4 empty:hidden"><WebInquiryCard email={email} /></div>
         {email.body_html ? (

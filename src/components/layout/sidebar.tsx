@@ -9,6 +9,7 @@ import { useUserRole } from '@/lib/hooks/use-user-role'
 import type { Permission } from '@/lib/auth/permissions'
 import { useVisiblePolling } from '@/lib/hooks/use-visible-polling'
 import { getTaskCounts } from '@/lib/actions/customer-tasks'
+import { getWorkQueueCountAction } from '@/lib/actions/coordinator'
 
 interface NavItem {
   name: string
@@ -18,6 +19,8 @@ interface NavItem {
   permission?: Permission
   /** Kun synlig for admin (bruges hvor der ikke findes en dedikeret permission endnu). */
   adminOnly?: boolean
+  /** Kun synlig når Phase C-koordinatoren er slået til (COORDINATOR_ENABLED, sat af serverlayoutet) */
+  coordinatorOnly?: boolean
 }
 
 interface NavSection {
@@ -85,6 +88,17 @@ const navSections: NavSection[] = [
               strokeWidth={2}
               d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
             />
+          </svg>
+        ),
+      },
+      {
+        name: 'Arbejdskø',
+        href: '/dashboard/arbejdsko',
+        permission: 'inbox.view',
+        coordinatorOnly: true,
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h10M4 18h7m9-3l-3 3-2-2" />
           </svg>
         ),
       },
@@ -511,7 +525,7 @@ function isNavActive(pathname: string, item: NavItem): boolean {
   return pathname === item.href || pathname.startsWith(item.href + '/')
 }
 
-export function Sidebar() {
+export function Sidebar({ coordinatorEnabled = false }: { coordinatorEnabled?: boolean } = {}) {
   const pathname = usePathname()
   const { role, can } = useUserRole()
   const [taskCount, setTaskCount] = useState(0)
@@ -532,10 +546,19 @@ export function Sidebar() {
 
   useVisiblePolling(fetchCounts, 60_000)
 
+  // C7: antal åbne poster i arbejdskøen (kun når koordinatoren er slået til; billig HEAD-tælling)
+  const [queueCount, setQueueCount] = useState(0)
+  const fetchQueueCount = useCallback(async () => {
+    if (!coordinatorEnabled) return
+    try { setQueueCount(await getWorkQueueCountAction()) } catch { /* ikke kritisk */ }
+  }, [coordinatorEnabled])
+  useVisiblePolling(fetchQueueCount, 60_000)
+
   // Filter nav items by role permissions
   const filteredSections = navSections.map((section) => ({
     ...section,
     items: section.items.filter((item) => {
+      if (item.coordinatorOnly && !coordinatorEnabled) return false
       if (item.adminOnly) return role === 'admin'
       if (!item.permission) return true
       return can(item.permission)
@@ -582,6 +605,11 @@ export function Sidebar() {
                   >
                     {item.icon}
                     {item.name}
+                    {item.href === '/dashboard/arbejdsko' && queueCount > 0 && (
+                      <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-semibold rounded-full bg-blue-500 text-white" data-testid="nav-queue-count">
+                        {queueCount}
+                      </span>
+                    )}
                     {item.href === '/dashboard/tasks' && (taskCount > 0 || overdueCount > 0) && (
                       <span className="ml-auto inline-flex items-center gap-1">
                         {overdueCount > 0 && (
